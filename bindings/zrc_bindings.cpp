@@ -97,7 +97,8 @@ public:
         if (py::hasattr(py_sink, "OnGetAppContentDirPath")) {
             return py_sink.attr("OnGetAppContentDirPath")().cast<std::string>();
         }
-        return "/tmp/zrc_sdk";
+        // Fallback: use /root/.zoom/data (contains third_zrc_data.db with room credentials)
+        return "/root/.zoom/data";
     }
 
     bool OnPromptToInputUserNamePasswordForProxyServer(const std::string& proxyHost, uint32_t port, const std::string& description) override {

@@ -12,8 +12,15 @@ The wrapper is now completely self-contained within this directory:
 - ✅ **Git-Friendly** - SDK binaries excluded via .gitignore
 - ✅ **Docker Ready** - Single command to build and run
 - ✅ **Reproducible Builds** - Always uses latest SDK from Zoom
+- ✅ **Persistent Data** - Paired rooms survive container updates via Docker volume
 
-See [SELF_CONTAINED_SETUP.md](SELF_CONTAINED_SETUP.md) for details.
+### ⚠️ Data Persistence
+
+Paired room credentials are stored in `~/.zoom/data/third_zrc_data.db` and automatically persisted via Docker volume `zrc-data`.
+
+**Backup:** `./backup.sh` | **Restore:** `./restore.sh <backup-file>`
+
+See [DATA_PERSISTENCE.md](DATA_PERSISTENCE.md) for complete guide.
 
 ### What Works
 

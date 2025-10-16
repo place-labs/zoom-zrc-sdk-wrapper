@@ -11,7 +11,10 @@ services:
       - PYTHONUNBUFFERED=1
       - LD_LIBRARY_PATH=/app/libs
     volumes:
-      # Mount logs directory for persistence
+      # CRITICAL: Persistent data volume - contains paired room credentials (third_zrc_data.db)
+      # This MUST be backed up and persisted across container updates
+      - zrc-data:/root/.zoom/data
+      # Optional: Logs volume (can be omitted if logs aren't needed on host)
       - ./logs:/root/.zoom/logs
       # Optional: mount service code for development
       # - ./service:/app/service
@@ -28,3 +31,9 @@ services:
 networks:
   zrc-network:
     driver: bridge
+
+volumes:
+  zrc-data:
+    driver: local
+    # This volume contains CRITICAL paired room data
+    # Backup location: Use 'docker volume inspect zrc-data' to find the path

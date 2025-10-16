@@ -8,6 +8,20 @@ A fully self-contained Python microservice wrapper around the Zoom Rooms C++ SDK
 - ✅ **Git-friendly** - Binaries excluded, only source committed
 - ✅ **Docker ready** - Single command deployment
 - ✅ **Always latest** - Downloads current SDK version from Zoom
+- ✅ **Persistent data** - Paired room credentials survive container updates
+
+## ⚠️ Important: Data Persistence
+
+The SDK stores paired room credentials in `/root/.zoom/data/third_zrc_data.db`. This data **MUST** be persisted across container updates, otherwise all rooms need to be re-paired.
+
+**The docker-compose.yml already handles this** via a named Docker volume (`zrc-data`). Room data automatically persists through container recreations and image updates.
+
+**Backup your data:**
+```bash
+./backup.sh  # Creates backups/zrc-data-YYYYMMDD_HHMMSS.tar.gz
+```
+
+See [DATA_PERSISTENCE.md](DATA_PERSISTENCE.md) for complete backup/restore guide.
 
 ## Architecture
 

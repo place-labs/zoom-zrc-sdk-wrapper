@@ -45,8 +45,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy service code
 COPY service ./service
 
-# Create logs directory
-RUN mkdir -p /root/.zoom/logs
+# Create data and logs directories
+# /root/.zoom/data - CRITICAL: Contains paired room database (third_zrc_data.db)
+# /root/.zoom/logs - SDK log files
+RUN mkdir -p /root/.zoom/data /root/.zoom/logs
 
 # Expose API port
 EXPOSE 8000

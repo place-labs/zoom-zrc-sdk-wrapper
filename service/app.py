@@ -80,9 +80,12 @@ class SDKSinkImpl:
 
     def OnGetAppContentDirPath(self) -> str:
         import os
-        log_dir = os.path.expanduser("~/.zoom/logs")
-        os.makedirs(log_dir, exist_ok=True)
-        return log_dir
+        # SDK stores paired room data in this directory
+        # CRITICAL: Contains third_zrc_data.db with room credentials and tokens
+        # This MUST be persisted across container restarts
+        data_dir = os.path.expanduser("~/.zoom/data")
+        os.makedirs(data_dir, exist_ok=True)
+        return data_dir
 
 
 # ===== Room Manager =====
