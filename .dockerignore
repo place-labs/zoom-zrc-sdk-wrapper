@@ -1,0 +1,38 @@
+# Build artifacts
+build/
+*.so
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Generator (not needed in container)
+generator/
+
+# Test files
+test_*.sh

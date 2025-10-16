@@ -6,8 +6,8 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# Set library path for SDK
-export LD_LIBRARY_PATH="$(cd .. && pwd)/libs:$LD_LIBRARY_PATH"
+# Set library path for SDK (local to wrapper directory)
+export LD_LIBRARY_PATH="$SCRIPT_DIR/libs:$LD_LIBRARY_PATH"
 
 # Check if module is built
 if [ ! -f "service/zrc_sdk."*".so" ] && [ ! -f "service/zrc_sdk.so" ]; then

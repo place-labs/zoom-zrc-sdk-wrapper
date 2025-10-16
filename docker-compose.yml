@@ -1,0 +1,30 @@
+services:
+  zrc-microservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zrc-microservice:latest
+    container_name: zrc-microservice
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LD_LIBRARY_PATH=/app/libs
+    volumes:
+      # Mount logs directory for persistence
+      - ./logs:/root/.zoom/logs
+      # Optional: mount service code for development
+      # - ./service:/app/service
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - zrc-network
+
+networks:
+  zrc-network:
+    driver: bridge

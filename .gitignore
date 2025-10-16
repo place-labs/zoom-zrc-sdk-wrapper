@@ -1,3 +1,10 @@
+# Zoom Rooms SDK (downloaded automatically)
+Demo/
+include/
+libs/
+zrc_sdk.zip
+*.zip
+
 # Build artifacts
 build/
 *.o
@@ -16,15 +23,32 @@ dist/
 venv/
 env/
 
-# Generated bindings (can be regenerated)
-bindings/zrc_bindings.cpp
+# Generated bindings - keep the source!
+# bindings/zrc_bindings.cpp should be committed
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.bak
+*~
+.DS_Store
 
 # Logs
 *.log
 logs/
+*.log.*
+
+# Temporary files
+*.tmp
+.cache/
+
+# Local configuration
+.env
+.env.local
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

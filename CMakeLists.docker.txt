@@ -20,11 +20,9 @@ if(NOT pybind11_FOUND)
     FetchContent_MakeAvailable(pybind11)
 endif()
 
-# SDK paths (local to wrapper directory)
-set(SDK_ROOT ${PROJECT_SOURCE_DIR})
-set(SDK_INCLUDE ${SDK_ROOT}/include)
-set(SDK_LIBS ${SDK_ROOT}/libs)
-set(DEMO_LIBS ${SDK_ROOT}/Demo/libs)
+# SDK paths - simplified for Docker
+set(SDK_INCLUDE /opt/zoomsdk/include/include)
+set(SDK_LIBS /opt/zoomsdk/libs)
 
 # Create Python module from generated bindings
 pybind11_add_module(zrc_sdk bindings/zrc_bindings.cpp)
@@ -32,39 +30,27 @@ pybind11_add_module(zrc_sdk bindings/zrc_bindings.cpp)
 # Include directories
 target_include_directories(zrc_sdk PRIVATE
     ${SDK_INCLUDE}
-    ${SDK_INCLUDE}/include
-    ${SDK_INCLUDE}/include/ServiceComponents
-    ${SDK_ROOT}/Demo/include/libuv/include
+    ${SDK_INCLUDE}/ServiceComponents
 )
 
 # Link directories
 target_link_directories(zrc_sdk PRIVATE
     ${SDK_LIBS}
-    ${DEMO_LIBS}
 )
 
 # Link libraries
-if(UNIX AND NOT APPLE)
-    target_link_libraries(zrc_sdk PRIVATE
-        ZRCSdk
-        atomic
-        pthread
-        dl
-    )
-    # Set RPATH for runtime linking
-    set_target_properties(zrc_sdk PROPERTIES
-        INSTALL_RPATH "${SDK_LIBS}"
-        BUILD_WITH_INSTALL_RPATH TRUE
-    )
-elseif(UNIX AND APPLE)
-    target_link_libraries(zrc_sdk PRIVATE
-        "-framework ZRCSdk"
-    )
-elseif(WIN32)
-    target_link_libraries(zrc_sdk PRIVATE
-        ZRCSdk.lib
-    )
-endif()
+target_link_libraries(zrc_sdk PRIVATE
+    ZRCSdk
+    atomic
+    pthread
+    dl
+)
+
+# Set RPATH for runtime linking
+set_target_properties(zrc_sdk PROPERTIES
+    INSTALL_RPATH "${SDK_LIBS}"
+    BUILD_WITH_INSTALL_RPATH TRUE
+)
 
 # Install target
 install(TARGETS zrc_sdk DESTINATION ${PROJECT_SOURCE_DIR}/service)

@@ -4,6 +4,17 @@
 
 The microservice wrapper has been successfully built and tested.
 
+### 🎉 Now Fully Self-Contained!
+
+The wrapper is now completely self-contained within this directory:
+- ✅ **Automatic SDK Download** - No manual SDK setup required
+- ✅ **Zero External Dependencies** - Everything downloaded during build
+- ✅ **Git-Friendly** - SDK binaries excluded via .gitignore
+- ✅ **Docker Ready** - Single command to build and run
+- ✅ **Reproducible Builds** - Always uses latest SDK from Zoom
+
+See [SELF_CONTAINED_SETUP.md](SELF_CONTAINED_SETUP.md) for details.
+
 ### What Works
 
 - ✅ pybind11 C++ bindings compiled successfully
@@ -14,6 +25,7 @@ The microservice wrapper has been successfully built and tested.
 - ✅ Minimal viable wrapper is complete
 - ✅ **Automatic room restoration** - Previously paired rooms are restored on service startup
 - ✅ QueryAllZoomRoomsServices() integration working
+- ✅ **Self-contained setup** - SDK downloaded automatically during build
 
 ### Project Structure
 
@@ -27,25 +39,56 @@ wrapper/
 ├── build.sh                      # Build script
 ├── run_service.sh                # Service launcher
 ├── CMakeLists.txt                # Build configuration
+├── CMakeLists.docker.txt         # Docker-specific build configuration
+├── Dockerfile                    # Docker image definition
+├── docker-compose.yml            # Docker Compose configuration
+├── DOCKER.md                     # Docker deployment guide
 └── requirements.txt              # Python dependencies
 ```
 
 ### How to Run
 
+#### Option 1: Docker (Recommended - Fully Self-Contained)
+
 ```bash
 cd /home/steve/projects/zoom/wrapper
 
-# 1. Module is already built! ✓
+# Build and start the service (automatically downloads SDK)
+docker-compose up -d
 
-# 2. Set library path and test
-export LD_LIBRARY_PATH=/home/steve/projects/zoom/libs:$LD_LIBRARY_PATH
+# Check status
+docker-compose ps
 
-# 3. Test the module
-python3 -c "import sys; sys.path.insert(0, 'service'); import zrc_sdk; print('Success!')"
+# View logs
+docker-compose logs -f
 
-# 4. Start the FastAPI microservice (when ready)
-./run_service.sh
+# Test the API
+curl http://localhost:8000/health
+
+# Stop the service
+docker-compose down
 ```
+
+See [DOCKER.md](DOCKER.md) for complete Docker deployment guide.
+
+#### Option 2: Native/Local Build
+
+```bash
+cd /home/steve/projects/zoom/wrapper
+
+# 1. Build (automatically downloads SDK from Zoom)
+./build.sh
+
+# 2. Run the service
+./run_service.sh
+
+# 3. Test the API
+curl http://localhost:8000/health
+```
+
+**Note**: The SDK is automatically downloaded during the build process. No manual SDK setup required!
+
+See [SELF_CONTAINED_SETUP.md](SELF_CONTAINED_SETUP.md) for complete setup guide.
 
 ### Available SDK Functions
 

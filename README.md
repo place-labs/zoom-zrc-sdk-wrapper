@@ -1,6 +1,13 @@
 # Zoom Rooms SDK Microservice
 
-A lightweight Python microservice wrapper around the Zoom Rooms C++ SDK. Exposes all SDK functionality via REST API + WebSocket for real-time events.
+A fully self-contained Python microservice wrapper around the Zoom Rooms C++ SDK. Automatically downloads the SDK and exposes all functionality via REST API.
+
+## 🎉 Fully Self-Contained
+
+- ✅ **Zero manual setup** - SDK downloaded automatically during build
+- ✅ **Git-friendly** - Binaries excluded, only source committed
+- ✅ **Docker ready** - Single command deployment
+- ✅ **Always latest** - Downloads current SDK version from Zoom
 
 ## Architecture
 
@@ -40,48 +47,76 @@ A lightweight Python microservice wrapper around the Zoom Rooms C++ SDK. Exposes
 
 ## Project Structure
 
+### Committed to Git (Source Files)
 ```
 wrapper/
-├── bindings/              # Generated C++ pybind11 code
-│   └── zrc_bindings.cpp  # Auto-generated, don't edit
-├── generator/             # Binding generator scripts
-│   └── simple_generator.py
+├── .gitignore             # Excludes SDK and binaries
+├── bindings/              # C++ pybind11 bindings
+│   └── zrc_bindings.cpp  # Hand-crafted bindings
 ├── service/               # FastAPI microservice
 │   └── app.py            # Main service implementation
-├── build/                 # CMake build directory (created during build)
-├── .venv/                 # Python virtual environment
 ├── CMakeLists.txt         # Build configuration
+├── Dockerfile             # Self-contained Docker build
+├── docker-compose.yml     # Service orchestration
 ├── requirements.txt       # Python dependencies
-├── build.sh               # Build the C++ module
-├── run_service.sh         # Start the microservice
-├── update_sdk.sh          # Regenerate bindings for new SDK version
-└── README.md              # This file
+├── build.sh               # Build script with auto SDK download
+├── run_service.sh         # Service launcher
+└── *.md                   # Documentation
 ```
+
+### Generated During Build (Not in Git)
+```
+wrapper/
+├── Demo/                  # SDK demo files (downloaded)
+├── include/               # SDK headers (downloaded)
+├── libs/                  # SDK shared libraries (downloaded)
+├── build/                 # Build artifacts
+├── .venv/                 # Python virtual environment
+└── service/zrc_sdk*.so   # Compiled Python module
+```
+
+All SDK files and binaries are automatically downloaded/generated and excluded from version control.
 
 ## Quick Start
 
-### 1. Build the C++ Python Module
+### Option 1: Docker (Recommended)
 
 ```bash
 cd wrapper
-./build.sh
+
+# Build and start (automatically downloads SDK)
+docker-compose up -d
+
+# Test the API
+curl http://localhost:8000/health
 ```
 
-This will:
-- Download pybind11 (if needed)
-- Compile the C++ bindings
-- Install the `zrc_sdk` Python module to `service/`
+- **API documentation**: http://localhost:8000/docs
+- **Logs**: `docker-compose logs -f`
+- **Stop**: `docker-compose down`
 
-### 2. Run the Microservice
+### Option 2: Local Build
 
 ```bash
+cd wrapper
+
+# Build (automatically downloads SDK from Zoom)
+./build.sh
+
+# Run the microservice
 ./run_service.sh
 ```
 
 The service will start on `http://localhost:8000`
 
-- **API documentation**: http://localhost:8000/docs
-- **Health check**: http://localhost:8000/
+**What happens during build:**
+1. Downloads Zoom Rooms SDK (~31 MB) from Zoom servers
+2. Extracts SDK files (Demo/, include/, libs/)
+3. Downloads pybind11 (if needed)
+4. Compiles the C++ bindings
+5. Installs the `zrc_sdk` Python module to `service/`
+
+See [SELF_CONTAINED_SETUP.md](SELF_CONTAINED_SETUP.md) for complete setup guide.
 
 ## API Usage
 
