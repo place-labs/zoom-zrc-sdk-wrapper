@@ -105,6 +105,29 @@ class RoomManager:
         result = zrc_sdk.RegisterSDKSink(self.sdk, self.sdk_sink)
         logger.info(f"SDK sink registered: {result}")
 
+        # Query and restore previously paired rooms
+        logger.info("Querying for previously paired rooms...")
+        room_infos = []
+        result = self.sdk.QueryAllZoomRoomsServices(room_infos)
+
+        if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+            if room_infos:
+                logger.info(f"Found {len(room_infos)} previously paired room(s)")
+                for room_info in room_infos:
+                    logger.info(f"  - Room: {room_info.roomID} ({room_info.roomName})")
+                    logger.info(f"    Display: {room_info.displayName}")
+                    logger.info(f"    Address: {room_info.roomAddress}")
+                    logger.info(f"    Can retry: {room_info.canRetryToPair}")
+
+                    # Get the service for this room
+                    if room_info.worker:
+                        self.rooms[room_info.roomID] = room_info.worker
+                        logger.info(f"✓ Restored room service for: {room_info.roomID}")
+            else:
+                logger.info("No previously paired rooms found")
+        else:
+            logger.warning(f"QueryAllZoomRoomsServices returned: {result}")
+
         logger.info("✓ SDK initialized successfully")
 
     async def start_heartbeat(self):

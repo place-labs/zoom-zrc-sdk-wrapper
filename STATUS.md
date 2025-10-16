@@ -12,6 +12,8 @@ The microservice wrapper has been successfully built and tested.
 - ✅ Key enums available (ConnectionState, MeetingStatus, ExitMeetingCmd)
 - ✅ SDK singleton can be obtained
 - ✅ Minimal viable wrapper is complete
+- ✅ **Automatic room restoration** - Previously paired rooms are restored on service startup
+- ✅ QueryAllZoomRoomsServices() integration working
 
 ### Project Structure
 
@@ -52,6 +54,7 @@ python3 -c "import sys; sys.path.insert(0, 'service'); import zrc_sdk; print('Su
 - `HeartBeat()` - Required on Linux (call every ~150ms)
 - `CreateZoomRoomsService(roomID)` - Create room service
 - `RegisterSDKSink(sdk, sink_object)` - Register callbacks
+- `QueryAllZoomRoomsServices()` - Get list of previously paired rooms (auto-restore on startup)
 
 **Room Service (IZoomRoomsService):**
 - `PairRoomWithActivationCode(code)` - Pair room
@@ -71,9 +74,10 @@ python3 -c "import sys; sys.path.insert(0, 'service'); import zrc_sdk; print('Su
 ### Next Steps
 
 1. **Test with actual Zoom Room**: You need a valid activation code to test full functionality
-2. **Add more SDK methods**: Edit `bindings/zrc_bindings.cpp` to expose more functions
-3. **Complete FastAPI service**: The `service/app.py` is ready but needs testing with real room
-4. **Add callback handling**: Currently callbacks use default values - can be enhanced
+2. **Add more SDK methods**: Edit `bindings/zrc_bindings.cpp` to expose more functions (e.g., audio/video helpers)
+3. **Complete FastAPI service**: The `service/app.py` is ready and includes automatic room restoration
+4. **Add callback handling**: Currently callbacks use default values - can be enhanced for event notifications
+5. **Add WebSocket support**: Consider adding WebSocket endpoints for real-time event streaming
 
 ### Known Limitations
 
