@@ -6,6 +6,9 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
+# Set library path for SDK
+export LD_LIBRARY_PATH="$(cd .. && pwd)/libs:$LD_LIBRARY_PATH"
+
 # Check if module is built
 if [ ! -f "service/zrc_sdk."*".so" ] && [ ! -f "service/zrc_sdk.so" ]; then
     echo "ERROR: zrc_sdk module not found. Run './build.sh' first."
@@ -24,6 +27,7 @@ echo "Installing Python dependencies..."
 
 # Run the service
 echo "Starting Zoom Rooms SDK microservice..."
+echo "Library path: $LD_LIBRARY_PATH"
 echo "API will be available at: http://localhost:8000"
 echo "API docs at: http://localhost:8000/docs"
 echo ""

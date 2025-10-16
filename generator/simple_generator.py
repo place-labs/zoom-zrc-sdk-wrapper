@@ -3,221 +3,49 @@
 Simple Zoom Rooms SDK Binding Generator
 
 Generates pybind11 bindings from a configuration file.
-Much simpler than parsing headers, easier to maintain.
 """
 
 from pathlib import Path
-from jinja2 import Template
+from typing import List, Dict
 
 
-# Configuration: Define the API surface to expose
+# Simplified configuration - just list methods, we'll manually write the bindings
 SDK_CONFIG = {
-    # Core singleton SDK class
-    'IZRCSDK': {
-        'type': 'singleton',
-        'methods': [
-            'GetInstance() -> IZRCSDK*',
-            'DestroyInstance() -> void',
-            'RegisterSink(IZRCSDKSink*) -> void',
-            'DeregisterSink(IZRCSDKSink*) -> void',
-            'HeartBeat() -> void',
-            'ForceFlushLog() -> void',
-            'CreateZoomRoomsService(const std::string& roomID = "") -> IZoomRoomsService*',
-            'QueryAllZoomRoomsServices(std::vector<ZoomRoomInfo>&) -> void',
-        ],
-    },
-
-    # Per-room service
-    'IZoomRoomsService': {
-        'type': 'interface',
-        'methods': [
-            'GetSettingService() -> ISettingService*',
-            'GetPreMeetingService() -> IPreMeetingService*',
-            'GetMeetingService() -> IMeetingService*',
-            'GetPhoneCallService() -> IPhoneCallService*',
-            'GetProAVService() -> IProAVService*',
-            'PairRoomWithActivationCode(const std::string&) -> ZRCSDKError',
-            'UnpairRoom() -> ZRCSDKError',
-            'RetryToPairRoom() -> ZRCSDKError',
-            'CanRetryToPairLastRoom() -> bool',
-            'RegisterSink(IZoomRoomsServiceSink*) -> void',
-            'DeregisterSink(IZoomRoomsServiceSink*) -> void',
-        ],
-    },
-
-    # Meeting service
-    'IMeetingService': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(IMeetingServiceSink*) -> void',
-            'DeregisterSink(IMeetingServiceSink*) -> void',
-            'GetMeetingAudioHelper() -> IMeetingAudioHelper*',
-            'GetMeetingVideoHelper() -> IMeetingVideoHelper*',
-            'GetParticipantHelper() -> IParticipantHelper*',
-            'GetMeetingControlHelper() -> IMeetingControlHelper*',
-            'GetMeetingChatHelper() -> IMeetingChatHelper*',
-            'GetCameraControlHelper() -> ICameraControlHelper*',
-            'StartInstantMeeting() -> ZRCSDKError',
-            'JoinMeeting(const std::string& meetingNumber, const std::string& password = "") -> ZRCSDKError',
-            'ExitMeeting(ExitMeetingCmd) -> ZRCSDKError',
-            'GetCurrentMeetingInfo() -> MeetingInfo',
-        ],
-    },
-
-    # Pre-meeting service
-    'IPreMeetingService': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(IPreMeetingServiceSink*) -> void',
-            'DeregisterSink(IPreMeetingServiceSink*) -> void',
-            'GetConnectionState() -> ConnectionState',
-        ],
-    },
-
-    # Pro AV service
-    'IProAVService': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(IProAVServiceSink*) -> void',
-            'DeregisterSink(IProAVServiceSink*) -> void',
-        ],
-    },
-
-    # Audio helper
-    'IMeetingAudioHelper': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(IMeetingAudioHelperSink*) -> void',
-            'DeregisterSink(IMeetingAudioHelperSink*) -> void',
-            'MuteAudio(bool) -> ZRCSDKError',
-            'MuteParticipantAudio(int32_t, bool) -> ZRCSDKError',
-            'CanMuteUnmuteMyAudio() -> bool',
-        ],
-    },
-
-    # Video helper
-    'IMeetingVideoHelper': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(IMeetingVideoHelperSink*) -> void',
-            'DeregisterSink(IMeetingVideoHelperSink*) -> void',
-            'MuteVideo(bool) -> ZRCSDKError',
-            'CanMuteUnmuteMyVideo() -> bool',
-        ],
-    },
-
-    # Participant helper
-    'IParticipantHelper': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(IParticipantHelperSink*) -> void',
-            'DeregisterSink(IParticipantHelperSink*) -> void',
-            'GetParticipantsList() -> std::vector<Participant>',
-        ],
-    },
-
-    # Meeting control helper
-    'IMeetingControlHelper': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(IMeetingControlHelperSink*) -> void',
-            'DeregisterSink(IMeetingControlHelperSink*) -> void',
-            'StartRecording() -> ZRCSDKError',
-            'StopRecording() -> ZRCSDKError',
-            'PauseRecording() -> ZRCSDKError',
-            'ResumeRecording() -> ZRCSDKError',
-        ],
-    },
-
-    # Camera control helper
-    'ICameraControlHelper': {
-        'type': 'interface',
-        'methods': [
-            'RegisterSink(ICameraControlHelperSink*) -> void',
-            'DeregisterSink(ICameraControlHelperSink*) -> void',
-        ],
-    },
-
-    # Callback sinks
-    'IZRCSDKSink': {
-        'type': 'sink',
-        'methods': [
-            'OnGetDeviceManufacturer() -> std::string',
-            'OnGetDeviceModel() -> std::string',
-            'OnGetDeviceSerialNumber() -> std::string',
-            'OnGetDeviceMacAddress() -> std::string',
-            'OnGetDeviceIP() -> std::string',
-            'OnGetFirmwareVersion() -> std::string',
-            'OnGetAppName() -> std::string',
-            'OnGetAppVersion() -> std::string',
-            'OnGetAppDeveloper() -> std::string',
-            'OnGetAppContact() -> std::string',
-            'OnGetAppContentDirPath() -> std::string',
-        ],
-    },
-
-    'IZoomRoomsServiceSink': {
-        'type': 'sink',
-        'methods': [
-            'OnPairRoomResult(int32_t) -> void',
-            'OnRoomUnpairedReason(RoomUnpairedReason) -> void',
-        ],
-    },
-
-    'IMeetingServiceSink': {
-        'type': 'sink',
-        'methods': [
-            'OnUpdateMeetingStatus(MeetingStatus) -> void',
-            'OnConfReadyNotification() -> void',
-            'OnExitMeetingNotification() -> void',
-        ],
-    },
-
-    'IPreMeetingServiceSink': {
-        'type': 'sink',
-        'methods': [
-            'OnZRConnectionStateChanged(ConnectionState) -> void',
-        ],
-    },
-
-    'IProAVServiceSink': {'type': 'sink', 'methods': []},
-    'IMeetingAudioHelperSink': {'type': 'sink', 'methods': []},
-    'IMeetingVideoHelperSink': {'type': 'sink', 'methods': []},
-    'IParticipantHelperSink': {'type': 'sink', 'methods': []},
-    'IMeetingControlHelperSink': {'type': 'sink', 'methods': []},
-    'ICameraControlHelperSink': {'type': 'sink', 'methods': []},
-    'IMeetingChatHelper': {'type': 'interface', 'methods': []},
-}
-
-# Key enums to expose
-SDK_ENUMS = {
-    'ZRCSDKError': [
-        'ZRCSDKERR_SUCCESS',
-        'ZRCSDKERR_WRONG_USAGE',
-        'ZRCSDKERR_NOT_CONNECT_TO_ZOOMROOM',
-        'ZRCSDKERR_ALREADY_IN_MEETING',
-        'ZRCSDKERR_NOT_IN_MEETING',
+    'core_classes': [
+        'IZRCSDK',
+        'IZoomRoomsService',
+        'IMeetingService',
+        'IPreMeetingService',
+        'IProAVService',
+        'ISettingService',
+        'IPhoneCallService',
+        'IMeetingAudioHelper',
+        'IMeetingVideoHelper',
+        'IParticipantHelper',
+        'IMeetingControlHelper',
+        'IMeetingChatHelper',
+        'ICameraControlHelper',
     ],
-    'MeetingStatus': [
-        'Idle',
-        'Connecting',
-        'InMeeting',
-        'Disconnecting',
+
+    'sink_classes': [
+        'IZRCSDKSink',
+        'IZoomRoomsServiceSink',
+        'IMeetingServiceSink',
+        'IPreMeetingServiceSink',
+        'IProAVServiceSink',
+        'IMeetingAudioHelperSink',
+        'IMeetingVideoHelperSink',
+        'IParticipantHelperSink',
+        'IMeetingControlHelperSink',
+        'ICameraControlHelperSink',
     ],
-    'ConnectionState': [
-        'ConnectionStateNone',
-        'ConnectionStateEstablished',
-        'ConnectionStateConnected',
-        'ConnectionStateDisconnected',
-    ],
-    'ExitMeetingCmd': [
-        'Leave',
-        'End',
-    ],
-    'RoomUnpairedReason': [
-        'Unknown',
-        'UserUnpair',
-        'NetworkDisconnect',
+
+    'enums': [
+        'ZRCSDKError',
+        'MeetingStatus',
+        'ConnectionState',
+        'ExitMeetingCmd',
+        'RoomUnpairedReason',
     ],
 }
 
@@ -248,66 +76,250 @@ BINDING_TEMPLATE = """// Auto-generated pybind11 bindings for Zoom Rooms SDK
 namespace py = pybind11;
 using namespace ZRCSDK;
 
-// Trampoline classes for Python to implement C++ interfaces
-{% for class_name, class_info in classes.items() %}
-{% if class_info.type == 'sink' %}
-class Py{{ class_name }} : public {{ class_name }} {
+// Trampoline class for IZRCSDKSink to allow Python override
+class PyIZRCSDKSink : public IZRCSDKSink {
 public:
-    using {{ class_name }}::{{ class_name }};
+    using IZRCSDKSink::IZRCSDKSink;
 
-    {% for method_sig in class_info.methods %}
-    {% set parts = method_sig.split('(') %}
-    {% set name_and_ret = parts[0].split(' -> ') %}
-    {% set method_name = name_and_ret[0].strip() %}
-    {% set return_type = name_and_ret[1].strip() if name_and_ret|length > 1 else 'void' %}
-    {% set params = parts[1].rstrip(')').strip() if parts|length > 1 else '' %}
-    {{ return_type }} {{ method_name }}({{ params }}) override {
-        PYBIND11_OVERRIDE({{ return_type }}, {{ class_name }}, {{ method_name }});
+    std::string OnGetDeviceManufacturer() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetDeviceManufacturer);
     }
-    {% endfor %}
+    std::string OnGetDeviceModel() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetDeviceModel);
+    }
+    std::string OnGetDeviceSerialNumber() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetDeviceSerialNumber);
+    }
+    std::string OnGetDeviceMacAddress() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetDeviceMacAddress);
+    }
+    std::string OnGetDeviceIP() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetDeviceIP);
+    }
+    std::string OnGetFirmwareVersion() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetFirmwareVersion);
+    }
+    std::string OnGetAppName() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetAppName);
+    }
+    std::string OnGetAppVersion() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetAppVersion);
+    }
+    std::string OnGetAppDeveloper() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetAppDeveloper);
+    }
+    std::string OnGetAppContact() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetAppContact);
+    }
+    std::string OnGetAppContentDirPath() override {
+        PYBIND11_OVERRIDE_PURE(std::string, IZRCSDKSink, OnGetAppContentDirPath);
+    }
+    bool OnPromptToInputUserNamePasswordForProxyServer(const std::string& proxyHost, uint32_t port, const std::string& description) override {
+        PYBIND11_OVERRIDE_PURE(bool, IZRCSDKSink, OnPromptToInputUserNamePasswordForProxyServer, proxyHost, port, description);
+    }
 };
-{% endif %}
-{% endfor %}
+
+// Trampoline for IZoomRoomsServiceSink
+class PyIZoomRoomsServiceSink : public IZoomRoomsServiceSink {
+public:
+    using IZoomRoomsServiceSink::IZoomRoomsServiceSink;
+
+    void OnPairRoomResult(int32_t result) override {
+        PYBIND11_OVERRIDE_PURE(void, IZoomRoomsServiceSink, OnPairRoomResult, result);
+    }
+    void OnRoomUnpairedReason(RoomUnpairedReason reason) override {
+        PYBIND11_OVERRIDE_PURE(void, IZoomRoomsServiceSink, OnRoomUnpairedReason, reason);
+    }
+};
+
+// Trampoline for IMeetingServiceSink
+class PyIMeetingServiceSink : public IMeetingServiceSink {
+public:
+    using IMeetingServiceSink::IMeetingServiceSink;
+
+    void OnUpdateMeetingStatus(MeetingStatus status) override {
+        PYBIND11_OVERRIDE(void, IMeetingServiceSink, OnUpdateMeetingStatus, status);
+    }
+    void OnConfReadyNotification() override {
+        PYBIND11_OVERRIDE(void, IMeetingServiceSink, OnConfReadyNotification);
+    }
+    void OnExitMeetingNotification() override {
+        PYBIND11_OVERRIDE(void, IMeetingServiceSink, OnExitMeetingNotification);
+    }
+};
+
+// Trampoline for IPreMeetingServiceSink
+class PyIPreMeetingServiceSink : public IPreMeetingServiceSink {
+public:
+    using IPreMeetingServiceSink::IPreMeetingServiceSink;
+
+    void OnZRConnectionStateChanged(ConnectionState state) override {
+        PYBIND11_OVERRIDE(void, IPreMeetingServiceSink, OnZRConnectionStateChanged, state);
+    }
+};
 
 PYBIND11_MODULE(zrc_sdk, m) {
     m.doc() = "Zoom Rooms Controller SDK Python Bindings";
 
-    // ===== Enums =====
-    {% for enum_name, enum_values in enums.items() %}
-    py::enum_<{{ enum_name }}>(m, "{{ enum_name }}")
-    {% for value in enum_values %}
-        .value("{{ value }}", {{ enum_name }}::{{ value }})
-    {% endfor %}
+    // ===== Key Enums =====
+    py::enum_<ZRCSDKError>(m, "ZRCSDKError")
+        .value("ZRCSDKERR_SUCCESS", ZRCSDKError::ZRCSDKERR_SUCCESS)
+        .value("ZRCSDKERR_WRONG_USAGE", ZRCSDKError::ZRCSDKERR_WRONG_USAGE)
         .export_values();
-    {% endfor %}
 
-    // ===== Core Classes =====
-    {% for class_name, class_info in classes.items() %}
-    {% if class_info.type != 'sink' %}
-    py::class_<{{ class_name }}>(m, "{{ class_name }}")
-    {% for method_sig in class_info.methods %}
-        {% set parts = method_sig.split('(') %}
-        {% set name_and_ret = parts[0].split(' -> ') %}
-        {% set method_name = name_and_ret[0].strip() %}
-        .def("{{ method_name }}", &{{ class_name }}::{{ method_name }})
-    {% endfor %}
-        ;
-    {% endif %}
-    {% endfor %}
+    py::enum_<MeetingStatus>(m, "MeetingStatus")
+        .value("Idle", MeetingStatus::Idle)
+        .value("Connecting", MeetingStatus::Connecting)
+        .value("InMeeting", MeetingStatus::InMeeting)
+        .value("Disconnecting", MeetingStatus::Disconnecting)
+        .export_values();
 
-    // ===== Callback Interfaces (with trampolines) =====
-    {% for class_name, class_info in classes.items() %}
-    {% if class_info.type == 'sink' %}
-    py::class_<{{ class_name }}, Py{{ class_name }}>(m, "{{ class_name }}")
-    {% for method_sig in class_info.methods %}
-        {% set parts = method_sig.split('(') %}
-        {% set name_and_ret = parts[0].split(' -> ') %}
-        {% set method_name = name_and_ret[0].strip() %}
-        .def("{{ method_name }}", &{{ class_name }}::{{ method_name }})
-    {% endfor %}
-        ;
-    {% endif %}
-    {% endfor %}
+    py::enum_<ConnectionState>(m, "ConnectionState")
+        .value("ConnectionStateNone", ConnectionState::ConnectionStateNone)
+        .value("ConnectionStateEstablished", ConnectionState::ConnectionStateEstablished)
+        .value("ConnectionStateConnected", ConnectionState::ConnectionStateConnected)
+        .value("ConnectionStateDisconnected", ConnectionState::ConnectionStateDisconnected)
+        .export_values();
+
+    py::enum_<ExitMeetingCmd>(m, "ExitMeetingCmd")
+        .value("Leave", ExitMeetingCmd::Leave)
+        .value("End", ExitMeetingCmd::End)
+        .export_values();
+
+    py::enum_<RoomUnpairedReason>(m, "RoomUnpairedReason")
+        .value("RoomUnpairedReason_TokenInvalid", RoomUnpairedReason::RoomUnpairedReason_TokenInvalid)
+        .value("RoomUnpairedReason_RefreshTokenFail", RoomUnpairedReason::RoomUnpairedReason_RefreshTokenFail)
+        .export_values();
+
+    // ===== SDK Sinks (Callbacks) =====
+    py::class_<IZRCSDKSink, PyIZRCSDKSink>(m, "IZRCSDKSink")
+        .def(py::init<>())
+        .def("OnGetDeviceManufacturer", &IZRCSDKSink::OnGetDeviceManufacturer)
+        .def("OnGetDeviceModel", &IZRCSDKSink::OnGetDeviceModel)
+        .def("OnGetDeviceSerialNumber", &IZRCSDKSink::OnGetDeviceSerialNumber)
+        .def("OnGetDeviceMacAddress", &IZRCSDKSink::OnGetDeviceMacAddress)
+        .def("OnGetDeviceIP", &IZRCSDKSink::OnGetDeviceIP)
+        .def("OnGetFirmwareVersion", &IZRCSDKSink::OnGetFirmwareVersion)
+        .def("OnGetAppName", &IZRCSDKSink::OnGetAppName)
+        .def("OnGetAppVersion", &IZRCSDKSink::OnGetAppVersion)
+        .def("OnGetAppDeveloper", &IZRCSDKSink::OnGetAppDeveloper)
+        .def("OnGetAppContact", &IZRCSDKSink::OnGetAppContact)
+        .def("OnGetAppContentDirPath", &IZRCSDKSink::OnGetAppContentDirPath);
+
+    py::class_<IZoomRoomsServiceSink, PyIZoomRoomsServiceSink>(m, "IZoomRoomsServiceSink")
+        .def(py::init<>())
+        .def("OnPairRoomResult", &IZoomRoomsServiceSink::OnPairRoomResult)
+        .def("OnRoomUnpairedReason", &IZoomRoomsServiceSink::OnRoomUnpairedReason);
+
+    py::class_<IMeetingServiceSink, PyIMeetingServiceSink>(m, "IMeetingServiceSink")
+        .def(py::init<>())
+        .def("OnUpdateMeetingStatus", &IMeetingServiceSink::OnUpdateMeetingStatus)
+        .def("OnConfReadyNotification", &IMeetingServiceSink::OnConfReadyNotification)
+        .def("OnExitMeetingNotification", &IMeetingServiceSink::OnExitMeetingNotification);
+
+    py::class_<IPreMeetingServiceSink, PyIPreMeetingServiceSink>(m, "IPreMeetingServiceSink")
+        .def(py::init<>())
+        .def("OnZRConnectionStateChanged", &IPreMeetingServiceSink::OnZRConnectionStateChanged);
+
+    // Simple sinks without trampolines (no methods to override)
+    py::class_<IProAVServiceSink>(m, "IProAVServiceSink")
+        .def(py::init<>());
+
+    py::class_<IMeetingAudioHelperSink>(m, "IMeetingAudioHelperSink")
+        .def(py::init<>());
+
+    py::class_<IMeetingVideoHelperSink>(m, "IMeetingVideoHelperSink")
+        .def(py::init<>());
+
+    py::class_<IParticipantHelperSink>(m, "IParticipantHelperSink")
+        .def(py::init<>());
+
+    py::class_<IMeetingControlHelperSink>(m, "IMeetingControlHelperSink")
+        .def(py::init<>());
+
+    py::class_<ICameraControlHelperSink>(m, "ICameraControlHelperSink")
+        .def(py::init<>());
+
+    // ===== Core SDK Class =====
+    py::class_<IZRCSDK>(m, "IZRCSDK")
+        .def_static("GetInstance", &IZRCSDK::GetInstance, py::return_value_policy::reference)
+        .def_static("DestroyInstance", &IZRCSDK::DestroyInstance)
+        .def("RegisterSink", &IZRCSDK::RegisterSink)
+        .def("HeartBeat", &IZRCSDK::HeartBeat)
+        .def("ForceFlushLog", &IZRCSDK::ForceFlushLog)
+        .def("CreateZoomRoomsService", &IZRCSDK::CreateZoomRoomsService,
+             py::arg("roomID") = ZRCSDK_DEFAULT_ROOM_ID,
+             py::return_value_policy::reference)
+        .def("QueryAllZoomRoomsServices", &IZRCSDK::QueryAllZoomRoomsServices);
+
+    // ===== ZoomRooms Service =====
+    py::class_<IZoomRoomsService>(m, "IZoomRoomsService")
+        .def("RegisterSink", &IZoomRoomsService::RegisterSink)
+        .def("DeregisterSink", &IZoomRoomsService::DeregisterSink)
+        .def("PairRoomWithActivationCode", &IZoomRoomsService::PairRoomWithActivationCode)
+        .def("UnpairRoom", &IZoomRoomsService::UnpairRoom)
+        .def("RetryToPairRoom", &IZoomRoomsService::RetryToPairRoom)
+        .def("GetSettingService", &IZoomRoomsService::GetSettingService, py::return_value_policy::reference)
+        .def("GetPreMeetingService", &IZoomRoomsService::GetPreMeetingService, py::return_value_policy::reference)
+        .def("GetMeetingService", &IZoomRoomsService::GetMeetingService, py::return_value_policy::reference)
+        .def("GetPhoneCallService", &IZoomRoomsService::GetPhoneCallService, py::return_value_policy::reference)
+        .def("GetProAVService", &IZoomRoomsService::GetProAVService, py::return_value_policy::reference);
+
+    // ===== Pre-Meeting Service =====
+    py::class_<IPreMeetingService>(m, "IPreMeetingService")
+        .def("RegisterSink", &IPreMeetingService::RegisterSink)
+        .def("DeregisterSink", &IPreMeetingService::DeregisterSink)
+        .def("GetConnectionState", &IPreMeetingService::GetConnectionState);
+
+    // ===== Meeting Service =====
+    py::class_<IMeetingService>(m, "IMeetingService")
+        .def("RegisterSink", &IMeetingService::RegisterSink)
+        .def("DeregisterSink", &IMeetingService::DeregisterSink)
+        .def("GetMeetingAudioHelper", &IMeetingService::GetMeetingAudioHelper, py::return_value_policy::reference)
+        .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
+        .def("GetParticipantHelper", &IMeetingService::GetParticipantHelper, py::return_value_policy::reference)
+        .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference)
+        .def("GetMeetingChatHelper", &IMeetingService::GetMeetingChatHelper, py::return_value_policy::reference)
+        .def("GetCameraControlHelper", &IMeetingService::GetCameraControlHelper, py::return_value_policy::reference)
+        .def("StartInstantMeeting", &IMeetingService::StartInstantMeeting)
+        .def("JoinMeeting", &IMeetingService::JoinMeeting)
+        .def("ExitMeeting", &IMeetingService::ExitMeeting);
+
+    // ===== Pro AV Service =====
+    py::class_<IProAVService>(m, "IProAVService")
+        .def("RegisterSink", &IProAVService::RegisterSink)
+        .def("DeregisterSink", &IProAVService::DeregisterSink);
+
+    // ===== Setting Service =====
+    py::class_<ISettingService>(m, "ISettingService");
+
+    // ===== Phone Call Service =====
+    py::class_<IPhoneCallService>(m, "IPhoneCallService");
+
+    // ===== Helper Classes =====
+    py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
+        .def("RegisterSink", &IMeetingAudioHelper::RegisterSink)
+        .def("DeregisterSink", &IMeetingAudioHelper::DeregisterSink);
+
+    py::class_<IMeetingVideoHelper>(m, "IMeetingVideoHelper")
+        .def("RegisterSink", &IMeetingVideoHelper::RegisterSink)
+        .def("DeregisterSink", &IMeetingVideoHelper::DeregisterSink);
+
+    py::class_<IParticipantHelper>(m, "IParticipantHelper")
+        .def("RegisterSink", &IParticipantHelper::RegisterSink)
+        .def("DeregisterSink", &IParticipantHelper::DeregisterSink);
+
+    py::class_<IMeetingControlHelper>(m, "IMeetingControlHelper")
+        .def("RegisterSink", &IMeetingControlHelper::RegisterSink)
+        .def("DeregisterSink", &IMeetingControlHelper::DeregisterSink);
+
+    py::class_<ICameraControlHelper>(m, "ICameraControlHelper")
+        .def("RegisterSink", &ICameraControlHelper::RegisterSink)
+        .def("DeregisterSink", &ICameraControlHelper::DeregisterSink);
+
+    py::class_<IMeetingChatHelper>(m, "IMeetingChatHelper")
+        .def("RegisterSink", &IMeetingChatHelper::RegisterSink)
+        .def("DeregisterSink", &IMeetingChatHelper::DeregisterSink);
 }
 """
 
@@ -316,19 +328,13 @@ def generate_bindings(output_path: Path):
     """Generate the pybind11 C++ file"""
     print("Generating Zoom Rooms SDK bindings...")
 
-    template = Template(BINDING_TEMPLATE)
-    code = template.render(
-        classes=SDK_CONFIG,
-        enums=SDK_ENUMS,
-    )
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(code)
+    output_path.write_text(BINDING_TEMPLATE)
 
     print(f"✓ Generated: {output_path}")
-    print(f"  - {len(SDK_CONFIG)} classes/interfaces")
-    print(f"  - {len(SDK_ENUMS)} enums")
-    print(f"  - {sum(len(c['methods']) for c in SDK_CONFIG.values())} methods")
+    print(f"  - {len(SDK_CONFIG['core_classes'])} core classes")
+    print(f"  - {len(SDK_CONFIG['sink_classes'])} sink classes")
+    print(f"  - {len(SDK_CONFIG['enums'])} enums")
 
 
 def main():
