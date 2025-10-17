@@ -357,53 +357,65 @@ async def pair_room(room_id: str, request: PairRoomRequest):
         result = room_service.PairRoomWithActivationCode(request.activation_code)
 
         if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-            return {
-                "room_id": room_id,
-                "result": int(result),
-                "success": False,
-                "message": "Failed to initiate pairing"
-            }
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "room_id": room_id,
+                    "result": int(result),
+                    "success": False,
+                    "message": "Failed to initiate pairing"
+                }
+            )
 
         # Wait for OnPairRoomResult callback (30 second timeout)
         logger.info(f"[{room_id}] Waiting for pair result callback...")
         try:
             await asyncio.wait_for(room_sink.pair_event.wait(), timeout=30.0)
         except asyncio.TimeoutError:
-            return {
-                "room_id": room_id,
-                "result": -1,
-                "success": False,
-                "message": "Timeout waiting for pairing result"
-            }
+            raise HTTPException(
+                status_code=504,
+                detail={
+                    "room_id": room_id,
+                    "result": -1,
+                    "success": False,
+                    "message": "Timeout waiting for pairing result"
+                }
+            )
 
         # Check pairing result
         if room_sink.pair_result != 0:
             error_messages = {
                 30055016: "Invalid activation code",
-                100: "Failed to connect to room",
+                100: "Failed to connect to room controller. Ensure the room controller is network-accessible.",
                 101: "Room cannot verify connection",
                 102: "Timeout waiting for room's verify response"
             }
             message = error_messages.get(room_sink.pair_result, f"Pairing failed with code {room_sink.pair_result}")
 
-            return {
-                "room_id": room_id,
-                "result": room_sink.pair_result,
-                "success": False,
-                "message": message
-            }
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "room_id": room_id,
+                    "result": room_sink.pair_result,
+                    "success": False,
+                    "message": message
+                }
+            )
 
         # Wait for ConnectionStateConnected (60 second timeout)
         logger.info(f"[{room_id}] Pairing successful, waiting for connection...")
         try:
             await asyncio.wait_for(premeeting_sink.connected_event.wait(), timeout=60.0)
         except asyncio.TimeoutError:
-            return {
-                "room_id": room_id,
-                "result": 0,
-                "success": False,
-                "message": "Pairing succeeded but timeout waiting for connection. Room may connect later."
-            }
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "room_id": room_id,
+                    "result": 0,
+                    "success": False,
+                    "message": "Pairing succeeded but timeout waiting for connection. Ensure the room controller is network-accessible."
+                }
+            )
 
         # Success! Room is now connected and persisted
         logger.info(f"[{room_id}] ✓ Room fully connected and persisted")
@@ -415,8 +427,11 @@ async def pair_room(room_id: str, request: PairRoomRequest):
             "connection_state": str(premeeting_sink.connection_state)
         }
 
+    except HTTPException:
+        # Re-raise HTTPException as-is (don't wrap it)
+        raise
     except Exception as e:
-        logger.error(f"Error pairing room {room_id}: {e}")
+        logger.error(f"Unexpected error pairing room {room_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
