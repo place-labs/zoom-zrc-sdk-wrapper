@@ -88,6 +88,47 @@ class SDKSinkImpl:
         return data_dir
 
 
+# ===== Callback Sinks for Events =====
+
+class ZoomRoomsServiceSink:
+    """Callback sink for room service events"""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+        self.pair_result: Optional[int] = None
+        self.pair_event = asyncio.Event()
+
+    def OnPairRoomResult(self, result: int):
+        """Called when pairing completes (success or failure)"""
+        logger.info(f"[{self.room_id}] OnPairRoomResult: {result}")
+        self.pair_result = result
+        self.pair_event.set()
+
+    def OnRoomUnpairedReason(self, reason: int):
+        """Called when room is unpaired"""
+        logger.warning(f"[{self.room_id}] Room unpaired, reason: {reason}")
+
+
+class PreMeetingServiceSink:
+    """Callback sink for pre-meeting service events"""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+        self.connection_state = None
+        self.connected_event = asyncio.Event()
+
+    def OnZRConnectionStateChanged(self, state):
+        """Called when connection state changes"""
+        logger.info(f"[{self.room_id}] Connection state changed: {state}")
+        self.connection_state = state
+        if state == zrc_sdk.ConnectionStateConnected:
+            self.connected_event.set()
+
+    def OnShutdownOSNot(self, restart_os: bool):
+        """Called when shutdown notification received"""
+        logger.info(f"[{self.room_id}] Shutdown OS notification: restart={restart_os}")
+
+
 # ===== Room Manager =====
 
 class RoomManager:
@@ -96,6 +137,8 @@ class RoomManager:
     def __init__(self):
         self.sdk = None
         self.rooms: Dict[str, any] = {}  # room_id -> IZoomRoomsService
+        self.room_sinks: Dict[str, ZoomRoomsServiceSink] = {}
+        self.premeeting_sinks: Dict[str, PreMeetingServiceSink] = {}
         self.heartbeat_task = None
         self.sdk_sink = SDKSinkImpl()
 
@@ -110,8 +153,13 @@ class RoomManager:
 
         # Query and restore previously paired rooms
         logger.info("Querying for previously paired rooms...")
+        logger.info(f"Data directory: {self.sdk_sink.OnGetAppContentDirPath()}")
         room_infos = []
         result = self.sdk.QueryAllZoomRoomsServices(room_infos)
+
+        logger.info(f"QueryAllZoomRoomsServices result: {result} (type: {type(result)})")
+        logger.info(f"room_infos length: {len(room_infos)}")
+        logger.info(f"room_infos type: {type(room_infos)}")
 
         if result == zrc_sdk.ZRCSDKERR_SUCCESS:
             if room_infos:
@@ -121,15 +169,18 @@ class RoomManager:
                     logger.info(f"    Display: {room_info.displayName}")
                     logger.info(f"    Address: {room_info.roomAddress}")
                     logger.info(f"    Can retry: {room_info.canRetryToPair}")
+                    logger.info(f"    Worker present: {room_info.worker is not None}")
 
                     # Get the service for this room
                     if room_info.worker:
                         self.rooms[room_info.roomID] = room_info.worker
                         logger.info(f"✓ Restored room service for: {room_info.roomID}")
+                    else:
+                        logger.warning(f"  Room {room_info.roomID} has no worker, skipping")
             else:
-                logger.info("No previously paired rooms found")
+                logger.info("No previously paired rooms found (empty list)")
         else:
-            logger.warning(f"QueryAllZoomRoomsServices returned: {result}")
+            logger.warning(f"QueryAllZoomRoomsServices returned error: {result}")
 
         logger.info("✓ SDK initialized successfully")
 
@@ -158,15 +209,31 @@ class RoomManager:
                 pass
 
     def create_room_service(self, room_id: str):
-        """Create a new room service instance"""
+        """Create a new room service instance with callbacks"""
         if room_id in self.rooms:
             return self.rooms[room_id]
 
         logger.info(f"Creating service for room: {room_id}")
         room_service = self.sdk.CreateZoomRoomsService(room_id)
 
-        # Note: Callback registration removed to avoid segfaults
-        # Callbacks can be added later when proper sink binding is implemented
+        # Register room service callback sink
+        room_sink = ZoomRoomsServiceSink(room_id)
+        result = room_service.RegisterSink(room_sink)
+        if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+            self.room_sinks[room_id] = room_sink
+            logger.info(f"✓ Registered room service sink for: {room_id}")
+        else:
+            logger.error(f"Failed to register room service sink: {result}")
+
+        # Register pre-meeting service callback sink
+        premeeting = room_service.GetPreMeetingService()
+        premeeting_sink = PreMeetingServiceSink(room_id)
+        result = premeeting.RegisterSink(premeeting_sink)
+        if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+            self.premeeting_sinks[room_id] = premeeting_sink
+            logger.info(f"✓ Registered pre-meeting sink for: {room_id}")
+        else:
+            logger.error(f"Failed to register pre-meeting sink: {result}")
 
         self.rooms[room_id] = room_service
         return room_service
@@ -233,13 +300,21 @@ async def list_rooms():
         try:
             room_service = room_manager.rooms[room_id]
             premeeting = room_service.GetPreMeetingService()
-            state = premeeting.GetConnectionState()
+            # GetConnectionState returns (result, state) tuple
+            result, state = premeeting.GetConnectionState()
 
-            rooms.append(RoomStatus(
-                room_id=room_id,
-                paired=True,
-                connection_state=str(state)
-            ))
+            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                rooms.append(RoomStatus(
+                    room_id=room_id,
+                    paired=True,
+                    connection_state=str(state)
+                ))
+            else:
+                rooms.append(RoomStatus(
+                    room_id=room_id,
+                    paired=True,
+                    connection_state="error"
+                ))
         except Exception as e:
             logger.error(f"Error getting room {room_id} status: {e}")
             rooms.append(RoomStatus(
@@ -253,19 +328,93 @@ async def list_rooms():
 
 @app.post("/api/rooms/{room_id}/pair")
 async def pair_room(room_id: str, request: PairRoomRequest):
-    """Pair a Zoom Room with activation code"""
+    """
+    Pair a Zoom Room with activation code and wait for full connection.
+
+    This endpoint waits for:
+    1. OnPairRoomResult callback (activation code validation)
+    2. OnZRConnectionStateChanged to ConnectionStateConnected (full connection & persistence)
+
+    Only returns success when room is fully connected and persisted to database.
+    """
     try:
         # Create or get room service
         room_service = room_manager.create_room_service(room_id)
 
-        # Pair the room
+        # Get the callback sinks
+        room_sink = room_manager.room_sinks.get(room_id)
+        premeeting_sink = room_manager.premeeting_sinks.get(room_id)
+
+        if not room_sink or not premeeting_sink:
+            raise HTTPException(status_code=500, detail="Failed to register callbacks")
+
+        # Reset events in case of retry
+        room_sink.pair_event.clear()
+        premeeting_sink.connected_event.clear()
+
+        # Start pairing process
+        logger.info(f"[{room_id}] Starting pairing with activation code...")
         result = room_service.PairRoomWithActivationCode(request.activation_code)
 
+        if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+            return {
+                "room_id": room_id,
+                "result": int(result),
+                "success": False,
+                "message": "Failed to initiate pairing"
+            }
+
+        # Wait for OnPairRoomResult callback (30 second timeout)
+        logger.info(f"[{room_id}] Waiting for pair result callback...")
+        try:
+            await asyncio.wait_for(room_sink.pair_event.wait(), timeout=30.0)
+        except asyncio.TimeoutError:
+            return {
+                "room_id": room_id,
+                "result": -1,
+                "success": False,
+                "message": "Timeout waiting for pairing result"
+            }
+
+        # Check pairing result
+        if room_sink.pair_result != 0:
+            error_messages = {
+                30055016: "Invalid activation code",
+                100: "Failed to connect to room",
+                101: "Room cannot verify connection",
+                102: "Timeout waiting for room's verify response"
+            }
+            message = error_messages.get(room_sink.pair_result, f"Pairing failed with code {room_sink.pair_result}")
+
+            return {
+                "room_id": room_id,
+                "result": room_sink.pair_result,
+                "success": False,
+                "message": message
+            }
+
+        # Wait for ConnectionStateConnected (60 second timeout)
+        logger.info(f"[{room_id}] Pairing successful, waiting for connection...")
+        try:
+            await asyncio.wait_for(premeeting_sink.connected_event.wait(), timeout=60.0)
+        except asyncio.TimeoutError:
+            return {
+                "room_id": room_id,
+                "result": 0,
+                "success": False,
+                "message": "Pairing succeeded but timeout waiting for connection. Room may connect later."
+            }
+
+        # Success! Room is now connected and persisted
+        logger.info(f"[{room_id}] ✓ Room fully connected and persisted")
         return {
             "room_id": room_id,
-            "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+            "result": 0,
+            "success": True,
+            "message": "Room successfully paired and connected",
+            "connection_state": str(premeeting_sink.connection_state)
         }
+
     except Exception as e:
         logger.error(f"Error pairing room {room_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -298,7 +447,11 @@ async def get_room_status(room_id: str):
 
     try:
         premeeting = room_service.GetPreMeetingService()
-        state = premeeting.GetConnectionState()
+        # GetConnectionState returns (result, state) tuple
+        result, state = premeeting.GetConnectionState()
+
+        if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+            raise HTTPException(status_code=500, detail=f"Failed to get connection state: {result}")
 
         return {
             "room_id": room_id,

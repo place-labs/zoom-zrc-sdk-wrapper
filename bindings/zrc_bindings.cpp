@@ -3,6 +3,8 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <map>
+#include <memory>
 
 // SDK headers
 #include "IZRCSDK.h"
@@ -106,6 +108,53 @@ public:
     }
 };
 
+// Trampoline for IZoomRoomsServiceSink
+class ZoomRoomsServiceSinkTrampoline : public IZoomRoomsServiceSink {
+private:
+    py::object py_sink;
+
+public:
+    ZoomRoomsServiceSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnPairRoomResult(int32_t result) override {
+        // Acquire GIL before calling Python
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnPairRoomResult")) {
+            py_sink.attr("OnPairRoomResult")(result);
+        }
+    }
+
+    void OnRoomUnpairedReason(RoomUnpairedReason reason) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnRoomUnpairedReason")) {
+            py_sink.attr("OnRoomUnpairedReason")(reason);
+        }
+    }
+};
+
+// Trampoline for IPreMeetingServiceSink
+class PreMeetingServiceSinkTrampoline : public IPreMeetingServiceSink {
+private:
+    py::object py_sink;
+
+public:
+    PreMeetingServiceSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnZRConnectionStateChanged(ConnectionState connectionState) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnZRConnectionStateChanged")) {
+            py_sink.attr("OnZRConnectionStateChanged")(connectionState);
+        }
+    }
+
+    void OnShutdownOSNot(bool restartOS) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnShutdownOSNot")) {
+            py_sink.attr("OnShutdownOSNot")(restartOS);
+        }
+    }
+};
+
 PYBIND11_MODULE(zrc_sdk, m) {
     m.doc() = "Zoom Rooms Controller SDK Python Bindings";
 
@@ -173,11 +222,49 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("UnpairRoom", &IZoomRoomsService::UnpairRoom)
         .def("RetryToPairRoom", &IZoomRoomsService::RetryToPairRoom)
         .def("GetPreMeetingService", &IZoomRoomsService::GetPreMeetingService, py::return_value_policy::reference)
-        .def("GetMeetingService", &IZoomRoomsService::GetMeetingService, py::return_value_policy::reference);
+        .def("GetMeetingService", &IZoomRoomsService::GetMeetingService, py::return_value_policy::reference)
+        .def("RegisterSink", [](IZoomRoomsService* self, py::object py_sink) {
+            // Create a trampoline and keep it alive in a static map
+            static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<ZoomRoomsServiceSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IZoomRoomsService* self) {
+            static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Pre-Meeting Service =====
     py::class_<IPreMeetingService>(m, "IPreMeetingService")
-        .def("GetConnectionState", &IPreMeetingService::GetConnectionState);
+        .def("GetConnectionState", [](IPreMeetingService* self) {
+            ConnectionState state;
+            ZRCSDKError result = self->GetConnectionState(state);
+            return py::make_tuple(result, state);
+        })
+        .def("RegisterSink", [](IPreMeetingService* self, py::object py_sink) {
+            // Create a trampoline and keep it alive in a static map
+            static std::map<IPreMeetingService*, std::shared_ptr<PreMeetingServiceSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<PreMeetingServiceSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IPreMeetingService* self) {
+            static std::map<IPreMeetingService*, std::shared_ptr<PreMeetingServiceSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Meeting Service =====
     py::class_<IMeetingService>(m, "IMeetingService")

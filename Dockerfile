@@ -32,18 +32,18 @@ COPY bindings ./bindings
 COPY CMakeLists.txt ./CMakeLists.txt
 COPY requirements.txt ./requirements.txt
 
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy service code BEFORE building bindings (so install doesn't get overwritten)
+COPY service ./service
+
 # Build the C++ bindings
 RUN mkdir -p build && \
     cd build && \
     cmake .. && \
     make -j$(nproc) && \
     make install
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy service code
-COPY service ./service
 
 # Create data and logs directories
 # /root/.zoom/data - CRITICAL: Contains paired room database (third_zrc_data.db)
