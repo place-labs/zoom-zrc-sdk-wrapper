@@ -11,6 +11,8 @@
 #include "IZoomRoomsService.h"
 #include "IMeetingService.h"
 #include "IPreMeetingService.h"
+#include "ServiceComponents/IMeetingAudioHelper.h"
+#include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -270,5 +272,15 @@ PYBIND11_MODULE(zrc_sdk, m) {
     py::class_<IMeetingService>(m, "IMeetingService")
         .def("StartInstantMeeting", &IMeetingService::StartInstantMeeting)
         .def("JoinMeeting", &IMeetingService::JoinMeeting)
-        .def("ExitMeeting", &IMeetingService::ExitMeeting);
+        .def("ExitMeeting", &IMeetingService::ExitMeeting)
+        .def("GetMeetingAudioHelper", &IMeetingService::GetMeetingAudioHelper, py::return_value_policy::reference)
+        .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference);
+
+    // ===== Meeting Audio Helper =====
+    py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
+        .def("UpdateMyAudioStatus", &IMeetingAudioHelper::UpdateMyAudioStatus);
+
+    // ===== Meeting Video Helper =====
+    py::class_<IMeetingVideoHelper>(m, "IMeetingVideoHelper")
+        .def("UpdateMyVideo", &IMeetingVideoHelper::UpdateMyVideo);
 }

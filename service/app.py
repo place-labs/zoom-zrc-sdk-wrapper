@@ -174,6 +174,8 @@ class RoomManager:
                     # Get the service for this room
                     if room_info.worker:
                         self.rooms[room_info.roomID] = room_info.worker
+                        # CRITICAL: Register sinks for restored rooms
+                        self.register_sinks_for_room(room_info.roomID, room_info.worker)
                         logger.info(f"✓ Restored room service for: {room_info.roomID}")
                     else:
                         logger.warning(f"  Room {room_info.roomID} has no worker, skipping")
@@ -208,14 +210,8 @@ class RoomManager:
             except asyncio.CancelledError:
                 pass
 
-    def create_room_service(self, room_id: str):
-        """Create a new room service instance with callbacks"""
-        if room_id in self.rooms:
-            return self.rooms[room_id]
-
-        logger.info(f"Creating service for room: {room_id}")
-        room_service = self.sdk.CreateZoomRoomsService(room_id)
-
+    def register_sinks_for_room(self, room_id: str, room_service):
+        """Register callback sinks for a room service"""
         # Register room service callback sink
         room_sink = ZoomRoomsServiceSink(room_id)
         result = room_service.RegisterSink(room_sink)
@@ -234,6 +230,17 @@ class RoomManager:
             logger.info(f"✓ Registered pre-meeting sink for: {room_id}")
         else:
             logger.error(f"Failed to register pre-meeting sink: {result}")
+
+    def create_room_service(self, room_id: str):
+        """Create a new room service instance with callbacks"""
+        if room_id in self.rooms:
+            return self.rooms[room_id]
+
+        logger.info(f"Creating service for room: {room_id}")
+        room_service = self.sdk.CreateZoomRoomsService(room_id)
+
+        # Register callback sinks
+        self.register_sinks_for_room(room_id, room_service)
 
         self.rooms[room_id] = room_service
         return room_service
@@ -533,6 +540,51 @@ async def exit_meeting(room_id: str):
 
         return {
             "room_id": room_id,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/rooms/{room_id}/audio/mute")
+async def mute_audio(room_id: str, mute: bool = True):
+    """Mute or unmute the room's audio"""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        audio_helper = meeting_service.GetMeetingAudioHelper()
+        result = audio_helper.UpdateMyAudioStatus(mute)
+
+        return {
+            "room_id": room_id,
+            "muted": mute,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/rooms/{room_id}/video/mute")
+async def mute_video(room_id: str, mute: bool = True):
+    """Mute (stop) or unmute (start) the room's video"""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        video_helper = meeting_service.GetMeetingVideoHelper()
+        # Note: UpdateMyVideo parameter is "stop", so we pass mute directly
+        result = video_helper.UpdateMyVideo(mute)
+
+        return {
+            "room_id": room_id,
+            "muted": mute,
             "result": int(result),
             "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
         }
