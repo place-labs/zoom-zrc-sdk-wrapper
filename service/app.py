@@ -151,38 +151,57 @@ class RoomManager:
         result = zrc_sdk.RegisterSDKSink(self.sdk, self.sdk_sink)
         logger.info(f"SDK sink registered: {result}")
 
-        # Query and restore previously paired rooms
-        logger.info("Querying for previously paired rooms...")
+        # Query database directly for paired rooms
+        logger.info("Querying database for previously paired rooms...")
         logger.info(f"Data directory: {self.sdk_sink.OnGetAppContentDirPath()}")
-        room_infos = []
-        result = self.sdk.QueryAllZoomRoomsServices(room_infos)
 
-        logger.info(f"QueryAllZoomRoomsServices result: {result} (type: {type(result)})")
-        logger.info(f"room_infos length: {len(room_infos)}")
-        logger.info(f"room_infos type: {type(room_infos)}")
+        import sqlite3
+        import os
+        db_path = os.path.join(self.sdk_sink.OnGetAppContentDirPath(), "third_zrc_data.db")
 
-        if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-            if room_infos:
-                logger.info(f"Found {len(room_infos)} previously paired room(s)")
-                for room_info in room_infos:
-                    logger.info(f"  - Room: {room_info.roomID} ({room_info.roomName})")
-                    logger.info(f"    Display: {room_info.displayName}")
-                    logger.info(f"    Address: {room_info.roomAddress}")
-                    logger.info(f"    Can retry: {room_info.canRetryToPair}")
-                    logger.info(f"    Worker present: {room_info.worker is not None}")
+        if os.path.exists(db_path):
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT pk_id FROM ThirdRoomList")
+                room_ids = [row[0] for row in cursor.fetchall()]
+                conn.close()
 
-                    # Get the service for this room
-                    if room_info.worker:
-                        self.rooms[room_info.roomID] = room_info.worker
-                        # CRITICAL: Register sinks for restored rooms
-                        self.register_sinks_for_room(room_info.roomID, room_info.worker)
-                        logger.info(f"✓ Restored room service for: {room_info.roomID}")
-                    else:
-                        logger.warning(f"  Room {room_info.roomID} has no worker, skipping")
-            else:
-                logger.info("No previously paired rooms found (empty list)")
+                if room_ids:
+                    logger.info(f"Found {len(room_ids)} previously paired room(s) in database")
+                    for room_id in room_ids:
+                        logger.info(f"  - Restoring room: {room_id}")
+                        # Create service for this room ID
+                        room_service = self.sdk.CreateZoomRoomsService(room_id)
+                        if room_service:
+                            self.rooms[room_id] = room_service
+                            # Register sinks
+                            self.register_sinks_for_room(room_id, room_service)
+
+                            # Try to reconnect using stored credentials
+                            logger.info(f"  Attempting to reconnect {room_id}...")
+                            retry_result = room_service.RetryToPairRoom()
+                            logger.info(f"  RetryToPairRoom result: {retry_result}")
+                            logger.info(f"✓ Restored room service for: {room_id}")
+                        else:
+                            logger.error(f"  Failed to create service for: {room_id}")
+                else:
+                    logger.info("No previously paired rooms found in database")
+            except Exception as e:
+                logger.error(f"Error querying database: {e}")
+                logger.info("Falling back to QueryAllZoomRoomsServices...")
+                # Fallback to SDK query
+                room_infos = []
+                result = self.sdk.QueryAllZoomRoomsServices(room_infos)
+                if result == zrc_sdk.ZRCSDKERR_SUCCESS and room_infos:
+                    logger.info(f"Found {len(room_infos)} room(s) via SDK query")
+                    for room_info in room_infos:
+                        if room_info.worker:
+                            self.rooms[room_info.roomID] = room_info.worker
+                            self.register_sinks_for_room(room_info.roomID, room_info.worker)
+                            logger.info(f"✓ Restored room service for: {room_info.roomID}")
         else:
-            logger.warning(f"QueryAllZoomRoomsServices returned error: {result}")
+            logger.info(f"Database file not found: {db_path}")
 
         logger.info("✓ SDK initialized successfully")
 

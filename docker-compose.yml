@@ -35,5 +35,6 @@ networks:
 volumes:
   zrc-data:
     driver: local
-    # This volume contains CRITICAL paired room data
-    # Backup location: Use 'docker volume inspect zrc-data' to find the path
+    # This volume contains CRITICAL paired room data, volumes are scoped to the folder name
+    # docker volume ls
+    # Backup location: Use 'docker volume inspect {folder}_zrc-data' to find the path
