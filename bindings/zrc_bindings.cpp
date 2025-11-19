@@ -13,6 +13,7 @@
 #include "IPreMeetingService.h"
 #include "ServiceComponents/IMeetingAudioHelper.h"
 #include "ServiceComponents/IMeetingVideoHelper.h"
+#include "ServiceComponents/IMeetingControlHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -275,7 +276,8 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("JoinMeeting", &IMeetingService::JoinMeeting)
         .def("ExitMeeting", &IMeetingService::ExitMeeting)
         .def("GetMeetingAudioHelper", &IMeetingService::GetMeetingAudioHelper, py::return_value_policy::reference)
-        .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference);
+        .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
+        .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference);
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -284,4 +286,54 @@ PYBIND11_MODULE(zrc_sdk, m) {
     // ===== Meeting Video Helper =====
     py::class_<IMeetingVideoHelper>(m, "IMeetingVideoHelper")
         .def("UpdateMyVideo", &IMeetingVideoHelper::UpdateMyVideo);
+
+    // ===== Meeting Control Helper Enums =====
+    py::enum_<FocusModeStatus>(m, "FocusModeStatus")
+        .value("FocusModeStatusOff", FocusModeStatus::FocusModeStatusOff)
+        .value("FocusModeStatusEnding", FocusModeStatus::FocusModeStatusEnding)
+        .value("FocusModeStatusOn", FocusModeStatus::FocusModeStatusOn)
+        .export_values();
+
+    py::enum_<AICompanionOption>(m, "AICompanionOption")
+        .value("AICompanionOptionSmartSummary", AICompanionOption::AICompanionOptionSmartSummary)
+        .value("AICompanionOptionSmartQuestion", AICompanionOption::AICompanionOptionSmartQuestion)
+        .value("AICompanionOptionSmartRecording", AICompanionOption::AICompanionOptionSmartRecording)
+        .export_values();
+
+    py::enum_<PanelType>(m, "PanelType")
+        .value("PanelTypeNone", PanelType::PanelTypeNone)
+        .value("PanelTypePList", PanelType::PanelTypePList)
+        .export_values();
+
+    py::enum_<PanelAction>(m, "PanelAction")
+        .value("PanelActionShow", PanelAction::PanelActionShow)
+        .value("PanelActionHide", PanelAction::PanelActionHide)
+        .value("PanelActionSwitchTab", PanelAction::PanelActionSwitchTab)
+        .value("PanelActionScrollUp", PanelAction::PanelActionScrollUp)
+        .value("PanelActionScrollDown", PanelAction::PanelActionScrollDown)
+        .export_values();
+
+    // ===== Meeting Control Helper =====
+    py::class_<IMeetingControlHelper>(m, "IMeetingControlHelper")
+        .def("ShowTopBanner", &IMeetingControlHelper::ShowTopBanner)
+        .def("LockMeeting", &IMeetingControlHelper::LockMeeting)
+        .def("StartFocusMode", &IMeetingControlHelper::StartFocusMode)
+        .def("EnableHiFiMusicMode", &IMeetingControlHelper::EnableHiFiMusicMode)
+        .def("HasNewAppSignaling", &IMeetingControlHelper::HasNewAppSignaling)
+        .def("ListSignalingApps", &IMeetingControlHelper::ListSignalingApps)
+        .def("ListSignalingAppAccessedUsers", &IMeetingControlHelper::ListSignalingAppAccessedUsers)
+        .def("GetSignalingAppPermissionLink", &IMeetingControlHelper::GetSignalingAppPermissionLink)
+        .def("StartMeetingSummary", &IMeetingControlHelper::StartMeetingSummary)
+        .def("StartMeetingQuery", &IMeetingControlHelper::StartMeetingQuery)
+        .def("ChangeMeetingQueryPrivilegeSetting", &IMeetingControlHelper::ChangeMeetingQueryPrivilegeSetting)
+        .def("SetMeetingSummaryNotificationEmail", &IMeetingControlHelper::SetMeetingSummaryNotificationEmail)
+        .def("TurnOnAICompanion", &IMeetingControlHelper::TurnOnAICompanion)
+        .def("TurnOffAICompanion", &IMeetingControlHelper::TurnOffAICompanion)
+        .def("RespondToTurnOnAICompanion", &IMeetingControlHelper::RespondToTurnOnAICompanion)
+        .def("RespondToTurnOffAICompanion", &IMeetingControlHelper::RespondToTurnOffAICompanion)
+        .def("AskHostToTurnOnAICompanion", &IMeetingControlHelper::AskHostToTurnOnAICompanion)
+        .def("AskHostToTurnOffAllAICompanion", &IMeetingControlHelper::AskHostToTurnOffAllAICompanion)
+        .def("ConfirmAICompanionStatusWhenJoin", &IMeetingControlHelper::ConfirmAICompanionStatusWhenJoin)
+        .def("AskToEnableAICompanion", &IMeetingControlHelper::AskToEnableAICompanion)
+        .def("ControlSidePanel", &IMeetingControlHelper::ControlSidePanel);
 }
