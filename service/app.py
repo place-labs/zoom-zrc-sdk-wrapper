@@ -147,61 +147,80 @@ class RoomManager:
         logger.info("Initializing Zoom Rooms SDK...")
         self.sdk = zrc_sdk.IZRCSDK.GetInstance()
 
+        # Initialize web domain (required for SDK to work properly)
+        result = self.sdk.InitWebDomain("https://zoom.us")
+        logger.info(f"InitWebDomain result: {result}")
+
         # Register SDK sink using the helper function
         result = zrc_sdk.RegisterSDKSink(self.sdk, self.sdk_sink)
         logger.info(f"SDK sink registered: {result}")
 
-        # Query database directly for paired rooms
-        logger.info("Querying database for previously paired rooms...")
+        # Try QueryAllZoomRoomsServices first (should work according to docs)
+        logger.info("Querying for previously paired rooms...")
         logger.info(f"Data directory: {self.sdk_sink.OnGetAppContentDirPath()}")
 
-        import sqlite3
-        import os
-        db_path = os.path.join(self.sdk_sink.OnGetAppContentDirPath(), "third_zrc_data.db")
+        room_infos = []
+        result = self.sdk.QueryAllZoomRoomsServices(room_infos)
 
-        if os.path.exists(db_path):
-            try:
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT pk_id FROM ThirdRoomList")
-                room_ids = [row[0] for row in cursor.fetchall()]
-                conn.close()
+        logger.info(f"QueryAllZoomRoomsServices result: {result}")
+        logger.info(f"Found {len(room_infos)} room(s) via QueryAllZoomRoomsServices")
 
-                if room_ids:
-                    logger.info(f"Found {len(room_ids)} previously paired room(s) in database")
-                    for room_id in room_ids:
-                        logger.info(f"  - Restoring room: {room_id}")
-                        # Create service for this room ID
-                        room_service = self.sdk.CreateZoomRoomsService(room_id)
-                        if room_service:
-                            self.rooms[room_id] = room_service
-                            # Register sinks
-                            self.register_sinks_for_room(room_id, room_service)
+        if result == zrc_sdk.ZRCSDKERR_SUCCESS and room_infos:
+            # SDK successfully returned previously paired rooms
+            for room_info in room_infos:
+                logger.info(f"  - Room: {room_info.roomID}")
+                logger.info(f"    Name: {room_info.roomName}")
+                logger.info(f"    Display: {room_info.displayName}")
+                logger.info(f"    Can retry: {room_info.canRetryToPair}")
 
-                            # Try to reconnect using stored credentials
-                            logger.info(f"  Attempting to reconnect {room_id}...")
-                            retry_result = room_service.RetryToPairRoom()
-                            logger.info(f"  RetryToPairRoom result: {retry_result}")
-                            logger.info(f"✓ Restored room service for: {room_id}")
-                        else:
-                            logger.error(f"  Failed to create service for: {room_id}")
-                else:
-                    logger.info("No previously paired rooms found in database")
-            except Exception as e:
-                logger.error(f"Error querying database: {e}")
-                logger.info("Falling back to QueryAllZoomRoomsServices...")
-                # Fallback to SDK query
-                room_infos = []
-                result = self.sdk.QueryAllZoomRoomsServices(room_infos)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS and room_infos:
-                    logger.info(f"Found {len(room_infos)} room(s) via SDK query")
-                    for room_info in room_infos:
-                        if room_info.worker:
-                            self.rooms[room_info.roomID] = room_info.worker
-                            self.register_sinks_for_room(room_info.roomID, room_info.worker)
-                            logger.info(f"✓ Restored room service for: {room_info.roomID}")
+                if room_info.worker:
+                    self.rooms[room_info.roomID] = room_info.worker
+                    self.register_sinks_for_room(room_info.roomID, room_info.worker)
+
+                    if room_info.canRetryToPair:
+                        logger.info(f"  Attempting to reconnect {room_info.roomID}...")
+                        retry_result = room_info.worker.RetryToPairRoom()
+                        logger.info(f"  RetryToPairRoom result: {retry_result}")
+
+                    logger.info(f"✓ Restored room service for: {room_info.roomID}")
         else:
-            logger.info(f"Database file not found: {db_path}")
+            # QueryAllZoomRoomsServices returned empty - fallback to database query
+            # This happens when rooms are paired but never fully connected
+            logger.info("QueryAllZoomRoomsServices returned no rooms, querying database directly...")
+
+            import sqlite3
+            import os
+            db_path = os.path.join(self.sdk_sink.OnGetAppContentDirPath(), "third_zrc_data.db")
+
+            if os.path.exists(db_path):
+                try:
+                    conn = sqlite3.connect(db_path)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT pk_id FROM ThirdRoomList")
+                    room_ids = [row[0] for row in cursor.fetchall()]
+                    conn.close()
+
+                    if room_ids:
+                        logger.info(f"Found {len(room_ids)} previously paired room(s) in database")
+                        for room_id in room_ids:
+                            logger.info(f"  - Restoring room: {room_id}")
+                            # Create service for this room ID
+                            room_service = self.sdk.CreateZoomRoomsService(room_id)
+                            if room_service:
+                                self.rooms[room_id] = room_service
+                                self.register_sinks_for_room(room_id, room_service)
+
+                                # Try to reconnect using stored credentials
+                                logger.info(f"  Attempting to reconnect {room_id}...")
+                                retry_result = room_service.RetryToPairRoom()
+                                logger.info(f"  RetryToPairRoom result: {retry_result}")
+                                logger.info(f"✓ Restored room service for: {room_id}")
+                    else:
+                        logger.info("No previously paired rooms found in database")
+                except Exception as e:
+                    logger.error(f"Error querying database: {e}")
+            else:
+                logger.info(f"Database file not found: {db_path}")
 
         logger.info("✓ SDK initialized successfully")
 

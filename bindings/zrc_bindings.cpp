@@ -204,6 +204,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
     py::class_<IZRCSDK>(m, "IZRCSDK")
         .def_static("GetInstance", &IZRCSDK::GetInstance, py::return_value_policy::reference)
         .def_static("DestroyInstance", &IZRCSDK::DestroyInstance)
+        .def("InitWebDomain", &IZRCSDK::InitWebDomain)
         .def("HeartBeat", &IZRCSDK::HeartBeat)
         .def("ForceFlushLog", &IZRCSDK::ForceFlushLog)
         .def("CreateZoomRoomsService", &IZRCSDK::CreateZoomRoomsService,
