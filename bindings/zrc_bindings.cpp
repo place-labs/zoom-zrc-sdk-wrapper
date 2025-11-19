@@ -14,6 +14,7 @@
 #include "ServiceComponents/IMeetingAudioHelper.h"
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
+#include "ServiceComponents/IMeetingListHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -277,7 +278,8 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ExitMeeting", &IMeetingService::ExitMeeting)
         .def("GetMeetingAudioHelper", &IMeetingService::GetMeetingAudioHelper, py::return_value_policy::reference)
         .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
-        .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference);
+        .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference)
+        .def("GetMeetingListHelper", &IMeetingService::GetMeetingListHelper, py::return_value_policy::reference);
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -336,4 +338,104 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ConfirmAICompanionStatusWhenJoin", &IMeetingControlHelper::ConfirmAICompanionStatusWhenJoin)
         .def("AskToEnableAICompanion", &IMeetingControlHelper::AskToEnableAICompanion)
         .def("ControlSidePanel", &IMeetingControlHelper::ControlSidePanel);
+
+    // ===== Meeting List Helper Enums =====
+    py::enum_<ListMeetingResult>(m, "ListMeetingResult")
+        .value("LIST_MEETING_SUCCESS", ListMeetingResult::LIST_MEETING_SUCCESS)
+        .value("LIST_MEETING_ERROR_UNKNOWN", ListMeetingResult::LIST_MEETING_ERROR_UNKNOWN)
+        .value("LIST_MEETING_ERROR_GOOGLE_CALENDAR_INVALID_CREDENTIAL", ListMeetingResult::LIST_MEETING_ERROR_GOOGLE_CALENDAR_INVALID_CREDENTIAL)
+        .value("LIST_MEETING_ERROR_GOOGLE_CALENDAR_DAILY_LIMIT_EXCEEDED", ListMeetingResult::LIST_MEETING_ERROR_GOOGLE_CALENDAR_DAILY_LIMIT_EXCEEDED)
+        .value("LIST_MEETING_ERROR_EWS_INVALID_CREDENTIAL", ListMeetingResult::LIST_MEETING_ERROR_EWS_INVALID_CREDENTIAL)
+        .value("LIST_MEETING_ERROR_EWS_AUTH_METHOD_UNSUPPORTED", ListMeetingResult::LIST_MEETING_ERROR_EWS_AUTH_METHOD_UNSUPPORTED)
+        .value("LIST_MEETING_ERROR_EWS_FOLDER_NOT_FOUND", ListMeetingResult::LIST_MEETING_ERROR_EWS_FOLDER_NOT_FOUND)
+        .value("LIST_MEETING_ERROR_EWS_IMPERSONATE_USER_DENIED", ListMeetingResult::LIST_MEETING_ERROR_EWS_IMPERSONATE_USER_DENIED)
+        .value("LIST_MEETING_ERROR_EWS_NON_EXISTENT_MAILBOX", ListMeetingResult::LIST_MEETING_ERROR_EWS_NON_EXISTENT_MAILBOX)
+        .value("LIST_MEETING_ERROR_CALENDAR_SERVICE_DISCONNECTED", ListMeetingResult::LIST_MEETING_ERROR_CALENDAR_SERVICE_DISCONNECTED)
+        .export_values();
+
+    py::enum_<ScheduleCalendarEventResult>(m, "ScheduleCalendarEventResult")
+        .value("ScheduleCalendarEventResultSuccess", ScheduleCalendarEventResult::ScheduleCalendarEventResultSuccess)
+        .value("ScheduleCalendarEventResultFailUnknown", ScheduleCalendarEventResult::ScheduleCalendarEventResultFailUnknown)
+        .value("ScheduleCalendarEventResultFailWeakPWD", ScheduleCalendarEventResult::ScheduleCalendarEventResultFailWeakPWD)
+        .export_values();
+
+    py::enum_<DeleteCalendarEventResult>(m, "DeleteCalendarEventResult")
+        .value("DeleteCalendarEventResultSuccess", DeleteCalendarEventResult::DeleteCalendarEventResultSuccess)
+        .value("DeleteCalendarEventResultFailByDeleteCalendar", DeleteCalendarEventResult::DeleteCalendarEventResultFailByDeleteCalendar)
+        .value("DeleteCalendarEventResultFailByZRInMeeting", DeleteCalendarEventResult::DeleteCalendarEventResultFailByZRInMeeting)
+        .value("DeleteCalendarEventResultFailUnknown", DeleteCalendarEventResult::DeleteCalendarEventResultFailUnknown)
+        .export_values();
+
+    py::enum_<ZoomMeetingItemType>(m, "ZoomMeetingItemType")
+        .value("ZoomMeetingItemTypeDefault", ZoomMeetingItemType::ZoomMeetingItemTypeDefault)
+        .value("ZoomMeetingItemTypeZESingleSession", ZoomMeetingItemType::ZoomMeetingItemTypeZESingleSession)
+        .value("ZoomMeetingItemTypeZEMultiSession", ZoomMeetingItemType::ZoomMeetingItemTypeZEMultiSession)
+        .value("ZoomMeetingItemTypeZESubSession", ZoomMeetingItemType::ZoomMeetingItemTypeZESubSession)
+        .export_values();
+
+    py::enum_<ThirdPartyMeetingServiceProvider>(m, "ThirdPartyMeetingServiceProvider")
+        .value("ThirdPartyMeetingServiceProviderInvalid", ThirdPartyMeetingServiceProvider::ThirdPartyMeetingServiceProviderInvalid)
+        .value("ThirdPartyMeetingServiceProviderWebex", ThirdPartyMeetingServiceProvider::ThirdPartyMeetingServiceProviderWebex)
+        .value("ThirdPartyMeetingServiceProviderSkype", ThirdPartyMeetingServiceProvider::ThirdPartyMeetingServiceProviderSkype)
+        .value("ThirdPartyMeetingServiceProviderGoToMeeting", ThirdPartyMeetingServiceProvider::ThirdPartyMeetingServiceProviderGoToMeeting)
+        .value("ThirdPartyMeetingServiceProviderTeams", ThirdPartyMeetingServiceProvider::ThirdPartyMeetingServiceProviderTeams)
+        .export_values();
+
+    // ===== Meeting List Helper Structs =====
+    py::class_<DialNumber>(m, "DialNumber")
+        .def(py::init<>())
+        .def_readwrite("countryCode", &DialNumber::countryCode)
+        .def_readwrite("phoneNumber", &DialNumber::phoneNumber);
+
+    py::class_<ThirdPartyMeeting>(m, "ThirdPartyMeeting")
+        .def(py::init<>())
+        .def_readwrite("serviceProvider", &ThirdPartyMeeting::serviceProvider)
+        .def_readwrite("meetingNumber", &ThirdPartyMeeting::meetingNumber)
+        .def_readwrite("sipAddress", &ThirdPartyMeeting::sipAddress)
+        .def_readwrite("h323Address", &ThirdPartyMeeting::h323Address)
+        .def_readwrite("joinMeetingURL", &ThirdPartyMeeting::joinMeetingURL)
+        .def_readwrite("dialNumbers", &ThirdPartyMeeting::dialNumbers);
+
+    py::class_<EventScheduledByUserInfo>(m, "EventScheduledByUserInfo")
+        .def(py::init<>())
+        .def_readwrite("userID", &EventScheduledByUserInfo::userID)
+        .def_readwrite("userName", &EventScheduledByUserInfo::userName)
+        .def_readwrite("userAvatarURL", &EventScheduledByUserInfo::userAvatarURL);
+
+    py::class_<MeetingItem>(m, "MeetingItem")
+        .def(py::init<>())
+        .def_readwrite("zoomMeetingItemType", &MeetingItem::zoomMeetingItemType)
+        .def_readwrite("meetingNumber", &MeetingItem::meetingNumber)
+        .def_readwrite("meetingName", &MeetingItem::meetingName)
+        .def_readwrite("hostName", &MeetingItem::hostName)
+        .def_readwrite("startTime", &MeetingItem::startTime)
+        .def_readwrite("endTime", &MeetingItem::endTime)
+        .def_readwrite("scheduledFrom", &MeetingItem::scheduledFrom)
+        .def_readwrite("isPrivate", &MeetingItem::isPrivate)
+        .def_readwrite("isAllDayEvent", &MeetingItem::isAllDayEvent)
+        .def_readwrite("isCheckedIn", &MeetingItem::isCheckedIn)
+        .def_readwrite("meetingDomain", &MeetingItem::meetingDomain)
+        .def_readwrite("isInstantMeeting", &MeetingItem::isInstantMeeting)
+        .def_readwrite("thirdPartyMeetingInfo", &MeetingItem::thirdPartyMeetingInfo)
+        .def_readwrite("scheduledByInfo", &MeetingItem::scheduledByInfo);
+
+    py::class_<ScheduleCalendarEventParam>(m, "ScheduleCalendarEventParam")
+        .def(py::init<>())
+        .def_readwrite("topic", &ScheduleCalendarEventParam::topic)
+        .def_readwrite("password", &ScheduleCalendarEventParam::password)
+        .def_readwrite("startTime", &ScheduleCalendarEventParam::startTime)
+        .def_readwrite("endTime", &ScheduleCalendarEventParam::endTime)
+        .def_readwrite("attendees", &ScheduleCalendarEventParam::attendees)
+        .def_readwrite("enableWaitingRoom", &ScheduleCalendarEventParam::enableWaitingRoom);
+
+    // ===== Meeting List Helper =====
+    py::class_<IMeetingListHelper>(m, "IMeetingListHelper")
+        .def("ListMeeting", &IMeetingListHelper::ListMeeting)
+        .def("ScheduleCalendarEvent", &IMeetingListHelper::ScheduleCalendarEvent)
+        .def("DeleteCalendarEvent", &IMeetingListHelper::DeleteCalendarEvent)
+        .def("CheckInCalendarEvent", &IMeetingListHelper::CheckInCalendarEvent)
+        .def("CheckOutCalendarEvent", &IMeetingListHelper::CheckOutCalendarEvent)
+        .def("ShowUpcomingMeetingAlert", &IMeetingListHelper::ShowUpcomingMeetingAlert)
+        .def("CloseUpcomingMeetingAlert", &IMeetingListHelper::CloseUpcomingMeetingAlert)
+        .def("CloseAutoReleaseMeetingAlert", &IMeetingListHelper::CloseAutoReleaseMeetingAlert);
 }

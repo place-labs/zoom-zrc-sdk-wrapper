@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import FastAPI, Depends
 
 from room_manager import RoomManager
-from controllers import rooms, meetings, meeting_controls
+from controllers import rooms, meetings, meeting_controls, meeting_list
 
 # Configure logging
 logging.basicConfig(
@@ -87,10 +87,12 @@ async def health():
 rooms.get_room_manager = get_room_manager
 meetings.get_room_manager = get_room_manager
 meeting_controls.get_room_manager = get_room_manager
+meeting_list.get_room_manager = get_room_manager
 
 app.include_router(rooms.router)
 app.include_router(meetings.router)
 app.include_router(meeting_controls.router)
+app.include_router(meeting_list.router)
 
 
 # ===== Server Launch =====
