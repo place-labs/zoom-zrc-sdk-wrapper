@@ -178,23 +178,11 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .value("ZRCSDKERR_INTERNAL_ERROR", ZRCSDKError::ZRCSDKERR_INTERNAL_ERROR)
         .export_values();
 
-    py::enum_<MeetingStatus>(m, "MeetingStatus")
-        .value("MeetingStatusNotInMeeting", MeetingStatus::MeetingStatusNotInMeeting)
-        .value("MeetingStatusConnectingToMeeting", MeetingStatus::MeetingStatusConnectingToMeeting)
-        .value("MeetingStatusInMeeting", MeetingStatus::MeetingStatusInMeeting)
-        .value("MeetingStatusLoggedOut", MeetingStatus::MeetingStatusLoggedOut)
-        .export_values();
-
     py::enum_<ConnectionState>(m, "ConnectionState")
         .value("ConnectionStateNone", ConnectionState::ConnectionStateNone)
         .value("ConnectionStateEstablished", ConnectionState::ConnectionStateEstablished)
         .value("ConnectionStateConnected", ConnectionState::ConnectionStateConnected)
         .value("ConnectionStateDisconnected", ConnectionState::ConnectionStateDisconnected)
-        .export_values();
-
-    py::enum_<ExitMeetingCmd>(m, "ExitMeetingCmd")
-        .value("ExitMeetingCmdLeave", ExitMeetingCmd::ExitMeetingCmdLeave)
-        .value("ExitMeetingCmdEnd", ExitMeetingCmd::ExitMeetingCmdEnd)
         .export_values();
 
     py::enum_<RoomUnpairedReason>(m, "RoomUnpairedReason")
@@ -271,11 +259,108 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return ZRCSDKERR_INTERNAL_ERROR;
         });
 
+    // ===== Meeting Service Enums =====
+    py::enum_<ExitMeetingCmd>(m, "ExitMeetingCmd")
+        .value("ExitMeetingCmdLeave", ExitMeetingCmd::ExitMeetingCmdLeave)
+        .value("ExitMeetingCmdEnd", ExitMeetingCmd::ExitMeetingCmdEnd)
+        .export_values();
+
+    py::enum_<MeetingStatus>(m, "MeetingStatus")
+        .value("MeetingStatusNotInMeeting", MeetingStatus::MeetingStatusNotInMeeting)
+        .value("MeetingStatusConnectingToMeeting", MeetingStatus::MeetingStatusConnectingToMeeting)
+        .value("MeetingStatusInMeeting", MeetingStatus::MeetingStatusInMeeting)
+        .value("MeetingStatusLoggedOut", MeetingStatus::MeetingStatusLoggedOut)
+        .export_values();
+
+    py::enum_<RoomSystemProtocolType>(m, "RoomSystemProtocolType")
+        .value("RoomSystemProtocolTypeUnknown", RoomSystemProtocolType::RoomSystemProtocolTypeUnknown)
+        .value("RoomSystemProtocolTypeH323", RoomSystemProtocolType::RoomSystemProtocolTypeH323)
+        .value("RoomSystemProtocolTypeSIP", RoomSystemProtocolType::RoomSystemProtocolTypeSIP)
+        .export_values();
+
+    // ===== Meeting Service Structs =====
+    py::class_<LegacyRoomSystem>(m, "LegacyRoomSystem")
+        .def(py::init<>())
+        .def_readwrite("name", &LegacyRoomSystem::name)
+        .def_readwrite("ip", &LegacyRoomSystem::ip)
+        .def_readwrite("e164Num", &LegacyRoomSystem::e164Num)
+        .def_readwrite("roomSystemType", &LegacyRoomSystem::roomSystemType)
+        .def_readwrite("encryptType", &LegacyRoomSystem::encryptType)
+        .def_readwrite("isPexipCVI", &LegacyRoomSystem::isPexipCVI);
+
+    py::class_<MeetingInfo>(m, "MeetingInfo")
+        .def(py::init<>())
+        .def_readwrite("meetingID", &MeetingInfo::meetingID)
+        .def_readwrite("meetingNumber", &MeetingInfo::meetingNumber)
+        .def_readwrite("meetingName", &MeetingInfo::meetingName)
+        .def_readwrite("meetingType", &MeetingInfo::meetingType)
+        .def_readwrite("meetingPassword", &MeetingInfo::meetingPassword)
+        .def_readwrite("numericPassword", &MeetingInfo::numericPassword)
+        .def_readwrite("inviteEmailTitle", &MeetingInfo::inviteEmailTitle)
+        .def_readwrite("inviteEmailContent", &MeetingInfo::inviteEmailContent)
+        .def_readwrite("joinMeetingUrl", &MeetingInfo::joinMeetingUrl)
+        .def_readwrite("isWebinar", &MeetingInfo::isWebinar)
+        .def_readwrite("isWaitingRoom", &MeetingInfo::isWaitingRoom)
+        .def_readwrite("encryptionAlgorithm", &MeetingInfo::encryptionAlgorithm)
+        .def_readwrite("myUserId", &MeetingInfo::myUserId)
+        .def_readwrite("isWebinarAttendee", &MeetingInfo::isWebinarAttendee)
+        .def_readwrite("isWebinarAttendeeCanTalk", &MeetingInfo::isWebinarAttendeeCanTalk)
+        .def_readwrite("amIOriginalHost", &MeetingInfo::amIOriginalHost)
+        .def_readwrite("canPutOnHold", &MeetingInfo::canPutOnHold)
+        .def_readwrite("isAllowHostAssignCCEditor", &MeetingInfo::isAllowHostAssignCCEditor)
+        .def_readwrite("isPAC", &MeetingInfo::isPAC)
+        .def_readwrite("isPACVideoForbidden", &MeetingInfo::isPACVideoForbidden)
+        .def_readwrite("isPACShareForbidden", &MeetingInfo::isPACShareForbidden)
+        .def_readwrite("isGreenRoomEnabled", &MeetingInfo::isGreenRoomEnabled)
+        .def_readwrite("isDebriefSessionEnabled", &MeetingInfo::isDebriefSessionEnabled)
+        .def_readwrite("isPrivateModeMeeting", &MeetingInfo::isPrivateModeMeeting);
+
+    py::class_<MeetingInvitationInfo>(m, "MeetingInvitationInfo")
+        .def(py::init<>())
+        .def_readwrite("callerContactID", &MeetingInvitationInfo::callerContactID)
+        .def_readwrite("callerName", &MeetingInvitationInfo::callerName)
+        .def_readwrite("callerAvatarUrl", &MeetingInvitationInfo::callerAvatarUrl)
+        .def_readwrite("calleeContactID", &MeetingInvitationInfo::calleeContactID)
+        .def_readwrite("meetingID", &MeetingInvitationInfo::meetingID)
+        .def_readwrite("password", &MeetingInvitationInfo::password)
+        .def_readwrite("meetingOptions", &MeetingInvitationInfo::meetingOptions)
+        .def_readwrite("meetingNumber", &MeetingInvitationInfo::meetingNumber)
+        .def_readwrite("expireTime", &MeetingInvitationInfo::expireTime);
+
     // ===== Meeting Service =====
     py::class_<IMeetingService>(m, "IMeetingService")
         .def("StartInstantMeeting", &IMeetingService::StartInstantMeeting)
-        .def("JoinMeeting", &IMeetingService::JoinMeeting)
+        .def("MeetWithIMUsers", &IMeetingService::MeetWithIMUsers)
+        .def("StartMeeting", &IMeetingService::StartMeeting, py::arg("meeting"), py::arg("bringShareToMeeting") = false)
+        .def("StartMeetingWithHostKey", &IMeetingService::StartMeetingWithHostKey)
+        .def("JoinMeeting",
+            static_cast<ZRCSDKError(IMeetingService::*)(const std::string&, bool)>(&IMeetingService::JoinMeeting),
+            py::arg("meetingNumber"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeetingWithURL", &IMeetingService::JoinMeetingWithURL, py::arg("url"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeetingWithContactID", &IMeetingService::JoinMeetingWithContactID, py::arg("contactID"), py::arg("bringShareToMeeting") = false)
         .def("ExitMeeting", &IMeetingService::ExitMeeting)
+        .def("SetRoomTempDisplayNameForMeeting", &IMeetingService::SetRoomTempDisplayNameForMeeting)
+        .def("SendMeetingPassword", &IMeetingService::SendMeetingPassword)
+        .def("CancelEnteringMeetingPassword", &IMeetingService::CancelEnteringMeetingPassword)
+        .def("CancelWaitingForHost", &IMeetingService::CancelWaitingForHost)
+        .def("AnswerMeetingInvite", &IMeetingService::AnswerMeetingInvite)
+        .def("InviteAttendees", &IMeetingService::InviteAttendees)
+        .def("InviteLegacyRoomSystems", &IMeetingService::InviteLegacyRoomSystems)
+        .def("InviteLegacyRoomSystemWithIpOrE164Number", &IMeetingService::InviteLegacyRoomSystemWithIpOrE164Number)
+        .def("SendMeetingInviteEmail", &IMeetingService::SendMeetingInviteEmail)
+        .def("RequestE2ESecurityCode", &IMeetingService::RequestE2ESecurityCode)
+        .def("SendDTMF", &IMeetingService::SendDTMF)
+        .def("GetMeetingStatus", [](IMeetingService* self) {
+            MeetingStatus status;
+            ZRCSDKError result = self->GetMeetingStatus(status);
+            return py::make_tuple(result, status);
+        })
+        .def("GetMeetingInfo", [](IMeetingService* self) {
+            MeetingInfo info;
+            ZRCSDKError result = self->GetMeetingInfo(info);
+            return py::make_tuple(result, info);
+        })
+        .def("ExtendMeeting", &IMeetingService::ExtendMeeting)
         .def("GetMeetingAudioHelper", &IMeetingService::GetMeetingAudioHelper, py::return_value_policy::reference)
         .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
         .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference)
