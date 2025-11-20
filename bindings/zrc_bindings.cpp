@@ -13,6 +13,7 @@
 #include "IPreMeetingService.h"
 #include "IPhoneCallService.h"
 #include "IProAVService.h"
+#include "ISettingService.h"
 #include "ServiceComponents/IMeetingAudioHelper.h"
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
@@ -22,6 +23,7 @@
 #include "ServiceComponents/INDIHelper.h"
 #include "ServiceComponents/IParticipantHelper.h"
 #include "ServiceComponents/IRecordingHelper.h"
+#include "ServiceComponents/ICalibrationHelper.h"
 #include "ServiceComponents/IContactHelper.h"
 #include "ServiceComponents/IBYODHelper.h"
 #include "ServiceComponents/IControlSystemHelper.h"
@@ -202,6 +204,19 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .value("RoomUnpairedReason_RefreshTokenFail", RoomUnpairedReason::RoomUnpairedReason_RefreshTokenFail)
         .export_values();
 
+    py::enum_<CameraBoundaryAdjustField>(m, "CameraBoundaryAdjustField")
+        .value("CameraBoundaryAdjustFieldUnknown", CameraBoundaryAdjustField::CameraBoundaryAdjustFieldUnknown)
+        .value("CameraBoundaryAdjustFieldLeft", CameraBoundaryAdjustField::CameraBoundaryAdjustFieldLeft)
+        .value("CameraBoundaryAdjustFieldRight", CameraBoundaryAdjustField::CameraBoundaryAdjustFieldRight)
+        .value("CameraBoundaryAdjustFieldDepth", CameraBoundaryAdjustField::CameraBoundaryAdjustFieldDepth)
+        .export_values();
+
+    py::enum_<VirtualAudioDeviceType>(m, "VirtualAudioDeviceType")
+        .value("VirtualAudioDeviceTypeUnknown", VirtualAudioDeviceType::VirtualAudioDeviceTypeUnknown)
+        .value("VirtualAudioDeviceTypeMicrophone", VirtualAudioDeviceType::VirtualAudioDeviceTypeMicrophone)
+        .value("VirtualAudioDeviceTypeSpeaker", VirtualAudioDeviceType::VirtualAudioDeviceTypeSpeaker)
+        .export_values();
+
     // ===== Core SDK =====
     py::class_<IZRCSDK>(m, "IZRCSDK")
         .def_static("GetInstance", &IZRCSDK::GetInstance, py::return_value_policy::reference)
@@ -230,6 +245,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingService", &IZoomRoomsService::GetMeetingService, py::return_value_policy::reference)
         .def("GetPhoneCallService", &IZoomRoomsService::GetPhoneCallService, py::return_value_policy::reference)
         .def("GetProAVService", &IZoomRoomsService::GetProAVService, py::return_value_policy::reference)
+        .def("GetSettingService", &IZoomRoomsService::GetSettingService, py::return_value_policy::reference)
         .def("RegisterSink", [](IZoomRoomsService* self, py::object py_sink) {
             // Create a trampoline and keep it alive in a static map
             static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
@@ -1500,6 +1516,456 @@ PYBIND11_MODULE(zrc_sdk, m) {
             ZRCSDKError result = self->GetRecoringPemissionInfo(permissionInfo);
             return py::make_tuple(result, permissionInfo);
         });
+
+    // ===== Setting Service Enums =====
+    py::enum_<AudioCheckupCommand>(m, "AudioCheckupCommand")
+        .value("AudioCheckupCommandStart", AudioCheckupCommand::AudioCheckupCommandStart)
+        .value("AudioCheckupCommandCancel", AudioCheckupCommand::AudioCheckupCommandCancel)
+        .export_values();
+
+    py::enum_<AudioCheckupStatus>(m, "AudioCheckupStatus")
+        .value("AudioCheckupStatusIdle", AudioCheckupStatus::AudioCheckupStatusIdle)
+        .value("AudioCheckupStatusScheduled", AudioCheckupStatus::AudioCheckupStatusScheduled)
+        .value("AudioCheckupStatusStarting", AudioCheckupStatus::AudioCheckupStatusStarting)
+        .value("AudioCheckupStatusChecking", AudioCheckupStatus::AudioCheckupStatusChecking)
+        .value("AudioCheckupStatusSucceeded", AudioCheckupStatus::AudioCheckupStatusSucceeded)
+        .value("AudioCheckupStatusFailed", AudioCheckupStatus::AudioCheckupStatusFailed)
+        .value("AudioCheckupStatusFailedLikely", AudioCheckupStatus::AudioCheckupStatusFailedLikely)
+        .export_values();
+
+    py::enum_<AdvancedNoiseSuppressionMode>(m, "AdvancedNoiseSuppressionMode")
+        .value("AdvancedNoiseSuppressionModeNone", AdvancedNoiseSuppressionMode::AdvancedNoiseSuppressionModeNone)
+        .value("AdvancedNoiseSuppressionModeAuto", AdvancedNoiseSuppressionMode::AdvancedNoiseSuppressionModeAuto)
+        .value("AdvancedNoiseSuppressionModeHigh", AdvancedNoiseSuppressionMode::AdvancedNoiseSuppressionModeHigh)
+        .value("AdvancedNoiseSuppressionModeOff", AdvancedNoiseSuppressionMode::AdvancedNoiseSuppressionModeOff)
+        .export_values();
+
+    py::enum_<MicRecordTestStatus>(m, "MicRecordTestStatus")
+        .value("MicRecordTestStatusNone", MicRecordTestStatus::MicRecordTestStatusNone)
+        .value("MicRecordTestStatusRecording", MicRecordTestStatus::MicRecordTestStatusRecording)
+        .value("MicRecordTestStatusPlaying", MicRecordTestStatus::MicRecordTestStatusPlaying)
+        .export_values();
+
+    py::enum_<ScreenResolutionStatus>(m, "ScreenResolutionStatus")
+        .value("ScreenResolutionStatusOptimizable", ScreenResolutionStatus::ScreenResolutionStatusOptimizable)
+        .value("ScreenResolutionStatusOptimized", ScreenResolutionStatus::ScreenResolutionStatusOptimized)
+        .export_values();
+
+    py::enum_<ScreenSequenceCalibrationAction>(m, "ScreenSequenceCalibrationAction")
+        .value("ScreenSequenceCalibrationNone", ScreenSequenceCalibrationAction::ScreenSequenceCalibrationNone)
+        .value("ScreenSequenceCalibrationStart", ScreenSequenceCalibrationAction::ScreenSequenceCalibrationStart)
+        .value("ScreenSequenceCalibrationIdentify", ScreenSequenceCalibrationAction::ScreenSequenceCalibrationIdentify)
+        .value("ScreenSequenceCalibrationConfirm", ScreenSequenceCalibrationAction::ScreenSequenceCalibrationConfirm)
+        .value("ScreenSequenceCalibrationCancel", ScreenSequenceCalibrationAction::ScreenSequenceCalibrationCancel)
+        .value("ScreenSequenceCalibrationConfidenceStart", ScreenSequenceCalibrationAction::ScreenSequenceCalibrationConfidenceStart)
+        .value("ScreenSequenceCalibrationConfidenceIdentify", ScreenSequenceCalibrationAction::ScreenSequenceCalibrationConfidenceIdentify)
+        .export_values();
+
+    py::enum_<ChannelSignalType>(m, "ChannelSignalType")
+        .value("ChannelSignalTypeUnknown", ChannelSignalType::ChannelSignalTypeUnknown)
+        .value("ChannelSignalTypeMono", ChannelSignalType::ChannelSignalTypeMono)
+        .value("ChannelSignalTypeStereoLeft", ChannelSignalType::ChannelSignalTypeStereoLeft)
+        .value("ChannelSignalTypeStereoRight", ChannelSignalType::ChannelSignalTypeStereoRight)
+        .export_values();
+
+    py::enum_<NetworkType>(m, "NetworkType")
+        .value("NetworkTypeUnknown", NetworkType::NetworkTypeUnknown)
+        .value("NetworkTypeWired", NetworkType::NetworkTypeWired)
+        .value("NetworkTypeWifi", NetworkType::NetworkTypeWifi)
+        .value("NetworkTypePPP", NetworkType::NetworkTypePPP)
+        .value("NetworkType3G", NetworkType::NetworkType3G)
+        .export_values();
+
+    py::enum_<NetworkConnectionType>(m, "NetworkConnectionType")
+        .value("NetworkConnectionTypeUnknown", NetworkConnectionType::NetworkConnectionTypeUnknown)
+        .value("NetworkConnectionTypeDirect", NetworkConnectionType::NetworkConnectionTypeDirect)
+        .value("NetworkConnectionTypeCloud", NetworkConnectionType::NetworkConnectionTypeCloud)
+        .export_values();
+
+    py::enum_<NetworkAudioDeviceListAction>(m, "NetworkAudioDeviceListAction")
+        .value("NetworkAudioDeviceListActionUnknown", NetworkAudioDeviceListAction::NetworkAudioDeviceListActionUnknown)
+        .value("NetworkAudioDeviceListActionRefreshList", NetworkAudioDeviceListAction::NetworkAudioDeviceListActionRefreshList)
+        .value("NetworkAudioDeviceListActionRemoveDevice", NetworkAudioDeviceListAction::NetworkAudioDeviceListActionRemoveDevice)
+        .value("NetworkAudioDeviceListActionAddDevice", NetworkAudioDeviceListAction::NetworkAudioDeviceListActionAddDevice)
+        .value("NetworkAudioDeviceListActionUpdateDevice", NetworkAudioDeviceListAction::NetworkAudioDeviceListActionUpdateDevice)
+        .value("NetworkAudioDeviceListActionUseDanteController", NetworkAudioDeviceListAction::NetworkAudioDeviceListActionUseDanteController)
+        .export_values();
+
+    py::enum_<NetworkAudioDeviceState>(m, "NetworkAudioDeviceState")
+        .value("NetworkAudioDeviceStateNone", NetworkAudioDeviceState::NetworkAudioDeviceStateNone)
+        .value("NetworkAudioDeviceStateAvailable", NetworkAudioDeviceState::NetworkAudioDeviceStateAvailable)
+        .value("NetworkAudioDeviceStateConnecting", NetworkAudioDeviceState::NetworkAudioDeviceStateConnecting)
+        .value("NetworkAudioDeviceStateConnected", NetworkAudioDeviceState::NetworkAudioDeviceStateConnected)
+        .value("NetworkAudioDeviceStateDisconnected", NetworkAudioDeviceState::NetworkAudioDeviceStateDisconnected)
+        .value("NetworkAudioDeviceStateError", NetworkAudioDeviceState::NetworkAudioDeviceStateError)
+        .value("NetworkAudioDeviceStateOccupied", NetworkAudioDeviceState::NetworkAudioDeviceStateOccupied)
+        .export_values();
+
+    py::enum_<NetworkAdapterUpdateType>(m, "NetworkAdapterUpdateType")
+        .value("NetworkAdapterUpdateTypeNone", NetworkAdapterUpdateType::NetworkAdapterUpdateTypeNone)
+        .value("NetworkAdapterUpdateTypeDante", NetworkAdapterUpdateType::NetworkAdapterUpdateTypeDante)
+        .value("NetworkAdapterUpdateTypeNRC", NetworkAdapterUpdateType::NetworkAdapterUpdateTypeNRC)
+        .export_values();
+
+    py::enum_<CalibrationAction>(m, "CalibrationAction")
+        .value("CalibrationActionPageAdjustCamera", CalibrationAction::CalibrationActionPageAdjustCamera)
+        .value("CalibrationActionPageCameraControl", CalibrationAction::CalibrationActionPageCameraControl)
+        .value("CalibrationActionPageReadyToMove", CalibrationAction::CalibrationActionPageReadyToMove)
+        .value("CalibrationActionEventStartToCalibrate", CalibrationAction::CalibrationActionEventStartToCalibrate)
+        .value("CalibrationActionEventFinishToCheckResult", CalibrationAction::CalibrationActionEventFinishToCheckResult)
+        .value("CalibrationActionEventAcceptResult", CalibrationAction::CalibrationActionEventAcceptResult)
+        .value("CalibrationActionEventStop", CalibrationAction::CalibrationActionEventStop)
+        .value("CalibrationActionPageAskNeedSetCameraBoundary", CalibrationAction::CalibrationActionPageAskNeedSetCameraBoundary)
+        .value("CalibrationActionEventSwitchBoundaryCamera", CalibrationAction::CalibrationActionEventSwitchBoundaryCamera)
+        .value("CalibrationActionEventAdjustBoundary", CalibrationAction::CalibrationActionEventAdjustBoundary)
+        .value("CalibrationActionPageVerifyBoundary", CalibrationAction::CalibrationActionPageVerifyBoundary)
+        .value("CalibrationActionPagePreAcceptBoundary", CalibrationAction::CalibrationActionPagePreAcceptBoundary)
+        .value("CalibrationActionEventAcceptBoundaryResult", CalibrationAction::CalibrationActionEventAcceptBoundaryResult)
+        .value("CalibrationActionPagePreviewIDBoundary", CalibrationAction::CalibrationActionPagePreviewIDBoundary)
+        .export_values();
+
+    // ===== Setting Service Structs =====
+    py::class_<QualityStatisticalAudio>(m, "QualityStatisticalAudio")
+        .def(py::init<>())
+        .def_readwrite("sampleRate", &QualityStatisticalAudio::sampleRate)
+        .def_readwrite("recSampleRates", &QualityStatisticalAudio::recSampleRates);
+
+    py::class_<QualityStatisticalVideo>(m, "QualityStatisticalVideo")
+        .def(py::init<>())
+        .def_readwrite("fpsOfRecvMaxVideo", &QualityStatisticalVideo::fpsOfRecvMaxVideo)
+        .def_readwrite("widthOfMaxRecvVideo", &QualityStatisticalVideo::widthOfMaxRecvVideo)
+        .def_readwrite("heightOfMaxRecvVideo", &QualityStatisticalVideo::heightOfMaxRecvVideo)
+        .def_readwrite("resolutionOfSend", &QualityStatisticalVideo::resolutionOfSend)
+        .def_readwrite("fpsOfSend", &QualityStatisticalVideo::fpsOfSend);
+
+    py::class_<QualityStatisticalShare>(m, "QualityStatisticalShare")
+        .def(py::init<>())
+        .def_readwrite("fpsOfRecvShare", &QualityStatisticalShare::fpsOfRecvShare)
+        .def_readwrite("widthOfRecvShare", &QualityStatisticalShare::widthOfRecvShare)
+        .def_readwrite("heightOfRecvShare", &QualityStatisticalShare::heightOfRecvShare)
+        .def_readwrite("resolutionOfSend", &QualityStatisticalShare::resolutionOfSend)
+        .def_readwrite("fpsOfSend", &QualityStatisticalShare::fpsOfSend);
+
+    py::class_<QualityStatisticalInfo>(m, "QualityStatisticalInfo")
+        .def(py::init<>())
+        .def_readwrite("audioStatisticalInfo", &QualityStatisticalInfo::audioStatisticalInfo)
+        .def_readwrite("videoStatisticalInfo", &QualityStatisticalInfo::videoStatisticalInfo)
+        .def_readwrite("shareStatisticalInfo", &QualityStatisticalInfo::shareStatisticalInfo);
+
+    py::class_<StatisticalNetWorkStatusInfo>(m, "StatisticalNetWorkStatusInfo")
+        .def(py::init<>())
+        .def_readwrite("avgLossRatio", &StatisticalNetWorkStatusInfo::avgLossRatio)
+        .def_readwrite("maxLossRatio", &StatisticalNetWorkStatusInfo::maxLossRatio)
+        .def_readwrite("rtt", &StatisticalNetWorkStatusInfo::rtt)
+        .def_readwrite("jitter", &StatisticalNetWorkStatusInfo::jitter)
+        .def_readwrite("rate", &StatisticalNetWorkStatusInfo::rate);
+
+    py::class_<StatisticalMediaInfo>(m, "StatisticalMediaInfo")
+        .def(py::init<>())
+        .def_readwrite("networkSendingStatus", &StatisticalMediaInfo::networkSendingStatus)
+        .def_readwrite("networkReceivingStatus", &StatisticalMediaInfo::networkReceivingStatus)
+        .def_readwrite("qualityStatisticalInfo", &StatisticalMediaInfo::qualityStatisticalInfo);
+
+    py::class_<StatisticalOverallInfo>(m, "StatisticalOverallInfo")
+        .def(py::init<>())
+        .def_readwrite("cpuCoreNumber", &StatisticalOverallInfo::cpuCoreNumber)
+        .def_readwrite("cpuFrequency", &StatisticalOverallInfo::cpuFrequency)
+        .def_readwrite("cpuZRUsage", &StatisticalOverallInfo::cpuZRUsage)
+        .def_readwrite("cpuOverallUsage", &StatisticalOverallInfo::cpuOverallUsage)
+        .def_readwrite("memorySize", &StatisticalOverallInfo::memorySize)
+        .def_readwrite("memoryZRUsage", &StatisticalOverallInfo::memoryZRUsage)
+        .def_readwrite("memoryOverallUsage", &StatisticalOverallInfo::memoryOverallUsage)
+        .def_readwrite("networkType", &StatisticalOverallInfo::networkType)
+        .def_readwrite("proxy", &StatisticalOverallInfo::proxy)
+        .def_readwrite("netWorkConnectionType", &StatisticalOverallInfo::netWorkConnectionType)
+        .def_readwrite("dataCenterRegionMessage", &StatisticalOverallInfo::dataCenterRegionMessage)
+        .def_readwrite("encryption", &StatisticalOverallInfo::encryption);
+
+    py::class_<StatisticalPhoneNetworkInfo>(m, "StatisticalPhoneNetworkInfo")
+        .def(py::init<>())
+        .def_readwrite("packetsNumber", &StatisticalPhoneNetworkInfo::packetsNumber)
+        .def_readwrite("frequency", &StatisticalPhoneNetworkInfo::frequency)
+        .def_readwrite("packetLoss", &StatisticalPhoneNetworkInfo::packetLoss)
+        .def_readwrite("packetLossMax", &StatisticalPhoneNetworkInfo::packetLossMax)
+        .def_readwrite("jitter", &StatisticalPhoneNetworkInfo::jitter)
+        .def_readwrite("bandwidth", &StatisticalPhoneNetworkInfo::bandwidth)
+        .def_readwrite("codec", &StatisticalPhoneNetworkInfo::codec);
+
+    py::class_<StatisticalPhonePeerInfo>(m, "StatisticalPhonePeerInfo")
+        .def(py::init<>())
+        .def_readwrite("peerNumber", &StatisticalPhonePeerInfo::peerNumber)
+        .def_readwrite("localIp", &StatisticalPhonePeerInfo::localIp)
+        .def_readwrite("localPort", &StatisticalPhonePeerInfo::localPort)
+        .def_readwrite("remoteIp", &StatisticalPhonePeerInfo::remoteIp)
+        .def_readwrite("remotePort", &StatisticalPhonePeerInfo::remotePort)
+        .def_readwrite("networkDelay", &StatisticalPhonePeerInfo::networkDelay)
+        .def_readwrite("networkSendingStatus", &StatisticalPhonePeerInfo::networkSendingStatus)
+        .def_readwrite("networkReceivingStatus", &StatisticalPhonePeerInfo::networkReceivingStatus);
+
+    py::class_<StatisticalPhoneInfo>(m, "StatisticalPhoneInfo")
+        .def(py::init<>())
+        .def_readwrite("registerId", &StatisticalPhoneInfo::registerId)
+        .def_readwrite("registerServerIp", &StatisticalPhoneInfo::registerServerIp)
+        .def_readwrite("registerServerPort", &StatisticalPhoneInfo::registerServerPort)
+        .def_readwrite("networkSwitch", &StatisticalPhoneInfo::networkSwitch)
+        .def_readwrite("localNetworkInterface", &StatisticalPhoneInfo::localNetworkInterface)
+        .def_readwrite("phonePeers", &StatisticalPhoneInfo::phonePeers);
+
+    py::class_<DiagnosticMsg>(m, "DiagnosticMsg")
+        .def(py::init<>())
+        .def_readwrite("field", &DiagnosticMsg::field)
+        .def_readwrite("description", &DiagnosticMsg::description);
+
+    py::class_<DiagnosticMsgGroup>(m, "DiagnosticMsgGroup")
+        .def(py::init<>())
+        .def_readwrite("name", &DiagnosticMsgGroup::name)
+        .def_readwrite("msgs", &DiagnosticMsgGroup::msgs);
+
+    py::class_<DiagnosticInfo>(m, "DiagnosticInfo")
+        .def(py::init<>())
+        .def_readwrite("groups", &DiagnosticInfo::groups);
+
+    py::class_<StatisticalInfo>(m, "StatisticalInfo")
+        .def(py::init<>())
+        .def_readwrite("overallInfo", &StatisticalInfo::overallInfo)
+        .def_readwrite("audioInfo", &StatisticalInfo::audioInfo)
+        .def_readwrite("videoInfo", &StatisticalInfo::videoInfo)
+        .def_readwrite("shareInfo", &StatisticalInfo::shareInfo)
+        .def_readwrite("phoneInfo", &StatisticalInfo::phoneInfo);
+
+    py::class_<AudioCheckupInfo>(m, "AudioCheckupInfo")
+        .def(py::init<>())
+        .def_readwrite("status", &AudioCheckupInfo::status)
+        .def_readwrite("intervalAfterScheduled", &AudioCheckupInfo::intervalAfterScheduled)
+        .def_readwrite("percentageOfCheckup", &AudioCheckupInfo::percentageOfCheckup)
+        .def_readwrite("canRestartZoomRoomsSystem", &AudioCheckupInfo::canRestartZoomRoomsSystem)
+        .def_readwrite("intervalAfterFinished", &AudioCheckupInfo::intervalAfterFinished)
+        .def_readwrite("aecLevel", &AudioCheckupInfo::aecLevel)
+        .def_readwrite("testTime", &AudioCheckupInfo::testTime);
+
+    py::class_<RoomProfile>(m, "RoomProfile")
+        .def(py::init<>())
+        .def_readwrite("ID", &RoomProfile::ID)
+        .def_readwrite("name", &RoomProfile::name)
+        .def_readwrite("isSelected", &RoomProfile::isSelected)
+        .def_readwrite("issueDevices", &RoomProfile::issueDevices);
+
+    py::class_<RoomProfileList>(m, "RoomProfileList")
+        .def(py::init<>())
+        .def_readwrite("roomProfileList", &RoomProfileList::roomProfileList);
+
+    py::class_<RoomCapability>(m, "RoomCapability")
+        .def(py::init<>())
+        .def_readwrite("supportAutoLoginOS", &RoomCapability::supportAutoLoginOS)
+        .def_readwrite("supportRestartOS", &RoomCapability::supportRestartOS)
+        .def_readwrite("notSupportDigitalSignage", &RoomCapability::notSupportDigitalSignage)
+        .def_readwrite("notSupportMicAdvancedOption", &RoomCapability::notSupportMicAdvancedOption);
+
+    py::class_<AdjustScreensRes>(m, "AdjustScreensRes")
+        .def(py::init<>())
+        .def_readwrite("result", &AdjustScreensRes::result)
+        .def_readwrite("currentScreen", &AdjustScreensRes::currentScreen)
+        .def_readwrite("quantityOfScreens", &AdjustScreensRes::quantityOfScreens)
+        .def_readwrite("action", &AdjustScreensRes::action);
+
+    py::class_<ScreenInfos>(m, "ScreenInfos")
+        .def(py::init<>())
+        .def_readwrite("quantityOfScreens", &ScreenInfos::quantityOfScreens)
+        .def_readwrite("quantityOfCecAdapterAttachedScreens", &ScreenInfos::quantityOfCecAdapterAttachedScreens)
+        .def_readwrite("hasConfidenceMonitor", &ScreenInfos::hasConfidenceMonitor)
+        .def_readwrite("mainDisplayPosition", &ScreenInfos::mainDisplayPosition);
+
+    py::class_<NetworkAudioChannelInfo>(m, "NetworkAudioChannelInfo")
+        .def(py::init<>())
+        .def_readwrite("state", &NetworkAudioChannelInfo::state)
+        .def_readwrite("signalType", &NetworkAudioChannelInfo::signalType)
+        .def_readwrite("deviceId", &NetworkAudioChannelInfo::deviceId)
+        .def_readwrite("channelName", &NetworkAudioChannelInfo::channelName);
+
+    py::class_<NetworkAudioDevice>(m, "NetworkAudioDevice")
+        .def(py::init<>())
+        .def_readwrite("state", &NetworkAudioDevice::state)
+        .def_readwrite("channels", &NetworkAudioDevice::channels)
+        .def_readwrite("ID", &NetworkAudioDevice::ID)
+        .def_readwrite("name", &NetworkAudioDevice::name)
+        .def_readwrite("identifiable", &NetworkAudioDevice::identifiable);
+
+    py::class_<AudioChannelAndCameraBindInfo>(m, "AudioChannelAndCameraBindInfo")
+        .def(py::init<>())
+        .def_readwrite("cameraDeviceID", &AudioChannelAndCameraBindInfo::cameraDeviceID)
+        .def_readwrite("networkDeviceName", &AudioChannelAndCameraBindInfo::networkDeviceName)
+        .def_readwrite("networkChannelName", &AudioChannelAndCameraBindInfo::networkChannelName)
+        .def_readwrite("rxChannelID", &AudioChannelAndCameraBindInfo::rxChannelID);
+
+    py::class_<IntelligentDirectorInfo>(m, "IntelligentDirectorInfo")
+        .def(py::init<>())
+        .def_readwrite("supportsDirectorMode", &IntelligentDirectorInfo::supportsDirectorMode)
+        .def_readwrite("isCalibrationConfigured", &IntelligentDirectorInfo::isCalibrationConfigured)
+        .def_readwrite("allowDirectorAndMultiCameraParallel", &IntelligentDirectorInfo::allowDirectorAndMultiCameraParallel)
+        .def_readwrite("isRegionLimited", &IntelligentDirectorInfo::isRegionLimited)
+        .def_readwrite("supportedCameraNumber", &IntelligentDirectorInfo::supportedCameraNumber)
+        .def_readwrite("multiCameraParallelNumInDirector", &IntelligentDirectorInfo::multiCameraParallelNumInDirector)
+        .def_readwrite("supportSavePresetImage", &IntelligentDirectorInfo::supportSavePresetImage);
+
+    py::class_<CameraBoundaryConfigurationInfo>(m, "CameraBoundaryConfigurationInfo")
+        .def(py::init<>())
+        .def_readwrite("supportsBoundary", &CameraBoundaryConfigurationInfo::supportsBoundary)
+        .def_readwrite("isBoundaryConfigured", &CameraBoundaryConfigurationInfo::isBoundaryConfigured)
+        .def_readwrite("cameraBoundaryCapability", &CameraBoundaryConfigurationInfo::cameraBoundaryCapability)
+        .def_readwrite("cameraBoundaryEnableStatus", &CameraBoundaryConfigurationInfo::cameraBoundaryEnableStatus);
+
+    py::class_<NetworkAdapterInfo>(m, "NetworkAdapterInfo")
+        .def(py::init<>())
+        .def_readwrite("updateType", &NetworkAdapterInfo::updateType)
+        .def_readwrite("adapter", &NetworkAdapterInfo::adapter)
+        .def_readwrite("ip", &NetworkAdapterInfo::ip);
+
+    // ===== Setting Service =====
+    py::class_<ICalibrationHelper>(m, "ICalibrationHelper");
+
+    py::class_<ISettingService>(m, "ISettingService")
+        .def("GetMicrophoneList", [](ISettingService* self) {
+            std::vector<Device> microphones;
+            ZRCSDKError result = self->GetMicrophoneList(microphones);
+            return py::make_tuple(result, microphones);
+        })
+        .def("GetSpeakerList", [](ISettingService* self) {
+            std::vector<Device> speakers;
+            ZRCSDKError result = self->GetSpeakerList(speakers);
+            return py::make_tuple(result, speakers);
+        })
+        .def("GetCameraList", [](ISettingService* self) {
+            std::vector<Device> cameras;
+            ZRCSDKError result = self->GetCameraList(cameras);
+            return py::make_tuple(result, cameras);
+        })
+        .def("GetCompanionZRList", [](ISettingService* self) {
+            std::vector<CompanionZRDeviceInfo> CZRs;
+            ZRCSDKError result = self->GetCompanionZRList(CZRs);
+            return py::make_tuple(result, CZRs);
+        })
+        .def("GetNetworkAudioDeviceList", [](ISettingService* self, const std::string& virtualDeviceID) {
+            std::vector<NetworkAudioDevice> networkAudioDeviceList;
+            ZRCSDKError result = self->GetNetworkAudioDeviceList(virtualDeviceID, networkAudioDeviceList);
+            return py::make_tuple(result, networkAudioDeviceList);
+        })
+        .def("GetCurrentMicrophone", [](ISettingService* self) {
+            Device microphone;
+            ZRCSDKError result = self->GetCurrentMicrophone(microphone);
+            return py::make_tuple(result, microphone);
+        })
+        .def("GetCurrentSpeaker", [](ISettingService* self) {
+            Device speaker;
+            ZRCSDKError result = self->GetCurrentSpeaker(speaker);
+            return py::make_tuple(result, speaker);
+        })
+        .def("GetCurrentCamera", [](ISettingService* self) {
+            Device camera;
+            ZRCSDKError result = self->GetCurrentCamera(camera);
+            return py::make_tuple(result, camera);
+        })
+        .def("SetCurrentMicrophone", &ISettingService::SetCurrentMicrophone)
+        .def("SetCurrentSpeaker", &ISettingService::SetCurrentSpeaker)
+        .def("SetCurrentCamera", &ISettingService::SetCurrentCamera)
+        .def("GetMicrophoneVolume", [](ISettingService* self) {
+            float volume;
+            ZRCSDKError result = self->GetMicrophoneVolume(volume);
+            return py::make_tuple(result, volume);
+        })
+        .def("GetSpeakerVolume", [](ISettingService* self) {
+            float volume;
+            ZRCSDKError result = self->GetSpeakerVolume(volume);
+            return py::make_tuple(result, volume);
+        })
+        .def("SetMicrophoneVolume", &ISettingService::SetMicrophoneVolume)
+        .def("SetSpeakerVolume", &ISettingService::SetSpeakerVolume)
+        .def("SetSpeakerTempVolumeInMeeting", &ISettingService::SetSpeakerTempVolumeInMeeting)
+        .def("TestMicrophone", &ISettingService::TestMicrophone)
+        .def("StartTestingMicrophoneVolume", &ISettingService::StartTestingMicrophoneVolume)
+        .def("StopTestingMicrophoneVolume", &ISettingService::StopTestingMicrophoneVolume)
+        .def("ConfirmNumberOfCombinedMicrophone", &ISettingService::ConfirmNumberOfCombinedMicrophone)
+        .def("IsSupportAcousticEchoCancellation", [](ISettingService* self) {
+            bool support;
+            ZRCSDKError result = self->IsSupportAcousticEchoCancellation(support);
+            return py::make_tuple(result, support);
+        })
+        .def("EnableAcousticEchoCancellation", &ISettingService::EnableAcousticEchoCancellation)
+        .def("IsSupportAdvancedNoiseSuppression", [](ISettingService* self) {
+            bool support;
+            ZRCSDKError result = self->IsSupportAdvancedNoiseSuppression(support);
+            return py::make_tuple(result, support);
+        })
+        .def("GetCurrentAdvancedNoiseSuppressionMode", [](ISettingService* self) {
+            AdvancedNoiseSuppressionMode mode;
+            ZRCSDKError result = self->GetCurrentAdvancedNoiseSuppressionMode(mode);
+            return py::make_tuple(result, mode);
+        })
+        .def("SelectAdvancedNoiseSuppressionMode", &ISettingService::SelectAdvancedNoiseSuppressionMode)
+        .def("EnableMicrophoneHardwareTroubleshooting", &ISettingService::EnableMicrophoneHardwareTroubleshooting)
+        .def("AudioCheckup", &ISettingService::AudioCheckup)
+        .def("IsAudioFramingAvailable", [](ISettingService* self) {
+            bool available;
+            ZRCSDKError result = self->IsAudioFramingAvailable(available);
+            return py::make_tuple(result, available);
+        })
+        .def("EnableAudioFraming", &ISettingService::EnableAudioFraming)
+        .def("StartTestingSpeaker", &ISettingService::StartTestingSpeaker)
+        .def("StopTestingSpeaker", &ISettingService::StopTestingSpeaker)
+        .def("IsSpatialAudioAvailable", [](ISettingService* self) {
+            bool available;
+            ZRCSDKError result = self->IsSpatialAudioAvailable(available);
+            return py::make_tuple(result, available);
+        })
+        .def("EnableSpatialAudio", &ISettingService::EnableSpatialAudio)
+        .def("SelectMultipleCamera", &ISettingService::SelectMultipleCamera,
+            py::arg("deviceID"), py::arg("isSelected"), py::arg("companionZRID") = "")
+        .def("SelectIntelligentDirectorCamera", &ISettingService::SelectIntelligentDirectorCamera)
+        .def("CalibrateIntelligentDirectorMode", &ISettingService::CalibrateIntelligentDirectorMode,
+            py::arg("actionType"), py::arg("deviceID") = "",
+            py::arg("boundaryAdjustField") = CameraBoundaryAdjustFieldUnknown, py::arg("boundaryAdjustValue") = 0)
+        .def("SetCameraCOMId", &ISettingService::SetCameraCOMId,
+            py::arg("deviceID"), py::arg("comID"), py::arg("companionZRID") = "")
+        .def("SetCameraDisplayName", &ISettingService::SetCameraDisplayName,
+            py::arg("deviceID"), py::arg("displayName"), py::arg("companionZRID") = "")
+        .def("SelectRoomProfile", &ISettingService::SelectRoomProfile)
+        .def("EnableStatisticalInfo", &ISettingService::EnableStatisticalInfo)
+        .def("StartAdjustZRScreens", &ISettingService::StartAdjustZRScreens)
+        .def("StartOverAdjustZRScreens", &ISettingService::StartOverAdjustZRScreens)
+        .def("IdentifyZRConfidenceMonitor", &ISettingService::IdentifyZRConfidenceMonitor)
+        .def("IdentifyZRScreens", &ISettingService::IdentifyZRScreens)
+        .def("ConfirmAdjustZRScreens", &ISettingService::ConfirmAdjustZRScreens)
+        .def("CancelAdjustZRScreens", &ISettingService::CancelAdjustZRScreens)
+        .def("TurnCECScreensOn", &ISettingService::TurnCECScreensOn)
+        .def("RefreshDiagnosticInfo", &ISettingService::RefreshDiagnosticInfo)
+        .def("GetWindowsIoTAccountName", [](ISettingService* self) {
+            std::string osAccountName;
+            ZRCSDKError result = self->GetWindowsIoTAccountName(osAccountName);
+            return py::make_tuple(result, osAccountName);
+        })
+        .def("ChangeWindowsPassword", &ISettingService::ChangeWindowsPassword)
+        .def("ListVirtualAudioDevices", &ISettingService::ListVirtualAudioDevices)
+        .def("SelectVirtualAudioDevice", &ISettingService::SelectVirtualAudioDevice)
+        .def("UnselectVirtualAudioDevice", &ISettingService::UnselectVirtualAudioDevice)
+        .def("IdentifyVirtualAudioDevice", &ISettingService::IdentifyVirtualAudioDevice)
+        .def("UseDanteController", &ISettingService::UseDanteController)
+        .def("IsUseDanteController", [](ISettingService* self, const std::string& virtualDeviceID) {
+            bool isUseDanteController;
+            ZRCSDKError result = self->IsUseDanteController(virtualDeviceID, isUseDanteController);
+            return py::make_tuple(result, isUseDanteController);
+        })
+        .def("ListAudioChannelAndCameraBindInfo", &ISettingService::ListAudioChannelAndCameraBindInfo)
+        .def("BindCameraToAudioChannel", &ISettingService::BindCameraToAudioChannel)
+        .def("UnbindCameraFromAudioChannel", &ISettingService::UnbindCameraFromAudioChannel)
+        .def("UnbindAudioChannelFromCamera", &ISettingService::UnbindAudioChannelFromCamera)
+        .def("UnbindAllAudioChannelAndCameraConnections", &ISettingService::UnbindAllAudioChannelAndCameraConnections)
+        .def("RenameCompanionZR", &ISettingService::RenameCompanionZR)
+        .def("GetNetWorkAdapterInfo", [](ISettingService* self) {
+            std::vector<NetworkAdapterInfo> networkAdapterInfos;
+            ZRCSDKError result = self->GetNetWorkAdapterInfo(networkAdapterInfos);
+            return py::make_tuple(result, networkAdapterInfos);
+        })
+        .def("GetCalibrationHelper", &ISettingService::GetCalibrationHelper, py::return_value_policy::reference)
+        .def("EnableMultiCameraOnlyMode", &ISettingService::EnableMultiCameraOnlyMode);
 
     // ===== Phone Call Service =====
     py::class_<IPhoneCallService>(m, "IPhoneCallService")
