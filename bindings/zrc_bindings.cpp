@@ -16,6 +16,7 @@
 #include "ServiceComponents/IMeetingControlHelper.h"
 #include "ServiceComponents/IMeetingListHelper.h"
 #include "ServiceComponents/IMeetingShareHelper.h"
+#include "ServiceComponents/IMeetingViewLayoutHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -366,7 +367,8 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
         .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference)
         .def("GetMeetingListHelper", &IMeetingService::GetMeetingListHelper, py::return_value_policy::reference)
-        .def("GetMeetingShareHelper", &IMeetingService::GetMeetingShareHelper, py::return_value_policy::reference);
+        .def("GetMeetingShareHelper", &IMeetingService::GetMeetingShareHelper, py::return_value_policy::reference)
+        .def("GetMeetingViewLayoutHelper", &IMeetingService::GetMeetingViewLayoutHelper, py::return_value_policy::reference);
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -714,6 +716,155 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("setting", &MyMeetingVideoSettings::setting)
         .def_readwrite("meeting", &MyMeetingVideoSettings::meeting);
 
+    // ===== Meeting View Layout Helper Enums =====
+    py::enum_<VideoLayoutStyle>(m, "VideoLayoutStyle")
+        .value("VideoLayoutStyleUnknown", VideoLayoutStyle::VideoLayoutStyleUnknown)
+        .value("VideoLayoutStyleGallery", VideoLayoutStyle::VideoLayoutStyleGallery)
+        .value("VideoLayoutStyleSpeaker", VideoLayoutStyle::VideoLayoutStyleSpeaker)
+        .value("VideoLayoutStyleThumbnail", VideoLayoutStyle::VideoLayoutStyleThumbnail)
+        .value("VideoLayoutStyleContentOnly", VideoLayoutStyle::VideoLayoutStyleContentOnly)
+        .value("VideoLayoutStyleCancelContentOnly", VideoLayoutStyle::VideoLayoutStyleCancelContentOnly)
+        .value("VideoLayoutStyleDynamicLayout", VideoLayoutStyle::VideoLayoutStyleDynamicLayout)
+        .export_values();
+
+    py::enum_<VideoThumbPosition>(m, "VideoThumbPosition")
+        .value("VideoThumbPositionCenter", VideoThumbPosition::VideoThumbPositionCenter)
+        .value("VideoThumbPositionUp", VideoThumbPosition::VideoThumbPositionUp)
+        .value("VideoThumbPositionRight", VideoThumbPosition::VideoThumbPositionRight)
+        .value("VideoThumbPositionUpRight", VideoThumbPosition::VideoThumbPositionUpRight)
+        .value("VideoThumbPositionDown", VideoThumbPosition::VideoThumbPositionDown)
+        .value("VideoThumbPositionDownRight", VideoThumbPosition::VideoThumbPositionDownRight)
+        .value("VideoThumbPositionLeft", VideoThumbPosition::VideoThumbPositionLeft)
+        .value("VideoThumbPositionUpLeft", VideoThumbPosition::VideoThumbPositionUpLeft)
+        .value("VideoThumbPositionDownLeft", VideoThumbPosition::VideoThumbPositionDownLeft)
+        .export_values();
+
+    py::enum_<VideoThumbSize>(m, "VideoThumbSize")
+        .value("VideoThumbSizeOff", VideoThumbSize::VideoThumbSizeOff)
+        .value("VideoThumbSize1x", VideoThumbSize::VideoThumbSize1x)
+        .value("VideoThumbSize2x", VideoThumbSize::VideoThumbSize2x)
+        .value("VideoThumbSize3x", VideoThumbSize::VideoThumbSize3x)
+        .value("VideoThumbSizeVideoStripe", VideoThumbSize::VideoThumbSizeVideoStripe)
+        .export_values();
+
+    py::enum_<PageVideoType>(m, "PageVideoType")
+        .value("PageVideoTypeUnknown", PageVideoType::PageVideoTypeUnknown)
+        .value("PageVideoTypeGalleryView", PageVideoType::PageVideoTypeGalleryView)
+        .value("PageVideoTypeThumbnailView", PageVideoType::PageVideoTypeThumbnailView)
+        .value("PageVideoTypeDynamicLayoutView", PageVideoType::PageVideoTypeDynamicLayoutView)
+        .export_values();
+
+    py::enum_<VideoOrderType>(m, "VideoOrderType")
+        .value("VideoOrderTypeUnknown", VideoOrderType::VideoOrderTypeUnknown)
+        .value("VideoOrderTypeDefault", VideoOrderType::VideoOrderTypeDefault)
+        .value("VideoOrderTypeAlphabetical", VideoOrderType::VideoOrderTypeAlphabetical)
+        .value("VideoOrderTypeReverseAlphabetical", VideoOrderType::VideoOrderTypeReverseAlphabetical)
+        .value("VideoOrderTypeSavedOrder", VideoOrderType::VideoOrderTypeSavedOrder)
+        .export_values();
+
+    py::enum_<DynamicLayoutType>(m, "DynamicLayoutType")
+        .value("DynamicLayoutTypeSpeakersOnUnknown", DynamicLayoutType::DynamicLayoutTypeSpeakersOnUnknown)
+        .value("DynamicLayoutTypeSpeakersOnBottom", DynamicLayoutType::DynamicLayoutTypeSpeakersOnBottom)
+        .value("DynamicLayoutTypeSpeakersOnMiddle", DynamicLayoutType::DynamicLayoutTypeSpeakersOnMiddle)
+        .value("DynamicLayoutTypeSpeakersOnTop", DynamicLayoutType::DynamicLayoutTypeSpeakersOnTop)
+        .export_values();
+
+    py::enum_<ConfidenceMonitorLayoutType>(m, "ConfidenceMonitorLayoutType")
+        .value("ConfidenceMonitorLayoutTypeUnknown", ConfidenceMonitorLayoutType::ConfidenceMonitorLayoutTypeUnknown)
+        .value("ConfidenceMonitorLayoutTypeSelf", ConfidenceMonitorLayoutType::ConfidenceMonitorLayoutTypeSelf)
+        .value("ConfidenceMonitorLayoutTypeActive", ConfidenceMonitorLayoutType::ConfidenceMonitorLayoutTypeActive)
+        .value("ConfidenceMonitorLayoutTypeShareContent", ConfidenceMonitorLayoutType::ConfidenceMonitorLayoutTypeShareContent)
+        .export_values();
+
+    py::enum_<AttendeeViewLayoutType>(m, "AttendeeViewLayoutType")
+        .value("AttendeeViewLayoutTypeNone", AttendeeViewLayoutType::AttendeeViewLayoutTypeNone)
+        .value("AttendeeViewLayoutTypeStandard", AttendeeViewLayoutType::AttendeeViewLayoutTypeStandard)
+        .value("AttendeeViewLayoutTypeSpeaker", AttendeeViewLayoutType::AttendeeViewLayoutTypeSpeaker)
+        .value("AttendeeViewLayoutTypeGallery", AttendeeViewLayoutType::AttendeeViewLayoutTypeGallery)
+        .value("AttendeeViewLayoutTypeFollow", AttendeeViewLayoutType::AttendeeViewLayoutTypeFollow)
+        .value("AttendeeViewLayoutTypeShareContentOnly", AttendeeViewLayoutType::AttendeeViewLayoutTypeShareContentOnly)
+        .export_values();
+
+    py::enum_<ThumbnailsPositionType>(m, "ThumbnailsPositionType")
+        .value("ThumbnailsPositionTypeNone", ThumbnailsPositionType::ThumbnailsPositionTypeNone)
+        .value("ThumbnailsPositionTypeBottom", ThumbnailsPositionType::ThumbnailsPositionTypeBottom)
+        .value("ThumbnailsPositionTypeTop", ThumbnailsPositionType::ThumbnailsPositionTypeTop)
+        .value("ThumbnailsPositionTypeUnknown", ThumbnailsPositionType::ThumbnailsPositionTypeUnknown)
+        .export_values();
+
+    // ===== Meeting View Layout Helper Structs =====
+    py::class_<VideoPageStatus>(m, "VideoPageStatus")
+        .def(py::init<>())
+        .def_readwrite("isInFirstPage", &VideoPageStatus::isInFirstPage)
+        .def_readwrite("isInLastPage", &VideoPageStatus::isInLastPage)
+        .def_readwrite("pageVideoType", &VideoPageStatus::pageVideoType)
+        .def_readwrite("videoCountInCurrentPage", &VideoPageStatus::videoCountInCurrentPage);
+
+    py::class_<VideoThumbInfo>(m, "VideoThumbInfo")
+        .def(py::init<>())
+        .def_readwrite("isSupported", &VideoThumbInfo::isSupported)
+        .def_readwrite("position", &VideoThumbInfo::position)
+        .def_readwrite("size", &VideoThumbInfo::size)
+        .def_readwrite("videoPageStatus", &VideoThumbInfo::videoPageStatus)
+        .def_readwrite("isThumbnailOnTop", &VideoThumbInfo::isThumbnailOnTop);
+
+    py::class_<VideoLayoutStatus>(m, "VideoLayoutStatus")
+        .def(py::init<>())
+        .def_readwrite("canSwitchSpeakerView", &VideoLayoutStatus::canSwitchSpeakerView)
+        .def_readwrite("canSwitchThumbnailView", &VideoLayoutStatus::canSwitchThumbnailView)
+        .def_readwrite("canSwitchGalleryView", &VideoLayoutStatus::canSwitchGalleryView)
+        .def_readwrite("canSwitchContentOnly", &VideoLayoutStatus::canSwitchContentOnly)
+        .def_readwrite("canSwitchDynamicLayout", &VideoLayoutStatus::canSwitchDynamicLayout)
+        .def_readwrite("isInThumbnail", &VideoLayoutStatus::isInThumbnail)
+        .def_readwrite("isInGalleryView", &VideoLayoutStatus::isInGalleryView)
+        .def_readwrite("isInContentOnly", &VideoLayoutStatus::isInContentOnly)
+        .def_readwrite("isInImmersive", &VideoLayoutStatus::isInImmersive)
+        .def_readwrite("isInDynamicLayout", &VideoLayoutStatus::isInDynamicLayout)
+        .def_readwrite("canAdjustFloatingVideo", &VideoLayoutStatus::canAdjustFloatingVideo)
+        .def_readwrite("canSwitchFloatingShareContent", &VideoLayoutStatus::canSwitchFloatingShareContent)
+        .def_readwrite("isInFloatingShareContent", &VideoLayoutStatus::isInFloatingShareContent);
+
+    py::class_<WallViewStyleStatus>(m, "WallViewStyleStatus")
+        .def(py::init<>())
+        .def_readwrite("videoLayoutStatus", &WallViewStyleStatus::videoLayoutStatus)
+        .def_readwrite("videoPageStatus", &WallViewStyleStatus::videoPageStatus)
+        .def_readwrite("videoThumbInfo", &WallViewStyleStatus::videoThumbInfo);
+
+    py::class_<VideoOrderInfo>(m, "VideoOrderInfo")
+        .def(py::init<>())
+        .def_readwrite("type", &VideoOrderInfo::type)
+        .def_readwrite("hasSavedOrder", &VideoOrderInfo::hasSavedOrder)
+        .def_readwrite("isFollowHostOrder", &VideoOrderInfo::isFollowHostOrder)
+        .def_readwrite("isSavedOrderEnabled", &VideoOrderInfo::isSavedOrderEnabled);
+
+    py::class_<ConfidenceMonitorInfo>(m, "ConfidenceMonitorInfo")
+        .def(py::init<>())
+        .def_readwrite("layout", &ConfidenceMonitorInfo::layout)
+        .def_readwrite("isSharedContentAvailable", &ConfidenceMonitorInfo::isSharedContentAvailable);
+
+    py::class_<ScreenLayoutCtrlInfo>(m, "ScreenLayoutCtrlInfo")
+        .def(py::init<>())
+        .def_readwrite("layout", &ScreenLayoutCtrlInfo::layout)
+        .def_readwrite("enable", &ScreenLayoutCtrlInfo::enable)
+        .def_readwrite("visible", &ScreenLayoutCtrlInfo::visible);
+
+    py::class_<ScreenLayoutInfo>(m, "ScreenLayoutInfo")
+        .def(py::init<>())
+        .def_readwrite("screen", &ScreenLayoutInfo::screen)
+        .def_readwrite("layout", &ScreenLayoutInfo::layout)
+        .def_readwrite("layoutCtrlInfos", &ScreenLayoutInfo::layoutCtrlInfos);
+
+    py::class_<ScreenLayoutStatus>(m, "ScreenLayoutStatus")
+        .def(py::init<>())
+        .def_readwrite("canShowContentOnly", &ScreenLayoutStatus::canShowContentOnly)
+        .def_readwrite("isInContentOnly", &ScreenLayoutStatus::isInContentOnly)
+        .def_readwrite("canAdjustFloatingVideo", &ScreenLayoutStatus::canAdjustFloatingVideo)
+        .def_readwrite("canSwitchFloatingShareContent", &ScreenLayoutStatus::canSwitchFloatingShareContent)
+        .def_readwrite("isInFloatingShareContent", &ScreenLayoutStatus::isInFloatingShareContent)
+        .def_readwrite("canAdjustMyAutoGeneratedVideoStreamsVisibility", &ScreenLayoutStatus::canAdjustMyAutoGeneratedVideoStreamsVisibility)
+        .def_readwrite("isShowMyAutoGeneratedVideoStreams", &ScreenLayoutStatus::isShowMyAutoGeneratedVideoStreams)
+        .def_readwrite("layoutInfos", &ScreenLayoutStatus::layoutInfos);
+
     // ===== Meeting List Helper Enums =====
     py::enum_<ListMeetingResult>(m, "ListMeetingResult")
         .value("LIST_MEETING_SUCCESS", ListMeetingResult::LIST_MEETING_SUCCESS)
@@ -851,4 +1002,35 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return py::make_tuple(result, info);
         })
         .def("EnableAnnotationOverHDMI", &IMeetingShareHelper::EnableAnnotationOverHDMI);
+
+    // ===== Meeting View Layout Helper =====
+    py::class_<IMeetingViewLayoutHelper>(m, "IMeetingViewLayoutHelper")
+        .def("UpdateVideoLayoutStyle", &IMeetingViewLayoutHelper::UpdateVideoLayoutStyle)
+        .def("ControlVideoPosition", &IMeetingViewLayoutHelper::ControlVideoPosition)
+        .def("TurnVideoPage", &IMeetingViewLayoutHelper::TurnVideoPage)
+        .def("SwitchToFloatingShareForSingleScreen", &IMeetingViewLayoutHelper::SwitchToFloatingShareForSingleScreen)
+        .def("IsSupportShowNonVideoParticipants", [](IMeetingViewLayoutHelper* self) {
+            bool support;
+            ZRCSDKError result = self->IsSupportShowNonVideoParticipants(support);
+            return py::make_tuple(result, support);
+        })
+        .def("ShowNonVideoParticipants", &IMeetingViewLayoutHelper::ShowNonVideoParticipants)
+        .def("EnableShowUpTo49PerPageInGallery", &IMeetingViewLayoutHelper::EnableShowUpTo49PerPageInGallery)
+        .def("EnableAutoSwitchSpeaker", &IMeetingViewLayoutHelper::EnableAutoSwitchSpeaker)
+        .def("SelectVideoOrder", &IMeetingViewLayoutHelper::SelectVideoOrder)
+        .def("SetDynamicLayoutOption", &IMeetingViewLayoutHelper::SetDynamicLayoutOption)
+        .def("SetConfidenceMonitorLayout", &IMeetingViewLayoutHelper::SetConfidenceMonitorLayout)
+        .def("ChangeAttendeeView", &IMeetingViewLayoutHelper::ChangeAttendeeView)
+        .def("SelectGalleryGrid", &IMeetingViewLayoutHelper::SelectGalleryGrid)
+        .def("ExpandConfSelfVideo", &IMeetingViewLayoutHelper::ExpandConfSelfVideo)
+        .def("SetScreenLayout", &IMeetingViewLayoutHelper::SetScreenLayout)
+        .def("SetShareContentOnly", &IMeetingViewLayoutHelper::SetShareContentOnly)
+        .def("ShowScreenIndex", &IMeetingViewLayoutHelper::ShowScreenIndex)
+        .def("GetThumbnailsPosition", [](IMeetingViewLayoutHelper* self) {
+            ThumbnailsPositionType type;
+            ZRCSDKError result = self->GetThumbnailsPosition(type);
+            return py::make_tuple(result, type);
+        })
+        .def("ChangeThumbnailsPosition", &IMeetingViewLayoutHelper::ChangeThumbnailsPosition)
+        .def("ShowMyAutoGeneratedVideoStreams", &IMeetingViewLayoutHelper::ShowMyAutoGeneratedVideoStreams);
 }
