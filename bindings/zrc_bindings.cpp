@@ -21,6 +21,7 @@
 #include "ServiceComponents/IMeetingViewLayoutHelper.h"
 #include "ServiceComponents/INDIHelper.h"
 #include "ServiceComponents/IParticipantHelper.h"
+#include "ServiceComponents/IRecordingHelper.h"
 #include "ServiceComponents/IContactHelper.h"
 #include "ServiceComponents/IBYODHelper.h"
 #include "ServiceComponents/IControlSystemHelper.h"
@@ -406,7 +407,8 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingShareHelper", &IMeetingService::GetMeetingShareHelper, py::return_value_policy::reference)
         .def("GetMeetingViewLayoutHelper", &IMeetingService::GetMeetingViewLayoutHelper, py::return_value_policy::reference)
         .def("GetNDIHelper", &IMeetingService::GetNDIHelper, py::return_value_policy::reference)
-        .def("GetParticipantHelper", &IMeetingService::GetParticipantHelper, py::return_value_policy::reference);
+        .def("GetParticipantHelper", &IMeetingService::GetParticipantHelper, py::return_value_policy::reference)
+        .def("GetRecordingHelper", &IMeetingService::GetRecordingHelper, py::return_value_policy::reference);
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -1417,6 +1419,87 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ReportIssue", &IParticipantHelper::ReportIssue)
         .def("SetMySelfAsActiveSpeaker", &IParticipantHelper::SetMySelfAsActiveSpeaker)
         .def("SetMyChildAsActiveSpeaker", &IParticipantHelper::SetMyChildAsActiveSpeaker);
+
+    // ===== Recording Helper Enums =====
+    py::enum_<MeetingRecordingError>(m, "MeetingRecordingError")
+        .value("MeetingRecordingErrorSuccess", MeetingRecordingError::MeetingRecordingErrorSuccess)
+        .value("MeetingRecordingErrorUnknown", MeetingRecordingError::MeetingRecordingErrorUnknown)
+        .value("MeetingRecordingErrorStorageFull", MeetingRecordingError::MeetingRecordingErrorStorageFull)
+        .value("MeetingRecordingErrorKMSKeyNotReady", MeetingRecordingError::MeetingRecordingErrorKMSKeyNotReady)
+        .export_values();
+
+    py::enum_<RecordingRequestType>(m, "RecordingRequestType")
+        .value("RecordingRequestTypeUnknown", RecordingRequestType::RecordingRequestTypeUnknown)
+        .value("RecordingRequestTypeStart", RecordingRequestType::RecordingRequestTypeStart)
+        .value("RecordingRequestTypeStop", RecordingRequestType::RecordingRequestTypeStop)
+        .value("RecordingRequestTypePause", RecordingRequestType::RecordingRequestTypePause)
+        .value("RecordingRequestTypeResume", RecordingRequestType::RecordingRequestTypeResume)
+        .export_values();
+
+    py::enum_<RecordingPermissionType>(m, "RecordingPermissionType")
+        .value("RecordingPermissionTypeUnknown", RecordingPermissionType::RecordingPermissionTypeUnknown)
+        .value("RecordingPermissionTypeLocalRecording", RecordingPermissionType::RecordingPermissionTypeLocalRecording)
+        .value("RecordingPermissionTypeRequestLocalRecording", RecordingPermissionType::RecordingPermissionTypeRequestLocalRecording)
+        .value("RecordingPermissionTypeRequestCloudRecording", RecordingPermissionType::RecordingPermissionTypeRequestCloudRecording)
+        .export_values();
+
+    py::enum_<RecordingType>(m, "RecordingType")
+        .value("RecordingTypeUnknown", RecordingType::RecordingTypeUnknown)
+        .value("RecordingTypeLocal", RecordingType::RecordingTypeLocal)
+        .value("RecordingTypeCloud", RecordingType::RecordingTypeCloud)
+        .export_values();
+
+    // ===== Recording Helper Structs =====
+    py::class_<MeetingRecordingInfo>(m, "MeetingRecordingInfo")
+        .def(py::init<>())
+        .def_readwrite("isMeetingBeingRecorded", &MeetingRecordingInfo::isMeetingBeingRecorded)
+        .def_readwrite("canIRecord", &MeetingRecordingInfo::canIRecord)
+        .def_readwrite("amIRecording", &MeetingRecordingInfo::amIRecording)
+        .def_readwrite("isConnectingToCMR", &MeetingRecordingInfo::isConnectingToCMR)
+        .def_readwrite("isCMRPaused", &MeetingRecordingInfo::isCMRPaused)
+        .def_readwrite("isCMRInProgress", &MeetingRecordingInfo::isCMRInProgress)
+        .def_readwrite("isRecordingOnCloud", &MeetingRecordingInfo::isRecordingOnCloud)
+        .def_readwrite("hasLocalRecording", &MeetingRecordingInfo::hasLocalRecording);
+
+    py::class_<RecordingRequestInfo>(m, "RecordingRequestInfo")
+        .def(py::init<>())
+        .def_readwrite("recordingType", &RecordingRequestInfo::recordingType)
+        .def_readwrite("senderName", &RecordingRequestInfo::senderName);
+
+    py::class_<RecordPermissionInfo>(m, "RecordPermissionInfo")
+        .def(py::init<>())
+        .def_readwrite("type", &RecordPermissionInfo::type)
+        .def_readwrite("isEnable", &RecordPermissionInfo::isEnable)
+        .def_readwrite("isLocked", &RecordPermissionInfo::isLocked);
+
+    // ===== Recording Helper =====
+    py::class_<IRecordingHelper>(m, "IRecordingHelper")
+        .def("ConfirmRecordingError", &IRecordingHelper::ConfirmRecordingError)
+        .def("IsNeedPromptStartRecordingDisclaimer", [](IRecordingHelper* self) {
+            bool need;
+            ZRCSDKError result = self->IsNeedPromptStartRecordingDisclaimer(need);
+            return py::make_tuple(result, need);
+        })
+        .def("PromptStartRecordingDisclaimer", &IRecordingHelper::PromptStartRecordingDisclaimer)
+        .def("IsMeetingCMRNoStorage", [](IRecordingHelper* self) {
+            bool full;
+            ZRCSDKError result = self->IsMeetingCMRNoStorage(full);
+            return py::make_tuple(result, full);
+        })
+        .def("QueryMeetingRecordingStorage", &IRecordingHelper::QueryMeetingRecordingStorage)
+        .def("SetMeetingRecordingNotificationEmail", &IRecordingHelper::SetMeetingRecordingNotificationEmail)
+        .def("StartMeetingCloudRecording", &IRecordingHelper::StartMeetingCloudRecording)
+        .def("StopMeetingCloudRecording", &IRecordingHelper::StopMeetingCloudRecording)
+        .def("PauseMeetingCloudRecording", &IRecordingHelper::PauseMeetingCloudRecording)
+        .def("ResumeMeetingCloudRecording", &IRecordingHelper::ResumeMeetingCloudRecording)
+        .def("AllowUserRecording", &IRecordingHelper::AllowUserRecording)
+        .def("ResponseToRecordingRequest", &IRecordingHelper::ResponseToRecordingRequest)
+        .def("ChangeRecordingPermission", &IRecordingHelper::ChangeRecordingPermission)
+        .def("GetRecoringPemissionInfo", [](IRecordingHelper* self) {
+            std::vector<RecordPermissionInfo> permissionInfo;
+            ZRCSDKError result = self->GetRecoringPemissionInfo(permissionInfo);
+            return py::make_tuple(result, permissionInfo);
+        });
 
     // ===== Phone Call Service =====
     py::class_<IPhoneCallService>(m, "IPhoneCallService")
