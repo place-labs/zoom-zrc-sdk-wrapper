@@ -15,6 +15,7 @@
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
 #include "ServiceComponents/IMeetingListHelper.h"
+#include "ServiceComponents/IMeetingShareHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -364,7 +365,8 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingAudioHelper", &IMeetingService::GetMeetingAudioHelper, py::return_value_policy::reference)
         .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
         .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference)
-        .def("GetMeetingListHelper", &IMeetingService::GetMeetingListHelper, py::return_value_policy::reference);
+        .def("GetMeetingListHelper", &IMeetingService::GetMeetingListHelper, py::return_value_policy::reference)
+        .def("GetMeetingShareHelper", &IMeetingService::GetMeetingShareHelper, py::return_value_policy::reference);
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -423,6 +425,182 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ConfirmAICompanionStatusWhenJoin", &IMeetingControlHelper::ConfirmAICompanionStatusWhenJoin)
         .def("AskToEnableAICompanion", &IMeetingControlHelper::AskToEnableAICompanion)
         .def("ControlSidePanel", &IMeetingControlHelper::ControlSidePanel);
+
+    // ===== Meeting Share Helper Enums =====
+    py::enum_<ConfInstType>(m, "ConfInstType")
+        .value("ConfInstTypeUnknown", ConfInstType::ConfInstTypeUnknown)
+        .value("ConfInstTypeCurrentConf", ConfInstType::ConfInstTypeCurrentConf)
+        .value("ConfInstTypeMasterConf", ConfInstType::ConfInstTypeMasterConf)
+        .value("ConfInstTypeBackstage", ConfInstType::ConfInstTypeBackstage)
+        .value("ConfInstTypeNewBO", ConfInstType::ConfInstTypeNewBO)
+        .export_values();
+
+    py::enum_<ShareSourceType>(m, "ShareSourceType")
+        .value("ShareSourceTypeUnknown", ShareSourceType::ShareSourceTypeUnknown)
+        .value("ShareSourceTypeNormal", ShareSourceType::ShareSourceTypeNormal)
+        .value("ShareSourceTypeCloudWB", ShareSourceType::ShareSourceTypeCloudWB)
+        .value("ShareSourceTypeCollaborationZapps", ShareSourceType::ShareSourceTypeCollaborationZapps)
+        .export_values();
+
+    py::enum_<SharingInstructionDisplayState>(m, "SharingInstructionDisplayState")
+        .value("SharingInstructionDisplayStateNone", SharingInstructionDisplayState::SharingInstructionDisplayStateNone)
+        .value("SharingInstructionDisplayStateDesktop", SharingInstructionDisplayState::SharingInstructionDisplayStateDesktop)
+        .value("SharingInstructionDisplayStateIOS", SharingInstructionDisplayState::SharingInstructionDisplayStateIOS)
+        .value("SharingInstructionDisplayStateWhiteboardCamera", SharingInstructionDisplayState::SharingInstructionDisplayStateWhiteboardCamera)
+        .export_values();
+
+    py::enum_<SharingState>(m, "SharingState")
+        .value("SharingStateNone", SharingState::SharingStateNone)
+        .value("SharingStateConnecting", SharingState::SharingStateConnecting)
+        .value("SharingStateSending", SharingState::SharingStateSending)
+        .value("SharingStateReceiving", SharingState::SharingStateReceiving)
+        .value("SharingStateSendingAndReceiving", SharingState::SharingStateSendingAndReceiving)
+        .export_values();
+
+    py::enum_<ZRSharePrivilegeType>(m, "ZRSharePrivilegeType")
+        .value("ZRSharePrivilegeTypeEnabled", ZRSharePrivilegeType::ZRSharePrivilegeTypeEnabled)
+        .value("ZRSharePrivilegeTypeDisabled", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabled)
+        .value("ZRSharePrivilegeTypeDisabledParticipant", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabledParticipant)
+        .value("ZRSharePrivilegeTypeDisabledWhileOthersSharing", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabledWhileOthersSharing)
+        .value("ZRSharePrivilegeTypeDisabledWhileGuestsInMeeting", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabledWhileGuestsInMeeting)
+        .value("ZRSharePrivilegeTypeDisabledWhileCloudWhiteboard", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabledWhileCloudWhiteboard)
+        .value("ZRSharePrivilegeTypeDisabledInBOWhileMainSessionSharing", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabledInBOWhileMainSessionSharing)
+        .value("ZRSharePrivilegeTypeDisabledStartShareForSimulive", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabledStartShareForSimulive)
+        .value("ZRSharePrivilegeTypeDisabledStartShareForDSOnly", ZRSharePrivilegeType::ZRSharePrivilegeTypeDisabledStartShareForDSOnly)
+        .export_values();
+
+    py::enum_<MeetingSharePrivilegeType>(m, "MeetingSharePrivilegeType")
+        .value("MeetingSharePrivilegeTypeUnknown", MeetingSharePrivilegeType::MeetingSharePrivilegeTypeUnknown)
+        .value("MeetingSharePrivilegeTypeHostGrab", MeetingSharePrivilegeType::MeetingSharePrivilegeTypeHostGrab)
+        .value("MeetingSharePrivilegeTypeLockShare", MeetingSharePrivilegeType::MeetingSharePrivilegeTypeLockShare)
+        .value("MeetingSharePrivilegeTypeAnyoneGrab", MeetingSharePrivilegeType::MeetingSharePrivilegeTypeAnyoneGrab)
+        .value("MeetingSharePrivilegeTypeMultiShare", MeetingSharePrivilegeType::MeetingSharePrivilegeTypeMultiShare)
+        .export_values();
+
+    py::enum_<MeetingShareViewPrivilege>(m, "MeetingShareViewPrivilege")
+        .value("MeetingShareViewPrivilege_FocusModeOff", MeetingShareViewPrivilege::MeetingShareViewPrivilege_FocusModeOff)
+        .value("MeetingShareViewPrivilege_FocusModeHostOnly", MeetingShareViewPrivilege::MeetingShareViewPrivilege_FocusModeHostOnly)
+        .value("MeetingShareViewPrivilege_FocusModeAllParticipants", MeetingShareViewPrivilege::MeetingShareViewPrivilege_FocusModeAllParticipants)
+        .export_values();
+
+    py::enum_<HDMI60FPSShareDisableReason>(m, "HDMI60FPSShareDisableReason")
+        .value("HDMI60FPSShareDisableReasonUnknown", HDMI60FPSShareDisableReason::HDMI60FPSShareDisableReasonUnknown)
+        .value("HDMI60FPSShareDisableReasonNotDisable", HDMI60FPSShareDisableReason::HDMI60FPSShareDisableReasonNotDisable)
+        .value("HDMI60FPSShareDisableReasonCaptureCardNotSupport", HDMI60FPSShareDisableReason::HDMI60FPSShareDisableReasonCaptureCardNotSupport)
+        .value("HDMI60FPSShareDisableReasonZRNotSupport", HDMI60FPSShareDisableReason::HDMI60FPSShareDisableReasonZRNotSupport)
+        .value("HDMI60FPSShareDisableReasonCaptureCardAndZRNotSupport", HDMI60FPSShareDisableReason::HDMI60FPSShareDisableReasonCaptureCardAndZRNotSupport)
+        .value("HDMI60FPSShareDisableReasonOptimizeVideoShareIsOff", HDMI60FPSShareDisableReason::HDMI60FPSShareDisableReasonOptimizeVideoShareIsOff)
+        .value("HDMI60FPSShareDisableReasonMultiShareIsOn", HDMI60FPSShareDisableReason::HDMI60FPSShareDisableReasonMultiShareIsOn)
+        .export_values();
+
+    py::enum_<CurrentShareType>(m, "CurrentShareType")
+        .value("CurrentShareTypeUnknown", CurrentShareType::CurrentShareTypeUnknown)
+        .value("CurrentShareTypeNormal", CurrentShareType::CurrentShareTypeNormal)
+        .value("CurrentShareTypeCamera", CurrentShareType::CurrentShareTypeCamera)
+        .value("CurrentShareTypeAnnotated", CurrentShareType::CurrentShareTypeAnnotated)
+        .value("CurrentShareTypeZoomApp", CurrentShareType::CurrentShareTypeZoomApp)
+        .value("CurrentShareTypeWhiteboard", CurrentShareType::CurrentShareTypeWhiteboard)
+        .value("CurrentShareTypeLocalHDMI", CurrentShareType::CurrentShareTypeLocalHDMI)
+        .value("CurrentShareTypeAnnotatedLocalHDMI", CurrentShareType::CurrentShareTypeAnnotatedLocalHDMI)
+        .export_values();
+
+    py::enum_<SlideOperationType>(m, "SlideOperationType")
+        .value("SlideOperationTypeLeft", SlideOperationType::SlideOperationTypeLeft)
+        .value("SlideOperationTypeRight", SlideOperationType::SlideOperationTypeRight)
+        .export_values();
+
+    py::enum_<DocsSharePrivilegeType>(m, "DocsSharePrivilegeType")
+        .value("DocsSharePrivilegeTypeUnknown", DocsSharePrivilegeType::DocsSharePrivilegeTypeUnknown)
+        .value("DocsSharePrivilegeTypeHostGrab", DocsSharePrivilegeType::DocsSharePrivilegeTypeHostGrab)
+        .value("DocsSharePrivilegeTypeAnyoneGrab", DocsSharePrivilegeType::DocsSharePrivilegeTypeAnyoneGrab)
+        .export_values();
+
+    py::enum_<DocsInitiatePrivilegeType>(m, "DocsInitiatePrivilegeType")
+        .value("DocsInitiatePrivilegeTypeUnknown", DocsInitiatePrivilegeType::DocsInitiatePrivilegeTypeUnknown)
+        .value("DocsInitiatePrivilegeTypeHostOnly", DocsInitiatePrivilegeType::DocsInitiatePrivilegeTypeHostOnly)
+        .value("DocsInitiatePrivilegeTypeInternalUsers", DocsInitiatePrivilegeType::DocsInitiatePrivilegeTypeInternalUsers)
+        .value("DocsInitiatePrivilegeTypeAllParticipants", DocsInitiatePrivilegeType::DocsInitiatePrivilegeTypeAllParticipants)
+        .export_values();
+
+    // ===== Meeting Share Helper Structs =====
+    py::class_<ShareSource>(m, "ShareSource")
+        .def(py::init<>())
+        .def_readwrite("userID", &ShareSource::userID)
+        .def_readwrite("shareSourceID", &ShareSource::shareSourceID)
+        .def_readwrite("shareSourceType", &ShareSource::shareSourceType)
+        .def_readwrite("isSharingAudio", &ShareSource::isSharingAudio)
+        .def_readwrite("isAudioMuted", &ShareSource::isAudioMuted)
+        .def_readwrite("fromType", &ShareSource::fromType);
+
+    py::class_<LocalPresentationInfo>(m, "LocalPresentationInfo")
+        .def(py::init<>())
+        .def_readwrite("success", &LocalPresentationInfo::success)
+        .def_readwrite("meetingNumber", &LocalPresentationInfo::meetingNumber)
+        .def_readwrite("meetingPassword", &LocalPresentationInfo::meetingPassword);
+
+    py::class_<SharingStatus>(m, "SharingStatus")
+        .def(py::init<>())
+        .def_readwrite("sharingState", &SharingStatus::sharingState)
+        .def_readwrite("canShareToBO", &SharingStatus::canShareToBO)
+        .def_readwrite("isSharingToBO", &SharingStatus::isSharingToBO);
+
+    py::class_<ZRWSharingStatus>(m, "ZRWSharingStatus")
+        .def(py::init<>())
+        .def_readwrite("isSharing", &ZRWSharingStatus::isSharing)
+        .def_readwrite("canShareToBO", &ZRWSharingStatus::canShareToBO)
+        .def_readwrite("isSharingToBO", &ZRWSharingStatus::isSharingToBO);
+
+    py::class_<ShareSetting>(m, "ShareSetting")
+        .def(py::init<>())
+        .def_readwrite("isMultiShareOn", &ShareSetting::isMultiShareOn)
+        .def_readwrite("isMultiShareDisabled", &ShareSetting::isMultiShareDisabled)
+        .def_readwrite("zrSharePrivilegeType", &ShareSetting::zrSharePrivilegeType)
+        .def_readwrite("meetingSharePrivilegeType", &ShareSetting::meetingSharePrivilegeType)
+        .def_readwrite("isSharePrivilegeSettingLocked", &ShareSetting::isSharePrivilegeSettingLocked);
+
+    py::class_<AirplayBlackMagicStatus>(m, "AirplayBlackMagicStatus")
+        .def(py::init<>())
+        .def_readwrite("instructionDisplayState", &AirplayBlackMagicStatus::instructionDisplayState)
+        .def_readwrite("wifiName", &AirplayBlackMagicStatus::wifiName)
+        .def_readwrite("serverName", &AirplayBlackMagicStatus::serverName)
+        .def_readwrite("password", &AirplayBlackMagicStatus::password)
+        .def_readwrite("directPresentationPairingCode", &AirplayBlackMagicStatus::directPresentationPairingCode)
+        .def_readwrite("directPresentationSharingKey", &AirplayBlackMagicStatus::directPresentationSharingKey)
+        .def_readwrite("isAirHostClientConnected", &AirplayBlackMagicStatus::isAirHostClientConnected)
+        .def_readwrite("isBlackMagicConnected", &AirplayBlackMagicStatus::isBlackMagicConnected)
+        .def_readwrite("isBlackMagicDataAvailable", &AirplayBlackMagicStatus::isBlackMagicDataAvailable)
+        .def_readwrite("isSharingBlackMagic", &AirplayBlackMagicStatus::isSharingBlackMagic)
+        .def_readwrite("isDirectPresentationConnected", &AirplayBlackMagicStatus::isDirectPresentationConnected)
+        .def_readwrite("isBlackMagicSharingLocallyAvailable", &AirplayBlackMagicStatus::isBlackMagicSharingLocallyAvailable)
+        .def_readwrite("isBlackMagicSharingLocally", &AirplayBlackMagicStatus::isBlackMagicSharingLocally);
+
+    py::class_<CameraSharingStatus>(m, "CameraSharingStatus")
+        .def(py::init<>())
+        .def_readwrite("deviceID", &CameraSharingStatus::deviceID)
+        .def_readwrite("isSharing", &CameraSharingStatus::isSharing)
+        .def_readwrite("isMirrored", &CameraSharingStatus::isMirrored)
+        .def_readwrite("canBeControlled", &CameraSharingStatus::canBeControlled)
+        .def_readwrite("panTiltSpeedPercentage", &CameraSharingStatus::panTiltSpeedPercentage);
+
+    py::class_<SlideControlInfo>(m, "SlideControlInfo")
+        .def(py::init<>())
+        .def_readwrite("userID", &SlideControlInfo::userID)
+        .def_readwrite("userName", &SlideControlInfo::userName)
+        .def_readwrite("shareSourceID", &SlideControlInfo::shareSourceID);
+
+    py::class_<DocsShareSettingsInfo>(m, "DocsShareSettingsInfo")
+        .def(py::init<>())
+        .def_readwrite("isSupported", &DocsShareSettingsInfo::isSupported)
+        .def_readwrite("isAllowParticipantsToShare", &DocsShareSettingsInfo::isAllowParticipantsToShare)
+        .def_readwrite("sharePrivilege", &DocsShareSettingsInfo::sharePrivilege)
+        .def_readwrite("initiatePrivilege", &DocsShareSettingsInfo::initiatePrivilege)
+        .def_readwrite("isLocked", &DocsShareSettingsInfo::isLocked);
+
+    py::class_<IncomingMeetingShareNot>(m, "IncomingMeetingShareNot")
+        .def(py::init<>())
+        .def_readwrite("incomingSource", &IncomingMeetingShareNot::incomingSource)
+        .def_readwrite("shareUserName", &IncomingMeetingShareNot::shareUserName)
+        .def_readwrite("currentShareType", &IncomingMeetingShareNot::currentShareType);
 
     // ===== Meeting List Helper Enums =====
     py::enum_<ListMeetingResult>(m, "ListMeetingResult")
@@ -523,4 +701,42 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ShowUpcomingMeetingAlert", &IMeetingListHelper::ShowUpcomingMeetingAlert)
         .def("CloseUpcomingMeetingAlert", &IMeetingListHelper::CloseUpcomingMeetingAlert)
         .def("CloseAutoReleaseMeetingAlert", &IMeetingListHelper::CloseAutoReleaseMeetingAlert);
+
+    // ===== Meeting Share Helper =====
+    py::class_<IMeetingShareHelper>(m, "IMeetingShareHelper")
+        .def("LaunchSharingMeeting", &IMeetingShareHelper::LaunchSharingMeeting)
+        .def("SwitchFromLocalPresentationToNormalMeeting", &IMeetingShareHelper::SwitchFromLocalPresentationToNormalMeeting)
+        .def("ShowSharingInstruction", &IMeetingShareHelper::ShowSharingInstruction)
+        .def("ShareBlackMagic", &IMeetingShareHelper::ShareBlackMagic)
+        .def("ShareCamera", &IMeetingShareHelper::ShareCamera)
+        .def("ShareToBreakoutRooms", &IMeetingShareHelper::ShareToBreakoutRooms)
+        .def("StopShareToBreakoutRooms", &IMeetingShareHelper::StopShareToBreakoutRooms)
+        .def("StopSharing", &IMeetingShareHelper::StopSharing)
+        .def("StopZRWSharing", &IMeetingShareHelper::StopZRWSharing)
+        .def("EnableMultiShare", &IMeetingShareHelper::EnableMultiShare)
+        .def("ShowPinShareInstruction", &IMeetingShareHelper::ShowPinShareInstruction)
+        .def("PinShareOnZRScreen", &IMeetingShareHelper::PinShareOnZRScreen)
+        .def("PinShareOnZRWScreen", &IMeetingShareHelper::PinShareOnZRWScreen)
+        .def("PinIncomingMeetingShare", &IMeetingShareHelper::PinIncomingMeetingShare)
+        .def("ControlSlide", &IMeetingShareHelper::ControlSlide)
+        .def("MuteShareAudio", &IMeetingShareHelper::MuteShareAudio)
+        .def("EnableHDMI60FPSShare", &IMeetingShareHelper::EnableHDMI60FPSShare)
+        .def("GetLocalHDMIShareAudioPlaybackStatus", [](IMeetingShareHelper* self) {
+            bool isSupport, isEnabled;
+            ZRCSDKError result = self->GetLocalHDMIShareAudioPlaybackStatus(isSupport, isEnabled);
+            return py::make_tuple(result, isSupport, isEnabled);
+        })
+        .def("EnableLocalHDMIShareAudioPlayback", &IMeetingShareHelper::EnableLocalHDMIShareAudioPlayback)
+        .def("SetMeetingShareSetting", &IMeetingShareHelper::SetMeetingShareSetting)
+        .def("SetMeetingShareViewPrivilege", &IMeetingShareHelper::SetMeetingShareViewPrivilege)
+        .def("OptimizeVideoSharing", &IMeetingShareHelper::OptimizeVideoSharing)
+        .def("AllowParticipantsShareDocs", &IMeetingShareHelper::AllowParticipantsShareDocs)
+        .def("ChangeDocsSharePrivilege", &IMeetingShareHelper::ChangeDocsSharePrivilege)
+        .def("ChangeDocsInitiatePrivilege", &IMeetingShareHelper::ChangeDocsInitiatePrivilege)
+        .def("GetDocsShareSettingsInfo", [](IMeetingShareHelper* self) {
+            DocsShareSettingsInfo info;
+            ZRCSDKError result = self->GetDocsShareSettingsInfo(info);
+            return py::make_tuple(result, info);
+        })
+        .def("EnableAnnotationOverHDMI", &IMeetingShareHelper::EnableAnnotationOverHDMI);
 }
