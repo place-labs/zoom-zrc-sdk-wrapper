@@ -11,6 +11,7 @@
 #include "IZoomRoomsService.h"
 #include "IMeetingService.h"
 #include "IPreMeetingService.h"
+#include "IPhoneCallService.h"
 #include "ServiceComponents/IMeetingAudioHelper.h"
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
@@ -220,6 +221,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("RetryToPairRoom", &IZoomRoomsService::RetryToPairRoom)
         .def("GetPreMeetingService", &IZoomRoomsService::GetPreMeetingService, py::return_value_policy::reference)
         .def("GetMeetingService", &IZoomRoomsService::GetMeetingService, py::return_value_policy::reference)
+        .def("GetPhoneCallService", &IZoomRoomsService::GetPhoneCallService, py::return_value_policy::reference)
         .def("RegisterSink", [](IZoomRoomsService* self, py::object py_sink) {
             // Create a trampoline and keep it alive in a static map
             static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
@@ -924,6 +926,172 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .value("MasterSession", ConfSessionType::MasterSession)
         .export_values();
 
+    // ===== Phone Call Service Enums =====
+    py::enum_<SIPCallStatus>(m, "SIPCallStatus")
+        .value("SIPCallStatusInit", SIPCallStatus::SIPCallStatusInit)
+        .value("SIPCallStatusCallOutFailed", SIPCallStatus::SIPCallStatusCallOutFailed)
+        .value("SIPCallStatusIncoming", SIPCallStatus::SIPCallStatusIncoming)
+        .value("SIPCallStatusRinging", SIPCallStatus::SIPCallStatusRinging)
+        .value("SIPCallStatusNotFound", SIPCallStatus::SIPCallStatusNotFound)
+        .value("SIPCallStatusBusy", SIPCallStatus::SIPCallStatusBusy)
+        .value("SIPCallStatusDeclined", SIPCallStatus::SIPCallStatusDeclined)
+        .value("SIPCallStatusNotAvailable", SIPCallStatus::SIPCallStatusNotAvailable)
+        .value("SIPCallStatusTimeout", SIPCallStatus::SIPCallStatusTimeout)
+        .value("SIPCallStatusAccepted", SIPCallStatus::SIPCallStatusAccepted)
+        .value("SIPCallStatusHold", SIPCallStatus::SIPCallStatusHold)
+        .value("SIPCallStatusInCall", SIPCallStatus::SIPCallStatusInCall)
+        .value("SIPCallStatusTerminated", SIPCallStatus::SIPCallStatusTerminated)
+        .value("SIPCallStatusRemoteHold", SIPCallStatus::SIPCallStatusRemoteHold)
+        .value("SIPCallStatusBothHold", SIPCallStatus::SIPCallStatusBothHold)
+        .value("SIPCallStatusSessionInProgress", SIPCallStatus::SIPCallStatusSessionInProgress)
+        .value("SIPCallStatusStayOnPhone", SIPCallStatus::SIPCallStatusStayOnPhone)
+        .export_values();
+
+    py::enum_<SIPCallConferenceRole>(m, "SIPCallConferenceRole")
+        .value("SIPCallConferenceRoleUnknown", SIPCallConferenceRole::SIPCallConferenceRoleUnknown)
+        .value("SIPCallConferenceRoleHost", SIPCallConferenceRole::SIPCallConferenceRoleHost)
+        .value("SIPCallConferenceRoleParticipant", SIPCallConferenceRole::SIPCallConferenceRoleParticipant)
+        .export_values();
+
+    py::enum_<SIPCallSpamType>(m, "SIPCallSpamType")
+        .value("SIPCallSpamTypeNone", SIPCallSpamType::SIPCallSpamTypeNone)
+        .value("SIPCallSpamTypeNotSpam", SIPCallSpamType::SIPCallSpamTypeNotSpam)
+        .value("SIPCallSpamTypeSpam", SIPCallSpamType::SIPCallSpamTypeSpam)
+        .value("SIPCallSpamTypeMaybeSpam", SIPCallSpamType::SIPCallSpamTypeMaybeSpam)
+        .export_values();
+
+    py::enum_<SIPCallAttestLevel>(m, "SIPCallAttestLevel")
+        .value("SIPCallAttestLevelUndefined", SIPCallAttestLevel::SIPCallAttestLevelUndefined)
+        .value("SIPCallAttestLevelA", SIPCallAttestLevel::SIPCallAttestLevelA)
+        .value("SIPCallAttestLevelB", SIPCallAttestLevel::SIPCallAttestLevelB)
+        .value("SIPCallAttestLevelC", SIPCallAttestLevel::SIPCallAttestLevelC)
+        .export_values();
+
+    py::enum_<SIPCallThirdPartyType>(m, "SIPCallThirdPartyType")
+        .value("SIPCallThirdPartyTypeDefault", SIPCallThirdPartyType::SIPCallThirdPartyTypeDefault)
+        .value("SIPCallThirdPartyTypeTransfer", SIPCallThirdPartyType::SIPCallThirdPartyTypeTransfer)
+        .export_values();
+
+    py::enum_<EmergencyAddressType>(m, "EmergencyAddressType")
+        .value("EmergencyAddressTypeUnknown", EmergencyAddressType::EmergencyAddressTypeUnknown)
+        .value("EmergencyAddressTypeStatic", EmergencyAddressType::EmergencyAddressTypeStatic)
+        .value("EmergencyAddressTypeDetect", EmergencyAddressType::EmergencyAddressTypeDetect)
+        .export_values();
+
+    py::enum_<SIPCallTransferInfoType>(m, "SIPCallTransferInfoType")
+        .value("SIPCallTransferInfoTypeUnknown", SIPCallTransferInfoType::SIPCallTransferInfoTypeUnknown)
+        .value("SIPCallTransferInfoTypeBlind", SIPCallTransferInfoType::SIPCallTransferInfoTypeBlind)
+        .value("SIPCallTransferInfoTypeWarm", SIPCallTransferInfoType::SIPCallTransferInfoTypeWarm)
+        .value("SIPCallTransferInfoTypeWarmComplete", SIPCallTransferInfoType::SIPCallTransferInfoTypeWarmComplete)
+        .value("SIPCallTransferInfoTypeVoicemail", SIPCallTransferInfoType::SIPCallTransferInfoTypeVoicemail)
+        .export_values();
+
+    py::enum_<SIPServiceStatus>(m, "SIPServiceStatus")
+        .value("SIPServiceStatusIdle", SIPServiceStatus::SIPServiceStatusIdle)
+        .value("SIPServiceStatusRegistering", SIPServiceStatus::SIPServiceStatusRegistering)
+        .value("SIPServiceStatusRegFailed", SIPServiceStatus::SIPServiceStatusRegFailed)
+        .value("SIPServiceStatusRegistered", SIPServiceStatus::SIPServiceStatusRegistered)
+        .value("SIPServiceStatusRinging", SIPServiceStatus::SIPServiceStatusRinging)
+        .value("SIPServiceStatusCallingOut", SIPServiceStatus::SIPServiceStatusCallingOut)
+        .value("SIPServiceStatusInCall", SIPServiceStatus::SIPServiceStatusInCall)
+        .export_values();
+
+    py::enum_<SIPCallTerminateReason>(m, "SIPCallTerminateReason")
+        .value("SIPCallTerminateReasonUnknown", SIPCallTerminateReason::SIPCallTerminateReasonUnknown)
+        .value("SIPCallTerminateReasonByLocal", SIPCallTerminateReason::SIPCallTerminateReasonByLocal)
+        .value("SIPCallTerminateReasonByRemote", SIPCallTerminateReason::SIPCallTerminateReasonByRemote)
+        .value("SIPCallTerminateReasonByNetworkBreak", SIPCallTerminateReason::SIPCallTerminateReasonByNetworkBreak)
+        .value("SIPCallTerminateReasonByInitAudioDeviceFailed", SIPCallTerminateReason::SIPCallTerminateReasonByInitAudioDeviceFailed)
+        .value("SIPCallTerminateReasonBySipServiceStopped", SIPCallTerminateReason::SIPCallTerminateReasonBySipServiceStopped)
+        .export_values();
+
+    // ===== Phone Call Service Structs =====
+    py::class_<SIPCallMemberInfo>(m, "SIPCallMemberInfo")
+        .def(py::init<>())
+        .def_readwrite("name", &SIPCallMemberInfo::name)
+        .def_readwrite("number", &SIPCallMemberInfo::number)
+        .def_readwrite("attestLevel", &SIPCallMemberInfo::attestLevel);
+
+    py::class_<SIPCallConferenceInfo>(m, "SIPCallConferenceInfo")
+        .def(py::init<>())
+        .def_readwrite("role", &SIPCallConferenceInfo::role)
+        .def_readwrite("hostCallID", &SIPCallConferenceInfo::hostCallID);
+
+    py::class_<SIPCallRedirectInfo>(m, "SIPCallRedirectInfo")
+        .def(py::init<>())
+        .def_readwrite("endType", &SIPCallRedirectInfo::endType)
+        .def_readwrite("endName", &SIPCallRedirectInfo::endName)
+        .def_readwrite("endNumber", &SIPCallRedirectInfo::endNumber);
+
+    py::class_<EmergencyCallAddress>(m, "EmergencyCallAddress")
+        .def(py::init<>())
+        .def_readwrite("addressType", &EmergencyCallAddress::addressType)
+        .def_readwrite("address", &EmergencyCallAddress::address);
+
+    py::class_<EmergencyCall>(m, "EmergencyCall")
+        .def(py::init<>())
+        .def_readwrite("emergencyCallAddress", &EmergencyCall::emergencyCallAddress)
+        .def_readwrite("locationPermissionEnabled", &EmergencyCall::locationPermissionEnabled)
+        .def_readwrite("customEmergencyNumbers", &EmergencyCall::customEmergencyNumbers);
+
+    py::class_<SIPCallInfo>(m, "SIPCallInfo")
+        .def(py::init<>())
+        .def_readwrite("status", &SIPCallInfo::status)
+        .def_readwrite("callID", &SIPCallInfo::callID)
+        .def_readwrite("peerDisplayName", &SIPCallInfo::peerDisplayName)
+        .def_readwrite("peerNumber", &SIPCallInfo::peerNumber)
+        .def_readwrite("peerURI", &SIPCallInfo::peerURI)
+        .def_readwrite("isIncomingCall", &SIPCallInfo::isIncomingCall)
+        .def_readwrite("selfInfo", &SIPCallInfo::selfInfo)
+        .def_readwrite("conferenceInfo", &SIPCallInfo::conferenceInfo)
+        .def_readwrite("remoteMembers", &SIPCallInfo::remoteMembers)
+        .def_readwrite("elapsedCallTime", &SIPCallInfo::elapsedCallTime)
+        .def_readwrite("relatedCallID", &SIPCallInfo::relatedCallID)
+        .def_readwrite("blindDisplayName", &SIPCallInfo::blindDisplayName)
+        .def_readwrite("originalPeerURI", &SIPCallInfo::originalPeerURI)
+        .def_readwrite("peerSpamType", &SIPCallInfo::peerSpamType)
+        .def_readwrite("peerAttestLevel", &SIPCallInfo::peerAttestLevel)
+        .def_readwrite("redirectInfo", &SIPCallInfo::redirectInfo)
+        .def_readwrite("isEmergencyCall", &SIPCallInfo::isEmergencyCall)
+        .def_readwrite("emergencyCallAddress", &SIPCallInfo::emergencyCallAddress);
+
+    py::class_<SIPCallTransferInfo>(m, "SIPCallTransferInfo")
+        .def(py::init<>())
+        .def_readwrite("type", &SIPCallTransferInfo::type)
+        .def_readwrite("peerURI", &SIPCallTransferInfo::peerURI);
+
+    py::class_<SIPCallerID>(m, "SIPCallerID")
+        .def(py::init<>())
+        .def_readwrite("name", &SIPCallerID::name)
+        .def_readwrite("number", &SIPCallerID::number)
+        .def_readwrite("extensionID", &SIPCallerID::extensionID);
+
+    py::class_<CloudPBXServiceInfo>(m, "CloudPBXServiceInfo")
+        .def(py::init<>())
+        .def_readwrite("extension", &CloudPBXServiceInfo::extension)
+        .def_readwrite("companyNumber", &CloudPBXServiceInfo::companyNumber)
+        .def_readwrite("directNumbers", &CloudPBXServiceInfo::directNumbers)
+        .def_readwrite("countryCode", &CloudPBXServiceInfo::countryCode)
+        .def_readwrite("countryName", &CloudPBXServiceInfo::countryName)
+        .def_readwrite("areaCode", &CloudPBXServiceInfo::areaCode)
+        .def_readwrite("callerIDs", &CloudPBXServiceInfo::callerIDs)
+        .def_readwrite("formattedCompanyNumber", &CloudPBXServiceInfo::formattedCompanyNumber)
+        .def_readwrite("formattedDirectNumbers", &CloudPBXServiceInfo::formattedDirectNumbers)
+        .def_readwrite("isEnabledMakeOutBoundPSTNCall", &CloudPBXServiceInfo::isEnabledMakeOutBoundPSTNCall)
+        .def_readwrite("isEnabledHaveADID", &CloudPBXServiceInfo::isEnabledHaveADID)
+        .def_readwrite("isEnable911Call", &CloudPBXServiceInfo::isEnable911Call)
+        .def_readwrite("emergencyCall", &CloudPBXServiceInfo::emergencyCall);
+
+    py::class_<SIPService>(m, "SIPService")
+        .def(py::init<>())
+        .def_readwrite("status", &SIPService::status)
+        .def_readwrite("userName", &SIPService::userName)
+        .def_readwrite("displayName", &SIPService::displayName)
+        .def_readwrite("responseCode", &SIPService::responseCode)
+        .def_readwrite("responseDescription", &SIPService::responseDescription)
+        .def_readwrite("isZoomPhoneAvailable", &SIPService::isZoomPhoneAvailable)
+        .def_readwrite("cloudPBXServiceInfo", &SIPService::cloudPBXServiceInfo);
+
     // ===== NDI Helper Structs =====
     py::class_<NDIUsageSettings>(m, "NDIUsageSettings")
         .def(py::init<>())
@@ -1217,4 +1385,40 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ReportIssue", &IParticipantHelper::ReportIssue)
         .def("SetMySelfAsActiveSpeaker", &IParticipantHelper::SetMySelfAsActiveSpeaker)
         .def("SetMyChildAsActiveSpeaker", &IParticipantHelper::SetMyChildAsActiveSpeaker);
+
+    // ===== Phone Call Service =====
+    py::class_<IPhoneCallService>(m, "IPhoneCallService")
+        .def("AcceptIncomingSIPCall", &IPhoneCallService::AcceptIncomingSIPCall)
+        .def("HoldAndAcceptIncomingSIPCall", &IPhoneCallService::HoldAndAcceptIncomingSIPCall)
+        .def("EndAndAcceptIncomingSIPCall", &IPhoneCallService::EndAndAcceptIncomingSIPCall)
+        .def("DeclineIncomingSIPCall", &IPhoneCallService::DeclineIncomingSIPCall)
+        .def("AcceptSIPCallToMeeting", &IPhoneCallService::AcceptSIPCallToMeeting)
+        .def("DeclineSIPCallToMeeting", &IPhoneCallService::DeclineSIPCallToMeeting)
+        .def("CallSIP", &IPhoneCallService::CallSIP)
+        .def("HangupSIPCall", &IPhoneCallService::HangupSIPCall)
+        .def("MuteSIPCallAudio", &IPhoneCallService::MuteSIPCallAudio)
+        .def("SendDTMFToSIPCall", &IPhoneCallService::SendDTMFToSIPCall)
+        .def("HoldSIPCall", &IPhoneCallService::HoldSIPCall)
+        .def("UnholdSIPCall", &IPhoneCallService::UnholdSIPCall)
+        .def("MergeSIPCall", &IPhoneCallService::MergeSIPCall)
+        .def("TransferSIPCall", &IPhoneCallService::TransferSIPCall)
+        .def("CompleteWarmTransfer", &IPhoneCallService::CompleteWarmTransfer)
+        .def("CancelWarmTransfer", &IPhoneCallService::CancelWarmTransfer)
+        .def("UpgradeSIPCallToMeeting", &IPhoneCallService::UpgradeSIPCallToMeeting)
+        .def("SetLocationPermissionEnable", &IPhoneCallService::SetLocationPermissionEnable)
+        .def("GetLocationPermissionEnable", [](IPhoneCallService* self) {
+            bool enable;
+            ZRCSDKError result = self->GetLocationPermissionEnable(enable);
+            return py::make_tuple(result, enable);
+        })
+        .def("GetSIPCallList", [](IPhoneCallService* self) {
+            std::vector<SIPCallInfo> sipCalls;
+            ZRCSDKError result = self->GetSIPCallList(sipCalls);
+            return py::make_tuple(result, sipCalls);
+        })
+        .def("GetUnholdSIPCall", [](IPhoneCallService* self) {
+            SIPCallInfo unholdCall;
+            ZRCSDKError result = self->GetUnholdSIPCall(unholdCall);
+            return py::make_tuple(result, unholdCall);
+        });
 }
