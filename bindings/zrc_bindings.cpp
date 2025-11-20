@@ -12,6 +12,7 @@
 #include "IMeetingService.h"
 #include "IPreMeetingService.h"
 #include "IPhoneCallService.h"
+#include "IProAVService.h"
 #include "ServiceComponents/IMeetingAudioHelper.h"
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
@@ -23,6 +24,8 @@
 #include "ServiceComponents/IContactHelper.h"
 #include "ServiceComponents/IBYODHelper.h"
 #include "ServiceComponents/IControlSystemHelper.h"
+#include "ServiceComponents/IDanteOutputHelper.h"
+#include "ServiceComponents/IHWIOHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -225,6 +228,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetPreMeetingService", &IZoomRoomsService::GetPreMeetingService, py::return_value_policy::reference)
         .def("GetMeetingService", &IZoomRoomsService::GetMeetingService, py::return_value_policy::reference)
         .def("GetPhoneCallService", &IZoomRoomsService::GetPhoneCallService, py::return_value_policy::reference)
+        .def("GetProAVService", &IZoomRoomsService::GetProAVService, py::return_value_policy::reference)
         .def("RegisterSink", [](IZoomRoomsService* self, py::object py_sink) {
             // Create a trampoline and keep it alive in a static map
             static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
@@ -1448,5 +1452,99 @@ PYBIND11_MODULE(zrc_sdk, m) {
             SIPCallInfo unholdCall;
             ZRCSDKError result = self->GetUnholdSIPCall(unholdCall);
             return py::make_tuple(result, unholdCall);
+        });
+
+    // ===== Pro AV Service Enums =====
+    py::enum_<ProAVVideoNameStrapPosition>(m, "ProAVVideoNameStrapPosition")
+        .value("ProAVVideoNameStrapPositionUnknown", ProAVVideoNameStrapPosition::ProAVVideoNameStrapPositionUnknown)
+        .value("ProAVVideoNameStrapPositionLeft", ProAVVideoNameStrapPosition::ProAVVideoNameStrapPositionLeft)
+        .value("ProAVVideoNameStrapPositionCenter", ProAVVideoNameStrapPosition::ProAVVideoNameStrapPositionCenter)
+        .value("ProAVVideoNameStrapPositionRight", ProAVVideoNameStrapPosition::ProAVVideoNameStrapPositionRight)
+        .export_values();
+
+    py::enum_<ProAVUnassignedBehaviorType>(m, "ProAVUnassignedBehaviorType")
+        .value("ProAVUnassignedBehaviorTypeOff", ProAVUnassignedBehaviorType::ProAVUnassignedBehaviorTypeOff)
+        .value("ProAVUnassignedBehaviorTypeWallpaper", ProAVUnassignedBehaviorType::ProAVUnassignedBehaviorTypeWallpaper)
+        .export_values();
+
+    py::enum_<ProAVWallpaperRoomType>(m, "ProAVWallpaperRoomType")
+        .value("ProAVWallpaperRoomTypeNone", ProAVWallpaperRoomType::ProAVWallpaperRoomTypeNone)
+        .value("ProAVWallpaperRoomTypeMain", ProAVWallpaperRoomType::ProAVWallpaperRoomTypeMain)
+        .value("ProAVWallpaperRoomTypeCZR", ProAVWallpaperRoomType::ProAVWallpaperRoomTypeCZR)
+        .value("ProAVWallpaperRoomTypeCWB", ProAVWallpaperRoomType::ProAVWallpaperRoomTypeCWB)
+        .export_values();
+
+    py::enum_<ProAVGalleryDistributionMode>(m, "ProAVGalleryDistributionMode")
+        .value("ProAVGalleryDistributionModeWaterfall", ProAVGalleryDistributionMode::ProAVGalleryDistributionModeWaterfall)
+        .value("ProAVGalleryDistributionModeRoundRobin", ProAVGalleryDistributionMode::ProAVGalleryDistributionModeRoundRobin)
+        .export_values();
+
+    py::enum_<ProAVVideoLossBehaviorType>(m, "ProAVVideoLossBehaviorType")
+        .value("ProAVVideoLossBehaviorTypeDefault", ProAVVideoLossBehaviorType::ProAVVideoLossBehaviorTypeDefault)
+        .value("ProAVVideoLossBehaviorTypeBlackFrame", ProAVVideoLossBehaviorType::ProAVVideoLossBehaviorTypeBlackFrame)
+        .value("ProAVVideoLossBehaviorTypeFreezeFrame", ProAVVideoLossBehaviorType::ProAVVideoLossBehaviorTypeFreezeFrame)
+        .value("ProAVVideoLossBehaviorTypeWallpaper", ProAVVideoLossBehaviorType::ProAVVideoLossBehaviorTypeWallpaper)
+        .export_values();
+
+    // ===== Pro AV Service Structs =====
+    py::class_<ProAVVideoOverlaySettings>(m, "ProAVVideoOverlaySettings")
+        .def(py::init<>())
+        .def_readwrite("isActiveSpeakerGreenOutlineEnabled", &ProAVVideoOverlaySettings::isActiveSpeakerGreenOutlineEnabled)
+        .def_readwrite("isReactionIconsEnabled", &ProAVVideoOverlaySettings::isReactionIconsEnabled)
+        .def_readwrite("isRaiseHandIconEnabled", &ProAVVideoOverlaySettings::isRaiseHandIconEnabled)
+        .def_readwrite("isNameStrapEnabled", &ProAVVideoOverlaySettings::isNameStrapEnabled)
+        .def_readwrite("position", &ProAVVideoOverlaySettings::position)
+        .def_readwrite("isMuteIconEnabled", &ProAVVideoOverlaySettings::isMuteIconEnabled)
+        .def_readwrite("isPollOverlayEnabled", &ProAVVideoOverlaySettings::isPollOverlayEnabled)
+        .def_readwrite("galleryDistributionMode", &ProAVVideoOverlaySettings::galleryDistributionMode)
+        .def_readwrite("maxGalleryPageCount", &ProAVVideoOverlaySettings::maxGalleryPageCount)
+        .def_readwrite("elementScale", &ProAVVideoOverlaySettings::elementScale);
+
+    py::class_<ProAVUnassignedBehavior>(m, "ProAVUnassignedBehavior")
+        .def(py::init<>())
+        .def_readwrite("unassignedType", &ProAVUnassignedBehavior::unassignedType)
+        .def_readwrite("roomType", &ProAVUnassignedBehavior::roomType)
+        .def_readwrite("wallpaperIndex", &ProAVUnassignedBehavior::wallpaperIndex);
+
+    py::class_<ProAVVideoLossBehavior>(m, "ProAVVideoLossBehavior")
+        .def(py::init<>())
+        .def_readwrite("behaviorType", &ProAVVideoLossBehavior::behaviorType)
+        .def_readwrite("wallpaperRoomType", &ProAVVideoLossBehavior::wallpaperRoomType)
+        .def_readwrite("wallpaperIndex", &ProAVVideoLossBehavior::wallpaperIndex);
+
+    // ===== Pro AV Helper Classes (opaque for now) =====
+    py::class_<IDanteOutputHelper>(m, "IDanteOutputHelper");
+    py::class_<IHWIOHelper>(m, "IHWIOHelper");
+
+    // ===== Pro AV Service =====
+    py::class_<IProAVService>(m, "IProAVService")
+        .def("GetDanteOutputHelper", &IProAVService::GetDanteOutputHelper, py::return_value_policy::reference)
+        .def("GetHWIOHelper", &IProAVService::GetHWIOHelper, py::return_value_policy::reference)
+        .def("GetProAVVideoOverlaySettings", [](IProAVService* self) {
+            ProAVVideoOverlaySettings settings;
+            ZRCSDKError result = self->GetProAVVideoOverlaySettings(settings);
+            return py::make_tuple(result, settings);
+        })
+        .def("EnableProAVVideoActiveSpeakerGreenOutline", &IProAVService::EnableProAVVideoActiveSpeakerGreenOutline)
+        .def("EnableProAVVideoReactionIcons", &IProAVService::EnableProAVVideoReactionIcons)
+        .def("EnableProAVVideoRaiseHandIcon", &IProAVService::EnableProAVVideoRaiseHandIcon)
+        .def("EnableProAVVideoMuteIcon", &IProAVService::EnableProAVVideoMuteIcon)
+        .def("EnableProAVVideoPollOverlay", &IProAVService::EnableProAVVideoPollOverlay)
+        .def("EnableProAVVideoNameStrap", &IProAVService::EnableProAVVideoNameStrap)
+        .def("SetProAVVideoNameStrapPosition", &IProAVService::SetProAVVideoNameStrapPosition)
+        .def("SetProAVGalleryDistributionMode", &IProAVService::SetProAVGalleryDistributionMode)
+        .def("SetProAVMaxGalleryPageCount", &IProAVService::SetProAVMaxGalleryPageCount)
+        .def("SetProAVVideoElementScale", &IProAVService::SetProAVVideoElementScale)
+        .def("SetProAVUnassignedBehavior", &IProAVService::SetProAVUnassignedBehavior)
+        .def("GetProAVUnassignedBehavior", [](IProAVService* self) {
+            ProAVUnassignedBehavior behavior;
+            ZRCSDKError result = self->GetProAVUnassignedBehavior(behavior);
+            return py::make_tuple(result, behavior);
+        })
+        .def("SetProAVVideoLossBehavior", &IProAVService::SetProAVVideoLossBehavior)
+        .def("GetProAVVideoLossBehavior", [](IProAVService* self) {
+            ProAVVideoLossBehavior behavior;
+            ZRCSDKError result = self->GetProAVVideoLossBehavior(behavior);
+            return py::make_tuple(result, behavior);
         });
 }
