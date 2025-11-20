@@ -18,6 +18,7 @@
 #include "ServiceComponents/IMeetingShareHelper.h"
 #include "ServiceComponents/IMeetingViewLayoutHelper.h"
 #include "ServiceComponents/INDIHelper.h"
+#include "ServiceComponents/IParticipantHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -370,7 +371,8 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingListHelper", &IMeetingService::GetMeetingListHelper, py::return_value_policy::reference)
         .def("GetMeetingShareHelper", &IMeetingService::GetMeetingShareHelper, py::return_value_policy::reference)
         .def("GetMeetingViewLayoutHelper", &IMeetingService::GetMeetingViewLayoutHelper, py::return_value_policy::reference)
-        .def("GetNDIHelper", &IMeetingService::GetNDIHelper, py::return_value_policy::reference);
+        .def("GetNDIHelper", &IMeetingService::GetNDIHelper, py::return_value_policy::reference)
+        .def("GetParticipantHelper", &IMeetingService::GetParticipantHelper, py::return_value_policy::reference);
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -895,6 +897,33 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .value("NDISourceTypeGallery", NDISourceType::NDISourceTypeGallery)
         .export_values();
 
+    // ===== Participant Helper Enums =====
+    py::enum_<ZRWUserChangeType>(m, "ZRWUserChangeType")
+        .value("ZRW_JOIN", ZRWUserChangeType::ZRW_JOIN)
+        .value("ZRW_LEAVE", ZRWUserChangeType::ZRW_LEAVE)
+        .export_values();
+
+    py::enum_<ClaimHostResult>(m, "ClaimHostResult")
+        .value("ClaimHostResultSuccess", ClaimHostResult::ClaimHostResultSuccess)
+        .value("ClaimHostResultInvalidHostKey", ClaimHostResult::ClaimHostResultInvalidHostKey)
+        .value("ClaimHostResultUnknownError", ClaimHostResult::ClaimHostResultUnknownError)
+        .export_values();
+
+    py::enum_<ReportIssueType>(m, "ReportIssueType")
+        .value("ISSUE_TYPE_OFFENSIVE_ILLEGAL_ABUSIVE", ReportIssueType::ISSUE_TYPE_OFFENSIVE_ILLEGAL_ABUSIVE)
+        .value("ISSUE_TYPE_SUICIDE_SELF_HARM", ReportIssueType::ISSUE_TYPE_SUICIDE_SELF_HARM)
+        .value("ISSUE_TYPE_PRIVATE_INFORMATION", ReportIssueType::ISSUE_TYPE_PRIVATE_INFORMATION)
+        .value("ISSUE_TYPE_SPAM", ReportIssueType::ISSUE_TYPE_SPAM)
+        .value("ISSUE_TYPE_COPYRIGHT_TRADEMARK_INFRINGEMENT", ReportIssueType::ISSUE_TYPE_COPYRIGHT_TRADEMARK_INFRINGEMENT)
+        .value("ISSUE_TYPE_IMPERSONATION", ReportIssueType::ISSUE_TYPE_IMPERSONATION)
+        .value("ISSUE_TYPE_ILL_TELL_YOU_LATER", ReportIssueType::ISSUE_TYPE_ILL_TELL_YOU_LATER)
+        .export_values();
+
+    py::enum_<ConfSessionType>(m, "ConfSessionType")
+        .value("CurrentSession", ConfSessionType::CurrentSession)
+        .value("MasterSession", ConfSessionType::MasterSession)
+        .export_values();
+
     // ===== NDI Helper Structs =====
     py::class_<NDIUsageSettings>(m, "NDIUsageSettings")
         .def(py::init<>())
@@ -1124,4 +1153,68 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("AddPersistentNDISource", &INDIHelper::AddPersistentNDISource)
         .def("RemovePersistentNDISource", &INDIHelper::RemovePersistentNDISource)
         .def("ListPersistentNDISources", &INDIHelper::ListPersistentNDISources);
+
+    // ===== Participant Helper =====
+    py::class_<IParticipantHelper>(m, "IParticipantHelper")
+        .def("GetParticipantsInMeeting", [](IParticipantHelper* self, ConfSessionType session) {
+            std::vector<MeetingParticipant> participants;
+            ZRCSDKError result = self->GetParticipantsInMeeting(participants, session);
+            return py::make_tuple(result, participants);
+        })
+        .def("GetVirtualParticipantsInMeeting", [](IParticipantHelper* self, ConfSessionType session) {
+            std::vector<MeetingParticipant> participants;
+            ZRCSDKError result = self->GetVirtualParticipantsInMeeting(participants, session);
+            return py::make_tuple(result, participants);
+        })
+        .def("GetParticipantsInSilentMode", [](IParticipantHelper* self) {
+            std::vector<MeetingParticipant> participants;
+            ZRCSDKError result = self->GetParticipantsInSilentMode(participants);
+            return py::make_tuple(result, participants);
+        })
+        .def("GetParticipantsLeftMeeting", [](IParticipantHelper* self) {
+            std::vector<MeetingParticipant> participants;
+            ZRCSDKError result = self->GetParticipantsLeftMeeting(participants);
+            return py::make_tuple(result, participants);
+        })
+        .def("AssignHost", &IParticipantHelper::AssignHost)
+        .def("AssignCohost", &IParticipantHelper::AssignCohost)
+        .def("ClaimHost", &IParticipantHelper::ClaimHost)
+        .def("EnableAttendeesAnnotateOnShare", &IParticipantHelper::EnableAttendeesAnnotateOnShare)
+        .def("RenameUser", &IParticipantHelper::RenameUser)
+        .def("AllowAttendeesRenameThemselves", &IParticipantHelper::AllowAttendeesRenameThemselves)
+        .def("IsAttendeesRenameThemselvesEnabled", [](IParticipantHelper* self) {
+            bool enable;
+            ZRCSDKError result = self->IsAttendeesRenameThemselvesEnabled(enable);
+            return py::make_tuple(result, enable);
+        })
+        .def("IsAttendeesRenameThemselvesLocked", [](IParticipantHelper* self) {
+            bool locked;
+            ZRCSDKError result = self->IsAttendeesRenameThemselvesLocked(locked);
+            return py::make_tuple(result, locked);
+        })
+        .def("IsAttendeesRenameThemselvesAllowed", [](IParticipantHelper* self) {
+            bool allow;
+            ZRCSDKError result = self->IsAttendeesRenameThemselvesAllowed(allow);
+            return py::make_tuple(result, allow);
+        })
+        .def("AllowWebinarAttendeeRaiseHand", &IParticipantHelper::AllowWebinarAttendeeRaiseHand)
+        .def("RaiseHand", &IParticipantHelper::RaiseHand)
+        .def("LowerUserHand", &IParticipantHelper::LowerUserHand)
+        .def("LowerAllHands", &IParticipantHelper::LowerAllHands)
+        .def("LowerAllAttendeesHands", &IParticipantHelper::LowerAllAttendeesHands)
+        .def("ExpelUser", &IParticipantHelper::ExpelUser)
+        .def("ExpelUsers", &IParticipantHelper::ExpelUsers)
+        .def("HideProfilePictures", &IParticipantHelper::HideProfilePictures)
+        .def("IsFullRoomViewAvailableForUser", [](IParticipantHelper* self, int32_t userID) {
+            bool isAvailable;
+            ZRCSDKError result = self->IsFullRoomViewAvailableForUser(isAvailable, userID);
+            return py::make_tuple(result, isAvailable);
+        })
+        .def("HideFullRoomView", &IParticipantHelper::HideFullRoomView)
+        .def("DownloadUserAvatar", &IParticipantHelper::DownloadUserAvatar)
+        .def("AllowAttendeesShareWhiteboards", &IParticipantHelper::AllowAttendeesShareWhiteboards)
+        .def("SuspendParticipantsActivities", &IParticipantHelper::SuspendParticipantsActivities)
+        .def("ReportIssue", &IParticipantHelper::ReportIssue)
+        .def("SetMySelfAsActiveSpeaker", &IParticipantHelper::SetMySelfAsActiveSpeaker)
+        .def("SetMyChildAsActiveSpeaker", &IParticipantHelper::SetMyChildAsActiveSpeaker);
 }
