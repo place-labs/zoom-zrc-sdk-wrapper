@@ -20,6 +20,9 @@
 #include "ServiceComponents/IMeetingViewLayoutHelper.h"
 #include "ServiceComponents/INDIHelper.h"
 #include "ServiceComponents/IParticipantHelper.h"
+#include "ServiceComponents/IContactHelper.h"
+#include "ServiceComponents/IBYODHelper.h"
+#include "ServiceComponents/IControlSystemHelper.h"
 #include "ZRCSDKTypes.h"
 
 namespace py = pybind11;
@@ -240,6 +243,19 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return ZRCSDKERR_INTERNAL_ERROR;
         });
 
+    // ===== Pre-Meeting Service Enums =====
+    py::enum_<LogType>(m, "LogType")
+        .value("LogTypeBasic", LogType::LogTypeBasic)
+        .value("LogTypeAudio", LogType::LogTypeAudio)
+        .value("LogTypeContentSharing", LogType::LogTypeContentSharing)
+        .value("LogTypeCrashDump", LogType::LogTypeCrashDump)
+        .export_values();
+
+    // ===== Pre-Meeting Helper Classes (opaque for now) =====
+    py::class_<IContactHelper>(m, "IContactHelper");
+    py::class_<IBYODHelper>(m, "IBYODHelper");
+    py::class_<IControlSystemHelper>(m, "IControlSystemHelper");
+
     // ===== Pre-Meeting Service =====
     py::class_<IPreMeetingService>(m, "IPreMeetingService")
         .def("GetConnectionState", [](IPreMeetingService* self) {
@@ -263,7 +279,19 @@ PYBIND11_MODULE(zrc_sdk, m) {
                 return result;
             }
             return ZRCSDKERR_INTERNAL_ERROR;
-        });
+        })
+        .def("NotifyZoomRoomsSendProblemReport", &IPreMeetingService::NotifyZoomRoomsSendProblemReport)
+        .def("IsZoomRoomSupportRestartOS", [](IPreMeetingService* self) {
+            bool support;
+            ZRCSDKError result = self->IsZoomRoomSupportRestartOS(support);
+            return py::make_tuple(result, support);
+        })
+        .def("RestartZoomRoomOS", &IPreMeetingService::RestartZoomRoomOS)
+        .def("LogoutZoomRoomDevice", &IPreMeetingService::LogoutZoomRoomDevice)
+        .def("WakeZoomRoomUp", &IPreMeetingService::WakeZoomRoomUp)
+        .def("GetContactHelper", &IPreMeetingService::GetContactHelper, py::return_value_policy::reference)
+        .def("GetBYODHelper", &IPreMeetingService::GetBYODHelper, py::return_value_policy::reference)
+        .def("GetControlSystemHelper", &IPreMeetingService::GetControlSystemHelper, py::return_value_policy::reference);
 
     // ===== Meeting Service Enums =====
     py::enum_<ExitMeetingCmd>(m, "ExitMeetingCmd")
