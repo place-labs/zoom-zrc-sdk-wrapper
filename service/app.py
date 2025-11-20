@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import FastAPI, Depends
 
 from room_manager import RoomManager
-from controllers import rooms, meetings, meeting_controls, meeting_list, meeting_share
+from controllers import rooms, meetings, meeting_controls, meeting_list, meeting_share, meeting_video
 
 # Configure logging
 logging.basicConfig(
@@ -89,12 +89,14 @@ meetings.get_room_manager = get_room_manager
 meeting_controls.get_room_manager = get_room_manager
 meeting_list.get_room_manager = get_room_manager
 meeting_share.get_room_manager = get_room_manager
+meeting_video.get_room_manager = get_room_manager
 
 app.include_router(rooms.router)
 app.include_router(meetings.router)
 app.include_router(meeting_controls.router)
 app.include_router(meeting_list.router)
 app.include_router(meeting_share.router)
+app.include_router(meeting_video.router)
 
 
 # ===== Server Launch =====

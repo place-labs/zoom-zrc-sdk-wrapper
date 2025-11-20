@@ -374,7 +374,38 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     // ===== Meeting Video Helper =====
     py::class_<IMeetingVideoHelper>(m, "IMeetingVideoHelper")
-        .def("UpdateMyVideo", &IMeetingVideoHelper::UpdateMyVideo);
+        .def("UpdateMyVideo", &IMeetingVideoHelper::UpdateMyVideo)
+        .def("MuteUserVideo", &IMeetingVideoHelper::MuteUserVideo)
+        .def("AnswerHostRequestUnmuteVideo", &IMeetingVideoHelper::AnswerHostRequestUnmuteVideo)
+        .def("AllowAttendeesStartVideo", &IMeetingVideoHelper::AllowAttendeesStartVideo)
+        .def("ShowPinUserInstruction", &IMeetingVideoHelper::ShowPinUserInstruction)
+        .def("AllowUserMultiPin", &IMeetingVideoHelper::AllowUserMultiPin)
+        .def("PinUserOnScreen", &IMeetingVideoHelper::PinUserOnScreen)
+        .def("AddPinUserOnScreen", &IMeetingVideoHelper::AddPinUserOnScreen)
+        .def("UnpinUserFromScreen", &IMeetingVideoHelper::UnpinUserFromScreen)
+        .def("UnpinUserFromAllScreens", &IMeetingVideoHelper::UnpinUserFromAllScreens)
+        .def("PinSmartNameTagStreamOnScreen", &IMeetingVideoHelper::PinSmartNameTagStreamOnScreen)
+        .def("AddPinSmartNameTagStreamOnScreen", &IMeetingVideoHelper::AddPinSmartNameTagStreamOnScreen)
+        .def("UnpinSmartNameTagStreamFromScreen", &IMeetingVideoHelper::UnpinSmartNameTagStreamFromScreen)
+        .def("UnpinSmartNameTagStreamFromAllScreens", &IMeetingVideoHelper::UnpinSmartNameTagStreamFromAllScreens)
+        .def("RemoveAllPinUsers", &IMeetingVideoHelper::RemoveAllPinUsers)
+        .def("SpotlightUser", &IMeetingVideoHelper::SpotlightUser)
+        .def("AddSpotlightUser", &IMeetingVideoHelper::AddSpotlightUser)
+        .def("CancelSpotlightUser", &IMeetingVideoHelper::CancelSpotlightUser)
+        .def("RemoveAllSpotlightUsers", &IMeetingVideoHelper::RemoveAllSpotlightUsers)
+        .def("IsSupportSetMyVideoHidden", [](IMeetingVideoHelper* self) {
+            bool support;
+            ZRCSDKError result = self->IsSupportSetMyVideoHidden(support);
+            return py::make_tuple(result, support);
+        })
+        .def("SetMyVideoHidden", &IMeetingVideoHelper::SetMyVideoHidden)
+        .def("SetMyVideoTouchUp", &IMeetingVideoHelper::SetMyVideoTouchUp)
+        .def("SetMyVideoLowLight", &IMeetingVideoHelper::SetMyVideoLowLight)
+        .def("FetchMyMeetingVideoSettings", &IMeetingVideoHelper::FetchMyMeetingVideoSettings)
+        .def("SetMyMeetingVideoTouchUp", &IMeetingVideoHelper::SetMyMeetingVideoTouchUp)
+        .def("SetMyMeetingVideoLowLight", &IMeetingVideoHelper::SetMyMeetingVideoLowLight)
+        .def("ShowVideoPreview",
+            static_cast<ZRCSDKError(IMeetingVideoHelper::*)(bool, PreviewVideoType, const MeetingItem&)>(&IMeetingVideoHelper::ShowVideoPreview));
 
     // ===== Meeting Control Helper Enums =====
     py::enum_<FocusModeStatus>(m, "FocusModeStatus")
@@ -601,6 +632,87 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("incomingSource", &IncomingMeetingShareNot::incomingSource)
         .def_readwrite("shareUserName", &IncomingMeetingShareNot::shareUserName)
         .def_readwrite("currentShareType", &IncomingMeetingShareNot::currentShareType);
+
+    // ===== Meeting Video Helper Enums =====
+    py::enum_<PinShareWarningType>(m, "PinShareWarningType")
+        .value("PinShareWarningTypeNone", PinShareWarningType::PinShareWarningTypeNone)
+        .value("PinShareWarningTypeNoAnnotationForSelf", PinShareWarningType::PinShareWarningTypeNoAnnotationForSelf)
+        .value("PinShareWarningTypeStopSelfShare", PinShareWarningType::PinShareWarningTypeStopSelfShare)
+        .value("PinShareWarningTypeStopCameraShare", PinShareWarningType::PinShareWarningTypeStopCameraShare)
+        .value("PinShareWarningTypeStopWhiteboard", PinShareWarningType::PinShareWarningTypeStopWhiteboard)
+        .export_values();
+
+    py::enum_<CanNotPinShareReason>(m, "CanNotPinShareReason")
+        .value("CanNotPinShareReasonUnknown", CanNotPinShareReason::CanNotPinShareReasonUnknown)
+        .value("CanNotPinShareReasonContentOnly", CanNotPinShareReason::CanNotPinShareReasonContentOnly)
+        .export_values();
+
+    py::enum_<PreviewVideoType>(m, "PreviewVideoType")
+        .value("PreviewVideoTypeCameraSettings", PreviewVideoType::PreviewVideoTypeCameraSettings)
+        .value("PreviewVideoTypeVirtualBackground", PreviewVideoType::PreviewVideoTypeVirtualBackground)
+        .value("PreviewVideoTypeMeetingAlert", PreviewVideoType::PreviewVideoTypeMeetingAlert)
+        .export_values();
+
+    py::enum_<ScreenLayoutSourceType>(m, "ScreenLayoutSourceType")
+        .value("ScreenLayoutSourceTypeNone", ScreenLayoutSourceType::ScreenLayoutSourceTypeNone)
+        .value("ScreenLayoutSourceTypeActiveVideo", ScreenLayoutSourceType::ScreenLayoutSourceTypeActiveVideo)
+        .value("ScreenLayoutSourceTypeSelfVideo", ScreenLayoutSourceType::ScreenLayoutSourceTypeSelfVideo)
+        .value("ScreenLayoutSourceTypePinnedVideo", ScreenLayoutSourceType::ScreenLayoutSourceTypePinnedVideo)
+        .value("ScreenLayoutSourceTypeSharedContent", ScreenLayoutSourceType::ScreenLayoutSourceTypeSharedContent)
+        .value("ScreenLayoutSourceTypeThumbnailShareView", ScreenLayoutSourceType::ScreenLayoutSourceTypeThumbnailShareView)
+        .export_values();
+
+    // ===== Meeting Video Helper Structs =====
+    py::class_<VideoStatus>(m, "VideoStatus")
+        .def(py::init<>())
+        .def_readwrite("hasSource", &VideoStatus::hasSource)
+        .def_readwrite("receiving", &VideoStatus::receiving)
+        .def_readwrite("sending", &VideoStatus::sending)
+        .def_readwrite("canControl", &VideoStatus::canControl);
+
+    py::class_<ScreenStatusForPin>(m, "ScreenStatusForPin")
+        .def(py::init<>())
+        .def_readwrite("screenIndex", &ScreenStatusForPin::screenIndex)
+        .def_readwrite("canPinVideo", &ScreenStatusForPin::canPinVideo)
+        .def_readwrite("pinnedUserIDs", &ScreenStatusForPin::pinnedUserIDs)
+        .def_readwrite("screenLayout", &ScreenStatusForPin::screenLayout)
+        .def_readwrite("pinnedShareSourceID", &ScreenStatusForPin::pinnedShareSourceID)
+        .def_readwrite("pinnedShareSourceType", &ScreenStatusForPin::pinnedShareSourceType)
+        .def_readwrite("pinnableShareTypes", &ScreenStatusForPin::pinnableShareTypes)
+        .def_readwrite("canPinShare", &ScreenStatusForPin::canPinShare)
+        .def_readwrite("canNotPinShareReason", &ScreenStatusForPin::canNotPinShareReason)
+        .def_readwrite("isZRWScreen", &ScreenStatusForPin::isZRWScreen)
+        .def_readwrite("isThumbnailScreen", &ScreenStatusForPin::isThumbnailScreen)
+        .def_readwrite("pinnedShareUserID", &ScreenStatusForPin::pinnedShareUserID);
+
+    py::class_<SpotlightStatus>(m, "SpotlightStatus")
+        .def(py::init<>())
+        .def_readwrite("present", &SpotlightStatus::present)
+        .def_readwrite("userIDs", &SpotlightStatus::userIDs);
+
+    py::class_<MyVideoTouchUpSettings>(m, "MyVideoTouchUpSettings")
+        .def(py::init<>())
+        .def_readwrite("isFaceBeautyEnabled", &MyVideoTouchUpSettings::isFaceBeautyEnabled)
+        .def_readwrite("faceBeautyStrength", &MyVideoTouchUpSettings::faceBeautyStrength);
+
+    py::class_<MyVideoLowLightSettings>(m, "MyVideoLowLightSettings")
+        .def(py::init<>())
+        .def_readwrite("isAdjustLowLightEnabled", &MyVideoLowLightSettings::isAdjustLowLightEnabled)
+        .def_readwrite("isAutoAdjustLowLight", &MyVideoLowLightSettings::isAutoAdjustLowLight)
+        .def_readwrite("adjustLowLightValue", &MyVideoLowLightSettings::adjustLowLightValue);
+
+    py::class_<MyVideoSettings>(m, "MyVideoSettings")
+        .def(py::init<>())
+        .def_readwrite("touchUpSettings", &MyVideoSettings::touchUpSettings)
+        .def_readwrite("lowLightSettings", &MyVideoSettings::lowLightSettings)
+        .def_readwrite("allowUserEnhanceAppearance", &MyVideoSettings::allowUserEnhanceAppearance)
+        .def_readwrite("canPresetSettingsForMeeting", &MyVideoSettings::canPresetSettingsForMeeting)
+        .def_readwrite("isLocked", &MyVideoSettings::isLocked);
+
+    py::class_<MyMeetingVideoSettings>(m, "MyMeetingVideoSettings")
+        .def(py::init<>())
+        .def_readwrite("setting", &MyMeetingVideoSettings::setting)
+        .def_readwrite("meeting", &MyMeetingVideoSettings::meeting);
 
     // ===== Meeting List Helper Enums =====
     py::enum_<ListMeetingResult>(m, "ListMeetingResult")
