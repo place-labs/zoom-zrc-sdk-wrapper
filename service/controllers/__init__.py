@@ -13,5 +13,6 @@ from .pre_meeting import router as pre_meeting_router
 from .pro_av import router as pro_av_router
 from .recording import router as recording_router
 from .settings import router as settings_router
+from .third_party_meeting import router as third_party_meeting_router
 
-__all__ = ['rooms_router', 'meetings_router', 'meeting_controls_router', 'meeting_list_router', 'meeting_share_router', 'meeting_video_router', 'meeting_view_layout_router', 'ndi_router', 'participant_router', 'phone_call_router', 'pre_meeting_router', 'pro_av_router', 'recording_router', 'settings_router']
+__all__ = ['rooms_router', 'meetings_router', 'meeting_controls_router', 'meeting_list_router', 'meeting_share_router', 'meeting_video_router', 'meeting_view_layout_router', 'ndi_router', 'participant_router', 'phone_call_router', 'pre_meeting_router', 'pro_av_router', 'recording_router', 'settings_router', 'third_party_meeting_router']

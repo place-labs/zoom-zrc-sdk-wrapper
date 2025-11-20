@@ -23,6 +23,7 @@
 #include "ServiceComponents/INDIHelper.h"
 #include "ServiceComponents/IParticipantHelper.h"
 #include "ServiceComponents/IRecordingHelper.h"
+#include "ServiceComponents/IThirdPartyMeetingHelper.h"
 #include "ServiceComponents/ICalibrationHelper.h"
 #include "ServiceComponents/IContactHelper.h"
 #include "ServiceComponents/IBYODHelper.h"
@@ -215,6 +216,18 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .value("VirtualAudioDeviceTypeUnknown", VirtualAudioDeviceType::VirtualAudioDeviceTypeUnknown)
         .value("VirtualAudioDeviceTypeMicrophone", VirtualAudioDeviceType::VirtualAudioDeviceTypeMicrophone)
         .value("VirtualAudioDeviceTypeSpeaker", VirtualAudioDeviceType::VirtualAudioDeviceTypeSpeaker)
+        .export_values();
+
+    py::enum_<PSTNCallOutStatus>(m, "PSTNCallOutStatus")
+        .value("PSTNCallOutStatusUnknown", PSTNCallOutStatus::PSTNCallOutStatusUnknown)
+        .value("PSTNCallOutStatusCalling", PSTNCallOutStatus::PSTNCallOutStatusCalling)
+        .value("PSTNCallOutStatusRinging", PSTNCallOutStatus::PSTNCallOutStatusRinging)
+        .value("PSTNCallOutStatusAccepted", PSTNCallOutStatus::PSTNCallOutStatusAccepted)
+        .value("PSTNCallOutStatusBusy", PSTNCallOutStatus::PSTNCallOutStatusBusy)
+        .value("PSTNCallOutStatusNotAvailable", PSTNCallOutStatus::PSTNCallOutStatusNotAvailable)
+        .value("PSTNCallOutStatusUserHangUp", PSTNCallOutStatus::PSTNCallOutStatusUserHangUp)
+        .value("PSTNCallOutStatusOtherFail", PSTNCallOutStatus::PSTNCallOutStatusOtherFail)
+        .value("PSTNCallOutStatusJoinSuc", PSTNCallOutStatus::PSTNCallOutStatusJoinSuc)
         .export_values();
 
     // ===== Core SDK =====
@@ -424,7 +437,8 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingViewLayoutHelper", &IMeetingService::GetMeetingViewLayoutHelper, py::return_value_policy::reference)
         .def("GetNDIHelper", &IMeetingService::GetNDIHelper, py::return_value_policy::reference)
         .def("GetParticipantHelper", &IMeetingService::GetParticipantHelper, py::return_value_policy::reference)
-        .def("GetRecordingHelper", &IMeetingService::GetRecordingHelper, py::return_value_policy::reference);
+        .def("GetRecordingHelper", &IMeetingService::GetRecordingHelper, py::return_value_policy::reference)
+        .def("GetThirdPartyMeetingHelper", &IMeetingService::GetThirdPartyMeetingHelper, py::return_value_policy::reference);
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -1966,6 +1980,107 @@ PYBIND11_MODULE(zrc_sdk, m) {
         })
         .def("GetCalibrationHelper", &ISettingService::GetCalibrationHelper, py::return_value_policy::reference)
         .def("EnableMultiCameraOnlyMode", &ISettingService::EnableMultiCameraOnlyMode);
+
+    // ===== Third Party Meeting Helper Enums =====
+    py::enum_<RoomSystemCallingStatus>(m, "RoomSystemCallingStatus")
+        .value("RoomSystemCallingStatusAccepted", RoomSystemCallingStatus::RoomSystemCallingStatusAccepted)
+        .value("RoomSystemCallingStatusRinging", RoomSystemCallingStatus::RoomSystemCallingStatusRinging)
+        .value("RoomSystemCallingStatusTimeOut", RoomSystemCallingStatus::RoomSystemCallingStatusTimeOut)
+        .value("RoomSystemCallingStatusFailed", RoomSystemCallingStatus::RoomSystemCallingStatusFailed)
+        .value("RoomSystemCallingStatusFailedNotSupportEncryption", RoomSystemCallingStatus::RoomSystemCallingStatusFailedNotSupportEncryption)
+        .value("RoomSystemCallingStatusExceedFreePorts", RoomSystemCallingStatus::RoomSystemCallingStatusExceedFreePorts)
+        .export_values();
+
+    py::enum_<IntegrationMeetingState>(m, "IntegrationMeetingState")
+        .value("IntegrationMeetingStateNone", IntegrationMeetingState::IntegrationMeetingStateNone)
+        .value("IntegrationMeetingStateRejoining", IntegrationMeetingState::IntegrationMeetingStateRejoining)
+        .value("IntegrationMeetingStateJoining", IntegrationMeetingState::IntegrationMeetingStateJoining)
+        .value("IntegrationMeetingStateWaitingRoom", IntegrationMeetingState::IntegrationMeetingStateWaitingRoom)
+        .value("IntegrationMeetingStateConnected", IntegrationMeetingState::IntegrationMeetingStateConnected)
+        .value("IntegrationMeetingStateDisconnecting", IntegrationMeetingState::IntegrationMeetingStateDisconnecting)
+        .value("IntegrationMeetingStateDisconnected", IntegrationMeetingState::IntegrationMeetingStateDisconnected)
+        .value("IntegrationMeetingStateNeedPassword", IntegrationMeetingState::IntegrationMeetingStateNeedPassword)
+        .export_values();
+
+    py::enum_<IntegrationContentShareState>(m, "IntegrationContentShareState")
+        .value("IntegrationContentShareStateInactive", IntegrationContentShareState::IntegrationContentShareStateInactive)
+        .value("IntegrationContentShareStateActive", IntegrationContentShareState::IntegrationContentShareStateActive)
+        .export_values();
+
+    py::enum_<IntegrationMeetingLayoutType>(m, "IntegrationMeetingLayoutType")
+        .value("INTEGRATION_MEETING_FULL_SCREEN", IntegrationMeetingLayoutType::INTEGRATION_MEETING_FULL_SCREEN)
+        .value("INTEGRATION_MEETING_SIDEBAR_LEFT", IntegrationMeetingLayoutType::INTEGRATION_MEETING_SIDEBAR_LEFT)
+        .value("INTEGRATION_MEETING_SIDEBAR_RIGHT", IntegrationMeetingLayoutType::INTEGRATION_MEETING_SIDEBAR_RIGHT)
+        .value("INTEGRATION_MEETING_GRID", IntegrationMeetingLayoutType::INTEGRATION_MEETING_GRID)
+        .value("INTEGRATION_MEETING_TOP_BAR", IntegrationMeetingLayoutType::INTEGRATION_MEETING_TOP_BAR)
+        .value("INTEGRATION_MEETING_BOTTOM_BAR", IntegrationMeetingLayoutType::INTEGRATION_MEETING_BOTTOM_BAR)
+        .export_values();
+
+    py::enum_<IntegrationMeetingJoinMethod>(m, "IntegrationMeetingJoinMethod")
+        .value("IntegrationMeetingJoinMethodWebClient", IntegrationMeetingJoinMethod::IntegrationMeetingJoinMethodWebClient)
+        .value("IntegrationMeetingJoinMethodSIP", IntegrationMeetingJoinMethod::IntegrationMeetingJoinMethodSIP)
+        .export_values();
+
+    // ===== Third Party Meeting Helper Structs =====
+    py::class_<IntegrationMeetingInfo>(m, "IntegrationMeetingInfo")
+        .def(py::init<>())
+        .def_readwrite("provider", &IntegrationMeetingInfo::provider)
+        .def_readwrite("meetingState", &IntegrationMeetingInfo::meetingState)
+        .def_readwrite("meetingTitle", &IntegrationMeetingInfo::meetingTitle)
+        .def_readwrite("meetingID", &IntegrationMeetingInfo::meetingID)
+        .def_readwrite("isAudioMuted", &IntegrationMeetingInfo::isAudioMuted)
+        .def_readwrite("isVideoMuted", &IntegrationMeetingInfo::isVideoMuted)
+        .def_readwrite("meetingListItem", &IntegrationMeetingInfo::meetingListItem)
+        .def_readwrite("isSupportCameraControl", &IntegrationMeetingInfo::isSupportCameraControl);
+
+    py::class_<InterOperabilityInfo>(m, "InterOperabilityInfo")
+        .def(py::init<>())
+        .def_readwrite("meetingType", &InterOperabilityInfo::meetingType)
+        .def_readwrite("supportJoinMeeting", &InterOperabilityInfo::supportJoinMeeting)
+        .def_readwrite("supportJoinWebClient", &InterOperabilityInfo::supportJoinWebClient)
+        .def_readwrite("supportSipJoin", &InterOperabilityInfo::supportSipJoin)
+        .def_readwrite("supportPhoneJoin", &InterOperabilityInfo::supportPhoneJoin)
+        .def_readwrite("preferredJoinMethod", &InterOperabilityInfo::preferredJoinMethod)
+        .def_readwrite("isPexipEnabled", &InterOperabilityInfo::isPexipEnabled);
+
+    py::class_<IntegrationMeetingErrorInfo>(m, "IntegrationMeetingErrorInfo")
+        .def(py::init<>())
+        .def_readwrite("errorCode", &IntegrationMeetingErrorInfo::errorCode)
+        .def_readwrite("errorMessage", &IntegrationMeetingErrorInfo::errorMessage);
+
+    py::class_<IntegrationMeetingProblemReportInfo>(m, "IntegrationMeetingProblemReportInfo")
+        .def(py::init<>())
+        .def_readwrite("correlationID", &IntegrationMeetingProblemReportInfo::correlationID);
+
+    py::class_<IntegrationMeetingContentShareInfo>(m, "IntegrationMeetingContentShareInfo")
+        .def(py::init<>())
+        .def_readwrite("isHDMIContentShareAvailable", &IntegrationMeetingContentShareInfo::isHDMIContentShareAvailable)
+        .def_readwrite("contentShareState", &IntegrationMeetingContentShareInfo::contentShareState);
+
+    py::class_<IntegrationMeetingLayoutInfo>(m, "IntegrationMeetingLayoutInfo")
+        .def(py::init<>())
+        .def_readwrite("availableLayoutType", &IntegrationMeetingLayoutInfo::availableLayoutType)
+        .def_readwrite("selectedLayoutType", &IntegrationMeetingLayoutInfo::selectedLayoutType);
+
+    // ===== Third Party Meeting Helper =====
+    py::class_<IThirdPartyMeetingHelper>(m, "IThirdPartyMeetingHelper")
+        .def("CallOutPSTNUser", &IThirdPartyMeetingHelper::CallOutPSTNUser)
+        .def("StartThirdPartyMeetingByPSTNCall", &IThirdPartyMeetingHelper::StartThirdPartyMeetingByPSTNCall)
+        .def("SwitchPstnCallToMeeting", &IThirdPartyMeetingHelper::SwitchPstnCallToMeeting)
+        .def("StartThirdPartyMeetingByRoomSystemCall", &IThirdPartyMeetingHelper::StartThirdPartyMeetingByRoomSystemCall)
+        .def("StartIntegrationMeeting", &IThirdPartyMeetingHelper::StartIntegrationMeeting)
+        .def("JoinIntegrationMeeting", &IThirdPartyMeetingHelper::JoinIntegrationMeeting)
+        .def("RejoinIntegrationMeeting", &IThirdPartyMeetingHelper::RejoinIntegrationMeeting)
+        .def("LeaveIntegrationMeeting", &IThirdPartyMeetingHelper::LeaveIntegrationMeeting)
+        .def("MuteIntegrationAudio", &IThirdPartyMeetingHelper::MuteIntegrationAudio)
+        .def("StopIntegrationVideo", &IThirdPartyMeetingHelper::StopIntegrationVideo)
+        .def("StopIntegrationContentShare", &IThirdPartyMeetingHelper::StopIntegrationContentShare)
+        .def("ChangeIntegrationLayout", &IThirdPartyMeetingHelper::ChangeIntegrationLayout)
+        .def("GetInterOperabilityInfoByMeetingType", [](IThirdPartyMeetingHelper* self, ThirdPartyMeetingServiceProvider meetingType) {
+            InterOperabilityInfo info;
+            ZRCSDKError result = self->GetInterOperabilityInfoByMeetingType(meetingType, info);
+            return py::make_tuple(result, info);
+        });
 
     // ===== Phone Call Service =====
     py::class_<IPhoneCallService>(m, "IPhoneCallService")
