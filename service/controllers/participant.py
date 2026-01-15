@@ -38,10 +38,9 @@ class ReportIssueRequest(BaseModel):
 
 # ===== Helper Functions =====
 
-def get_participant_helper(room_id: str):
+def get_participant_helper(room_id: str, room_manager):
     """Get participant helper for a room"""
-    room_manager = get_room_manager()
-    room_service = room_manager.get_room(room_id)
+    room_service = room_manager.get_room_service(room_id)
     if not room_service:
         raise HTTPException(status_code=404, detail=f"Room {room_id} not found")
 
@@ -56,22 +55,53 @@ def get_participant_helper(room_id: str):
     return participant_helper
 
 
+def audio_status_to_dict(status):
+    if not status:
+        return None
+    return {
+        "audio_type": int(status.audioType),
+        "is_muted": status.isMuted,
+    }
+
+
+def video_status_to_dict(status):
+    if not status:
+        return None
+    return {
+        "has_source": status.hasSource,
+        "receiving": status.receiving,
+        "sending": status.sending,
+        "can_control": status.canControl,
+    }
+
+
 def participant_to_dict(p):
     """Convert MeetingParticipant to dict for JSON serialization"""
+    hand_status = getattr(p, "handStatus", None)
+    is_raising_hand = getattr(p, "isRaisingHand", None)
+    if hand_status and hasattr(hand_status, "handRaised"):
+        is_raising_hand = hand_status.handRaised
+
+    avatar_path = getattr(p, "avatarPath", None)
+    if not avatar_path:
+        avatar_path = getattr(p, "avatarUrl", "")
+
+    is_myself = getattr(p, "isMyself", getattr(p, "isMySelf", False))
+
     return {
-        "user_id": p.userID,
-        "user_name": p.userName,
-        "is_host": p.isHost,
-        "is_cohost": p.isCohost,
-        "is_myself": p.isMyself,
-        "is_in_waiting_room": p.isInWaitingRoom,
-        "is_raising_hand": p.isRaisingHand,
-        "is_talking": p.isTalking,
-        "audio_status": int(p.audioStatus),
-        "video_status": int(p.videoStatus),
-        "is_on_hold": p.isOnHold,
-        "avatar_path": p.avatarPath,
-        "parent_user_id": p.parentUserID if hasattr(p, 'parentUserID') else 0
+        "user_id": getattr(p, "userID", 0),
+        "user_name": getattr(p, "userName", ""),
+        "is_host": getattr(p, "isHost", False),
+        "is_cohost": getattr(p, "isCohost", False),
+        "is_myself": is_myself,
+        "is_in_waiting_room": getattr(p, "isInWaitingRoom", None),
+        "is_raising_hand": is_raising_hand,
+        "is_talking": getattr(p, "isTalking", None),
+        "audio_status": audio_status_to_dict(getattr(p, "audioStatus", None)),
+        "video_status": video_status_to_dict(getattr(p, "videoStatus", None)),
+        "is_on_hold": getattr(p, "isOnHold", None),
+        "avatar_path": avatar_path,
+        "parent_user_id": getattr(p, "parentUserID", 0),
     }
 
 
@@ -80,7 +110,7 @@ def participant_to_dict(p):
 @router.get("/")
 async def get_participants(room_id: str, session: str = "CurrentSession", room_manager = Depends(lambda: get_room_manager())):
     """Get participants in meeting"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
 
     session_map = {
         "CurrentSession": zrc_sdk.CurrentSession,
@@ -105,7 +135,7 @@ async def get_participants(room_id: str, session: str = "CurrentSession", room_m
 @router.get("/virtual")
 async def get_virtual_participants(room_id: str, session: str = "CurrentSession", room_manager = Depends(lambda: get_room_manager())):
     """Get virtual participants in meeting (e.g., multi stream, multi camera)"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
 
     session_map = {
         "CurrentSession": zrc_sdk.CurrentSession,
@@ -130,7 +160,7 @@ async def get_virtual_participants(room_id: str, session: str = "CurrentSession"
 @router.get("/silent-mode")
 async def get_participants_in_silent_mode(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get participants in silent mode"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result, participants = participant_helper.GetParticipantsInSilentMode()
 
     participants_list = [participant_to_dict(p) for p in participants]
@@ -147,7 +177,7 @@ async def get_participants_in_silent_mode(room_id: str, room_manager = Depends(l
 @router.get("/left")
 async def get_participants_left_meeting(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get participants who left meeting"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result, participants = participant_helper.GetParticipantsLeftMeeting()
 
     participants_list = [participant_to_dict(p) for p in participants]
@@ -164,7 +194,7 @@ async def get_participants_left_meeting(room_id: str, room_manager = Depends(lam
 @router.post("/assign-host")
 async def assign_host(room_id: str, user_id: int, room_manager = Depends(lambda: get_room_manager())):
     """Assign host to a user"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.AssignHost(user_id)
 
     return {
@@ -178,7 +208,7 @@ async def assign_host(room_id: str, user_id: int, room_manager = Depends(lambda:
 @router.post("/assign-cohost")
 async def assign_cohost(room_id: str, request: AssignCohostRequest, room_manager = Depends(lambda: get_room_manager())):
     """Assign/unassign cohost to a user"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.AssignCohost(request.user_id, request.assign)
 
     return {
@@ -193,7 +223,7 @@ async def assign_cohost(room_id: str, request: AssignCohostRequest, room_manager
 @router.post("/claim-host")
 async def claim_host(room_id: str, host_key: str, room_manager = Depends(lambda: get_room_manager())):
     """Claim host with host key"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.ClaimHost(host_key)
 
     return {
@@ -206,7 +236,7 @@ async def claim_host(room_id: str, host_key: str, room_manager = Depends(lambda:
 @router.post("/annotate-on-share")
 async def enable_attendees_annotate_on_share(room_id: str, enable: bool, room_manager = Depends(lambda: get_room_manager())):
     """Enable/disable attendees annotate on shared content"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.EnableAttendeesAnnotateOnShare(enable)
 
     return {
@@ -220,7 +250,7 @@ async def enable_attendees_annotate_on_share(room_id: str, enable: bool, room_ma
 @router.post("/rename")
 async def rename_user(room_id: str, request: RenameUserRequest, room_manager = Depends(lambda: get_room_manager())):
     """Rename a user"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.RenameUser(request.user_id, request.name)
 
     return {
@@ -235,7 +265,7 @@ async def rename_user(room_id: str, request: RenameUserRequest, room_manager = D
 @router.post("/allow-rename-themselves")
 async def allow_attendees_rename_themselves(room_id: str, allow: bool, room_manager = Depends(lambda: get_room_manager())):
     """Allow/disallow attendees to rename themselves"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.AllowAttendeesRenameThemselves(allow)
 
     return {
@@ -249,7 +279,7 @@ async def allow_attendees_rename_themselves(room_id: str, allow: bool, room_mana
 @router.get("/rename-themselves-enabled")
 async def is_attendees_rename_themselves_enabled(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Check if attendees can rename themselves (enabled)"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result, enable = participant_helper.IsAttendeesRenameThemselvesEnabled()
 
     return {
@@ -263,7 +293,7 @@ async def is_attendees_rename_themselves_enabled(room_id: str, room_manager = De
 @router.get("/rename-themselves-locked")
 async def is_attendees_rename_themselves_locked(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Check if attendees rename themselves is locked"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result, locked = participant_helper.IsAttendeesRenameThemselvesLocked()
 
     return {
@@ -277,7 +307,7 @@ async def is_attendees_rename_themselves_locked(room_id: str, room_manager = Dep
 @router.get("/rename-themselves-allowed")
 async def is_attendees_rename_themselves_allowed(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Check if attendees rename themselves is allowed"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result, allow = participant_helper.IsAttendeesRenameThemselvesAllowed()
 
     return {
@@ -291,7 +321,7 @@ async def is_attendees_rename_themselves_allowed(room_id: str, room_manager = De
 @router.post("/allow-webinar-raise-hand")
 async def allow_webinar_attendee_raise_hand(room_id: str, allow: bool, room_manager = Depends(lambda: get_room_manager())):
     """Allow/disallow webinar attendees to raise hand"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.AllowWebinarAttendeeRaiseHand(allow)
 
     return {
@@ -305,7 +335,7 @@ async def allow_webinar_attendee_raise_hand(room_id: str, allow: bool, room_mana
 @router.post("/raise-hand")
 async def raise_hand(room_id: str, raise_hand: bool, room_manager = Depends(lambda: get_room_manager())):
     """Raise/lower self hand"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.RaiseHand(raise_hand)
 
     return {
@@ -319,7 +349,7 @@ async def raise_hand(room_id: str, raise_hand: bool, room_manager = Depends(lamb
 @router.post("/lower-hand/{user_id}")
 async def lower_user_hand(room_id: str, user_id: int, room_manager = Depends(lambda: get_room_manager())):
     """Lower a user's hand"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.LowerUserHand(user_id)
 
     return {
@@ -333,7 +363,7 @@ async def lower_user_hand(room_id: str, user_id: int, room_manager = Depends(lam
 @router.post("/lower-all-hands")
 async def lower_all_hands(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Lower all hands"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.LowerAllHands()
 
     return {
@@ -346,7 +376,7 @@ async def lower_all_hands(room_id: str, room_manager = Depends(lambda: get_room_
 @router.post("/lower-all-attendees-hands")
 async def lower_all_attendees_hands(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Lower all attendees' hands"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.LowerAllAttendeesHands()
 
     return {
@@ -359,7 +389,7 @@ async def lower_all_attendees_hands(room_id: str, room_manager = Depends(lambda:
 @router.delete("/{user_id}")
 async def expel_user(room_id: str, user_id: int, room_manager = Depends(lambda: get_room_manager())):
     """Expel a user from meeting"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.ExpelUser(user_id)
 
     return {
@@ -373,7 +403,7 @@ async def expel_user(room_id: str, user_id: int, room_manager = Depends(lambda: 
 @router.post("/expel-multiple")
 async def expel_users(room_id: str, request: ExpelUsersRequest, room_manager = Depends(lambda: get_room_manager())):
     """Expel multiple users from meeting"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.ExpelUsers(request.user_ids)
 
     return {
@@ -388,7 +418,7 @@ async def expel_users(room_id: str, request: ExpelUsersRequest, room_manager = D
 @router.post("/hide-profile-pictures")
 async def hide_profile_pictures(room_id: str, hidden: bool, room_manager = Depends(lambda: get_room_manager())):
     """Hide/show profile pictures"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.HideProfilePictures(hidden)
 
     return {
@@ -402,7 +432,7 @@ async def hide_profile_pictures(room_id: str, hidden: bool, room_manager = Depen
 @router.get("/full-room-view-available/{user_id}")
 async def is_full_room_view_available_for_user(room_id: str, user_id: int, room_manager = Depends(lambda: get_room_manager())):
     """Check if user supports hide/show full room view"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result, is_available = participant_helper.IsFullRoomViewAvailableForUser(user_id)
 
     return {
@@ -417,7 +447,7 @@ async def is_full_room_view_available_for_user(room_id: str, user_id: int, room_
 @router.post("/hide-full-room-view")
 async def hide_full_room_view(room_id: str, user_id: int, hide: bool, room_manager = Depends(lambda: get_room_manager())):
     """Hide/show full room view for a user"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.HideFullRoomView(hide, user_id)
 
     return {
@@ -432,7 +462,7 @@ async def hide_full_room_view(room_id: str, user_id: int, hide: bool, room_manag
 @router.post("/download-avatar")
 async def download_user_avatar(room_id: str, avatar_url: str, local_file_path: str, room_manager = Depends(lambda: get_room_manager())):
     """Download user avatar"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.DownloadUserAvatar(avatar_url, local_file_path)
 
     return {
@@ -448,7 +478,7 @@ async def download_user_avatar(room_id: str, avatar_url: str, local_file_path: s
 @router.post("/allow-share-whiteboards")
 async def allow_attendees_share_whiteboards(room_id: str, allow: bool, room_manager = Depends(lambda: get_room_manager())):
     """Allow/disallow attendees to share whiteboards"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.AllowAttendeesShareWhiteboards(allow)
 
     return {
@@ -462,7 +492,7 @@ async def allow_attendees_share_whiteboards(room_id: str, allow: bool, room_mana
 @router.post("/suspend-activities")
 async def suspend_participants_activities(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Suspend all participants activities"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.SuspendParticipantsActivities()
 
     return {
@@ -475,7 +505,7 @@ async def suspend_participants_activities(room_id: str, room_manager = Depends(l
 @router.post("/report-issue")
 async def report_issue(room_id: str, request: ReportIssueRequest, room_manager = Depends(lambda: get_room_manager())):
     """Report participants' issues"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.ReportIssue(request.user_ids, request.issue_type, request.email)
 
     return {
@@ -491,7 +521,7 @@ async def report_issue(room_id: str, request: ReportIssueRequest, room_manager =
 @router.post("/set-myself-as-active-speaker")
 async def set_myself_as_active_speaker(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Set myself as active speaker"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.SetMySelfAsActiveSpeaker()
 
     return {
@@ -504,7 +534,7 @@ async def set_myself_as_active_speaker(room_id: str, room_manager = Depends(lamb
 @router.post("/set-child-as-active-speaker/{user_id}")
 async def set_my_child_as_active_speaker(room_id: str, user_id: int, room_manager = Depends(lambda: get_room_manager())):
     """Set my child (multi-stream participant) as active speaker"""
-    participant_helper = get_participant_helper(room_id)
+    participant_helper = get_participant_helper(room_id, room_manager)
     result = participant_helper.SetMyChildAsActiveSpeaker(user_id)
 
     return {

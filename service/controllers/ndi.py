@@ -43,10 +43,9 @@ class PersistentNDISourceRequest(BaseModel):
 
 # ===== Helper Functions =====
 
-def get_ndi_helper(room_id: str):
+def get_ndi_helper(room_id: str, room_manager):
     """Get NDI helper for a room"""
-    room_manager = get_room_manager()
-    room_service = room_manager.get_room(room_id)
+    room_service = room_manager.get_room_service(room_id)
     if not room_service:
         raise HTTPException(status_code=404, detail=f"Room {room_id} not found")
 
@@ -101,7 +100,7 @@ def ndi_source_to_cpp(source: NDISourceRequest):
 @router.post("/resolution")
 async def set_ndi_resolution(room_id: str, resolution: str, room_manager = Depends(lambda: get_room_manager())):
     """Set NDI output resolution"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
 
     resolution_map = {
         "Unknown": zrc_sdk.NDIResolutionUnknown,
@@ -124,7 +123,7 @@ async def set_ndi_resolution(room_id: str, resolution: str, room_manager = Depen
 @router.post("/frame-rate")
 async def set_ndi_frame_rate(room_id: str, frame_rate: str, room_manager = Depends(lambda: get_room_manager())):
     """Set NDI output frame rate"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
 
     frame_rate_map = {
         "Unknown": zrc_sdk.NDIFrameRateUnknown,
@@ -150,7 +149,7 @@ async def set_ndi_frame_rate(room_id: str, frame_rate: str, room_manager = Depen
 @router.post("/enable-in-premeeting")
 async def set_ndi_enable_in_premeeting(room_id: str, enable: bool, room_manager = Depends(lambda: get_room_manager())):
     """Enable/disable NDI in premeeting"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     result = ndi_helper.SetNDIEnableInPreMeeting(enable)
 
     return {
@@ -164,7 +163,7 @@ async def set_ndi_enable_in_premeeting(room_id: str, enable: bool, room_manager 
 @router.post("/output-count")
 async def set_ndi_output_count(room_id: str, output_count: int, room_manager = Depends(lambda: get_room_manager())):
     """Set NDI output count"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     result = ndi_helper.SetNDIOutputCount(output_count)
 
     return {
@@ -178,7 +177,7 @@ async def set_ndi_output_count(room_id: str, output_count: int, room_manager = D
 @router.get("/available-sources")
 async def get_available_ndi_sources(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get available NDI sources"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     result, sources = ndi_helper.GetAvailableNDISources()
 
     # Convert sources to dict for JSON serialization
@@ -208,7 +207,7 @@ async def get_available_ndi_sources(room_id: str, room_manager = Depends(lambda:
 @router.get("/pinned-sources")
 async def get_ndi_pinned_sources(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get NDI pinned sources"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     result, sources = ndi_helper.GetNDIPinnedSources()
 
     # Convert sources to dict for JSON serialization
@@ -241,7 +240,7 @@ async def get_ndi_pinned_sources(room_id: str, room_manager = Depends(lambda: ge
 @router.post("/pin")
 async def pin_ndi(room_id: str, request: PinNDIRequest, room_manager = Depends(lambda: get_room_manager())):
     """Pin NDI source"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     cpp_source = ndi_source_to_cpp(request.source)
     result = ndi_helper.PinNDI(cpp_source, request.index)
 
@@ -256,7 +255,7 @@ async def pin_ndi(room_id: str, request: PinNDIRequest, room_manager = Depends(l
 @router.post("/unpin")
 async def unpin_ndi(room_id: str, request: UnpinNDIRequest, room_manager = Depends(lambda: get_room_manager())):
     """Unpin NDI source"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     cpp_source = ndi_source_to_cpp(request.source)
     result = ndi_helper.UnpinNDI(cpp_source, request.index)
 
@@ -271,7 +270,7 @@ async def unpin_ndi(room_id: str, request: UnpinNDIRequest, room_manager = Depen
 @router.get("/devices")
 async def get_ndi_device_list(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get NDI device list"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     result, devices = ndi_helper.GetNDIDeviceList()
 
     # Convert devices to dict for JSON serialization
@@ -295,7 +294,7 @@ async def get_ndi_device_list(room_id: str, room_manager = Depends(lambda: get_r
 @router.post("/persistent-sources/add")
 async def add_persistent_ndi_source(room_id: str, request: PersistentNDISourceRequest, room_manager = Depends(lambda: get_room_manager())):
     """Add persistent NDI source"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     cpp_source = ndi_source_to_cpp(request.source)
     result = ndi_helper.AddPersistentNDISource(cpp_source, request.index)
 
@@ -310,7 +309,7 @@ async def add_persistent_ndi_source(room_id: str, request: PersistentNDISourceRe
 @router.delete("/persistent-sources/{index}")
 async def remove_persistent_ndi_source(room_id: str, index: int, room_manager = Depends(lambda: get_room_manager())):
     """Remove persistent NDI source"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     result = ndi_helper.RemovePersistentNDISource(index)
 
     return {
@@ -324,7 +323,7 @@ async def remove_persistent_ndi_source(room_id: str, index: int, room_manager = 
 @router.post("/persistent-sources/list")
 async def list_persistent_ndi_sources(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """List persistent NDI sources (triggers notification callback)"""
-    ndi_helper = get_ndi_helper(room_id)
+    ndi_helper = get_ndi_helper(room_id, room_manager)
     result = ndi_helper.ListPersistentNDISources()
 
     return {

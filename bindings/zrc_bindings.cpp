@@ -814,12 +814,22 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .export_values();
 
     // ===== Meeting Video Helper Structs =====
+    py::class_<AudioStatus>(m, "AudioStatus")
+        .def(py::init<>())
+        .def_readwrite("audioType", &AudioStatus::audioType)
+        .def_readwrite("isMuted", &AudioStatus::isMuted);
+
     py::class_<VideoStatus>(m, "VideoStatus")
         .def(py::init<>())
         .def_readwrite("hasSource", &VideoStatus::hasSource)
         .def_readwrite("receiving", &VideoStatus::receiving)
         .def_readwrite("sending", &VideoStatus::sending)
         .def_readwrite("canControl", &VideoStatus::canControl);
+
+    py::class_<HandStatus>(m, "HandStatus")
+        .def(py::init<>())
+        .def_readwrite("handRaised", &HandStatus::handRaised)
+        .def_readwrite("timeStamp", &HandStatus::timeStamp);
 
     py::class_<ScreenStatusForPin>(m, "ScreenStatusForPin")
         .def(py::init<>())
@@ -1481,6 +1491,37 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("RemovePersistentNDISource", &INDIHelper::RemovePersistentNDISource)
         .def("ListPersistentNDISources", &INDIHelper::ListPersistentNDISources);
 
+    py::class_<MeetingParticipant>(m, "MeetingParticipant")
+        .def(py::init<>())
+        .def_readwrite("userID", &MeetingParticipant::userID)
+        .def_readwrite("parentUserID", &MeetingParticipant::parentUserID)
+        .def_readwrite("userGUID", &MeetingParticipant::userGUID)
+        .def_readwrite("userName", &MeetingParticipant::userName)
+        .def_readwrite("pronouns", &MeetingParticipant::pronouns)
+        .def_readwrite("avatarUrl", &MeetingParticipant::avatarUrl)
+        .def_readwrite("isMySelf", &MeetingParticipant::isMySelf)
+        .def_readwrite("isMyself", &MeetingParticipant::isMySelf)
+        .def_readwrite("isHost", &MeetingParticipant::isHost)
+        .def_readwrite("isCohost", &MeetingParticipant::isCohost)
+        .def_readwrite("isGuest", &MeetingParticipant::isGuest)
+        .def_readwrite("isViewOnlyUser", &MeetingParticipant::isViewOnlyUser)
+        .def_readwrite("isViewOnlyUserCanTalk", &MeetingParticipant::isViewOnlyUserCanTalk)
+        .def_readwrite("canRecord", &MeetingParticipant::canRecord)
+        .def_readwrite("isRecording", &MeetingParticipant::isRecording)
+        .def_readwrite("recordingDisabled", &MeetingParticipant::recordingDisabled)
+        .def_readwrite("isInSilentMode", &MeetingParticipant::isInSilentMode)
+        .def_readwrite("isLeavingSilentMode", &MeetingParticipant::isLeavingSilentMode)
+        .def_readwrite("audioStatus", &MeetingParticipant::audioStatus)
+        .def_readwrite("videoStatus", &MeetingParticipant::videoStatus)
+        .def_readwrite("handStatus", &MeetingParticipant::handStatus)
+        .def_readwrite("reactionEmoji", &MeetingParticipant::reactionEmoji)
+        .def_readwrite("isInterpreter", &MeetingParticipant::isInterpreter)
+        .def_readwrite("isRemoteControlAdmin", &MeetingParticipant::isRemoteControlAdmin)
+        .def_readwrite("isVirtualAssistant", &MeetingParticipant::isVirtualAssistant)
+        .def_readwrite("isCompanionModeUser", &MeetingParticipant::isCompanionModeUser)
+        .def_readwrite("isCompanionZRUser", &MeetingParticipant::isCompanionZRUser)
+        .def_readwrite("attendeeJid", &MeetingParticipant::attendeeJid);
+
     // ===== Participant Helper =====
     py::class_<IParticipantHelper>(m, "IParticipantHelper")
         .def("GetParticipantsInMeeting", [](IParticipantHelper* self, ConfSessionType session) {
@@ -1928,6 +1969,28 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("updateType", &NetworkAdapterInfo::updateType)
         .def_readwrite("adapter", &NetworkAdapterInfo::adapter)
         .def_readwrite("ip", &NetworkAdapterInfo::ip);
+
+    py::class_<VirtualAudioDevice>(m, "VirtualAudioDevice")
+        .def(py::init<>())
+        .def_readwrite("type", &VirtualAudioDevice::type)
+        .def_readwrite("vendor", &VirtualAudioDevice::vendor)
+        .def_readwrite("maxSelectedCount", &VirtualAudioDevice::maxSelectedCount);
+
+    py::class_<Device>(m, "Device")
+        .def(py::init<>())
+        .def_readwrite("id", &Device::id)
+        .def_readwrite("name", &Device::name)
+        .def_readwrite("alias", &Device::alias)
+        .def_readwrite("displayName", &Device::displayName)
+        .def_readwrite("isSelected", &Device::isSelected)
+        .def_readwrite("manuallySelected", &Device::manuallySelected)
+        .def_readwrite("combinedDevice", &Device::combinedDevice)
+        .def_readwrite("numberOfCombinedDevices", &Device::numberOfCombinedDevices)
+        .def_readwrite("ptzComId", &Device::ptzComId)
+        .def_readwrite("isSelectedAsMultiDevice", &Device::isSelectedAsMultiDevice)
+        .def_readwrite("selectedDirectorDevice", &Device::selectedDirectorDevice)
+        .def_readwrite("isSupportCalibration", &Device::isSupportCalibration)
+        .def_readwrite("virtualAudioDevice", &Device::virtualAudioDevice);
 
     // ===== Setting Service =====
     py::class_<ICalibrationHelper>(m, "ICalibrationHelper");

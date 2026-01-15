@@ -43,10 +43,9 @@ class MergeCallsRequest(BaseModel):
 
 # ===== Helper Functions =====
 
-def get_phone_call_service(room_id: str):
+def get_phone_call_service(room_id: str, room_manager):
     """Get phone call service for a room"""
-    room_manager = get_room_manager()
-    room_service = room_manager.get_room(room_id)
+    room_service = room_manager.get_room_service(room_id)
     if not room_service:
         raise HTTPException(status_code=404, detail=f"Room {room_id} not found")
 
@@ -108,7 +107,7 @@ def find_call_by_id(phone_service, call_id):
 @router.get("/calls")
 async def get_sip_calls(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get all SIP/Zoom Phone calls"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     result, calls = phone_service.GetSIPCallList()
 
     calls_list = [sip_call_to_dict(call) for call in calls]
@@ -125,7 +124,7 @@ async def get_sip_calls(room_id: str, room_manager = Depends(lambda: get_room_ma
 @router.get("/calls/active")
 async def get_unhold_call(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get the active (unhold) call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     result, unholdCall = phone_service.GetUnholdSIPCall()
 
     return {
@@ -139,7 +138,7 @@ async def get_unhold_call(room_id: str, room_manager = Depends(lambda: get_room_
 @router.post("/call")
 async def make_call(room_id: str, uri: str, room_manager = Depends(lambda: get_room_manager())):
     """Make a SIP/Zoom Phone call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     result = phone_service.CallSIP(uri)
 
     return {
@@ -153,7 +152,7 @@ async def make_call(room_id: str, uri: str, room_manager = Depends(lambda: get_r
 @router.post("/accept")
 async def accept_incoming_call(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Accept incoming SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.AcceptIncomingSIPCall(call_info)
 
@@ -168,7 +167,7 @@ async def accept_incoming_call(room_id: str, request: SIPCallInfoRequest, room_m
 @router.post("/accept-and-hold")
 async def hold_and_accept_incoming_call(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Hold current call and accept incoming SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.HoldAndAcceptIncomingSIPCall(call_info)
 
@@ -183,7 +182,7 @@ async def hold_and_accept_incoming_call(room_id: str, request: SIPCallInfoReques
 @router.post("/accept-and-end")
 async def end_and_accept_incoming_call(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """End current call and accept incoming SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.EndAndAcceptIncomingSIPCall(call_info)
 
@@ -198,7 +197,7 @@ async def end_and_accept_incoming_call(room_id: str, request: SIPCallInfoRequest
 @router.post("/decline")
 async def decline_incoming_call(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Decline incoming SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.DeclineIncomingSIPCall(call_info)
 
@@ -213,7 +212,7 @@ async def decline_incoming_call(room_id: str, request: SIPCallInfoRequest, room_
 @router.post("/hangup")
 async def hangup_call(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Hang up SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.HangupSIPCall(call_info)
 
@@ -228,7 +227,7 @@ async def hangup_call(room_id: str, request: SIPCallInfoRequest, room_manager = 
 @router.post("/mute")
 async def mute_call_audio(room_id: str, mute: bool, room_manager = Depends(lambda: get_room_manager())):
     """Mute/unmute SIP call audio"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     result = phone_service.MuteSIPCallAudio(mute)
 
     return {
@@ -242,7 +241,7 @@ async def mute_call_audio(room_id: str, mute: bool, room_manager = Depends(lambd
 @router.post("/dtmf")
 async def send_dtmf(room_id: str, request: DTMFRequest, room_manager = Depends(lambda: get_room_manager())):
     """Send DTMF tones (0-9, *, +, #)"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.SendDTMFToSIPCall(request.dtmf, call_info)
 
@@ -258,7 +257,7 @@ async def send_dtmf(room_id: str, request: DTMFRequest, room_manager = Depends(l
 @router.post("/hold")
 async def hold_call(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Hold SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.HoldSIPCall(call_info)
 
@@ -273,7 +272,7 @@ async def hold_call(room_id: str, request: SIPCallInfoRequest, room_manager = De
 @router.post("/unhold")
 async def unhold_call(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Unhold SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.UnholdSIPCall(call_info)
 
@@ -288,7 +287,7 @@ async def unhold_call(room_id: str, request: SIPCallInfoRequest, room_manager = 
 @router.post("/merge")
 async def merge_calls(room_id: str, request: MergeCallsRequest, room_manager = Depends(lambda: get_room_manager())):
     """Merge two SIP calls"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     host_call = find_call_by_id(phone_service, request.host_call_id)
     participant_call = find_call_by_id(phone_service, request.participant_call_id)
     result = phone_service.MergeSIPCall(host_call, participant_call)
@@ -305,7 +304,7 @@ async def merge_calls(room_id: str, request: MergeCallsRequest, room_manager = D
 @router.post("/transfer")
 async def transfer_call(room_id: str, request: TransferRequest, room_manager = Depends(lambda: get_room_manager())):
     """Transfer SIP call"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
 
     # Create transfer info
@@ -335,7 +334,7 @@ async def transfer_call(room_id: str, request: TransferRequest, room_manager = D
 @router.post("/transfer/complete-warm")
 async def complete_warm_transfer(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Complete warm transfer"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.CompleteWarmTransfer(call_info)
 
@@ -350,7 +349,7 @@ async def complete_warm_transfer(room_id: str, request: SIPCallInfoRequest, room
 @router.post("/transfer/cancel-warm")
 async def cancel_warm_transfer(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Cancel warm transfer"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.CancelWarmTransfer(call_info)
 
@@ -365,7 +364,7 @@ async def cancel_warm_transfer(room_id: str, request: SIPCallInfoRequest, room_m
 @router.post("/upgrade-to-meeting")
 async def upgrade_to_meeting(room_id: str, request: UpgradeToMeetingRequest, room_manager = Depends(lambda: get_room_manager())):
     """Upgrade SIP call to Zoom meeting"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.UpgradeSIPCallToMeeting(call_info, request.end_current_meeting)
 
@@ -381,7 +380,7 @@ async def upgrade_to_meeting(room_id: str, request: UpgradeToMeetingRequest, roo
 @router.post("/accept-upgrade-to-meeting")
 async def accept_upgrade_to_meeting(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Accept invitation to upgrade SIP call to meeting"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.AcceptSIPCallToMeeting(call_info)
 
@@ -396,7 +395,7 @@ async def accept_upgrade_to_meeting(room_id: str, request: SIPCallInfoRequest, r
 @router.post("/decline-upgrade-to-meeting")
 async def decline_upgrade_to_meeting(room_id: str, request: SIPCallInfoRequest, room_manager = Depends(lambda: get_room_manager())):
     """Decline invitation to upgrade SIP call to meeting"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     call_info = find_call_by_id(phone_service, request.call_id)
     result = phone_service.DeclineSIPCallToMeeting(call_info)
 
@@ -411,7 +410,7 @@ async def decline_upgrade_to_meeting(room_id: str, request: SIPCallInfoRequest, 
 @router.post("/location-permission")
 async def set_location_permission(room_id: str, enable: bool, room_manager = Depends(lambda: get_room_manager())):
     """Set location permission for emergency calls"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     result = phone_service.SetLocationPermissionEnable(enable)
 
     return {
@@ -425,7 +424,7 @@ async def set_location_permission(room_id: str, enable: bool, room_manager = Dep
 @router.get("/location-permission")
 async def get_location_permission(room_id: str, room_manager = Depends(lambda: get_room_manager())):
     """Get location permission for emergency calls"""
-    phone_service = get_phone_call_service(room_id)
+    phone_service = get_phone_call_service(room_id, room_manager)
     result, enable = phone_service.GetLocationPermissionEnable()
 
     return {

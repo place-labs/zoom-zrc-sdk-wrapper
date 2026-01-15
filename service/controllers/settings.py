@@ -160,14 +160,32 @@ def get_setting_service(room_id: str, room_manager):
     return room_service.GetSettingService()
 
 
-def device_to_dict(device):
+def device_to_dict(device, device_type: Optional[str] = None):
     """Convert Device struct to dictionary"""
-    return {
+    data = {
         "id": device.id,
         "name": device.name,
+        "alias": device.alias,
+        "display_name": device.displayName,
         "is_selected": device.isSelected,
-        "device_type": device.deviceType
+        "manually_selected": device.manuallySelected,
+        "combined_device": device.combinedDevice,
+        "number_of_combined_devices": device.numberOfCombinedDevices,
+        "ptz_com_id": device.ptzComId,
+        "is_selected_as_multi_device": device.isSelectedAsMultiDevice,
+        "selected_director_device": device.selectedDirectorDevice,
+        "is_support_calibration": device.isSupportCalibration,
     }
+    if device_type:
+        data["device_type"] = device_type
+    if hasattr(device, "virtualAudioDevice"):
+        vad = device.virtualAudioDevice
+        data["virtual_audio_device"] = {
+            "type": int(vad.type),
+            "vendor": vad.vendor,
+            "max_selected_count": vad.maxSelectedCount,
+        }
+    return data
 
 
 def advanced_noise_suppression_mode_to_string(mode: int) -> str:
@@ -220,7 +238,7 @@ async def get_microphone_list(
         raise HTTPException(status_code=500, detail=f"Failed to get microphone list: {result}")
 
     return {
-        "microphones": [device_to_dict(mic) for mic in microphones]
+        "microphones": [device_to_dict(mic, "microphone") for mic in microphones]
     }
 
 
@@ -237,7 +255,7 @@ async def get_speaker_list(
         raise HTTPException(status_code=500, detail=f"Failed to get speaker list: {result}")
 
     return {
-        "speakers": [device_to_dict(spk) for spk in speakers]
+        "speakers": [device_to_dict(spk, "speaker") for spk in speakers]
     }
 
 
@@ -254,7 +272,7 @@ async def get_camera_list(
         raise HTTPException(status_code=500, detail=f"Failed to get camera list: {result}")
 
     return {
-        "cameras": [device_to_dict(cam) for cam in cameras]
+        "cameras": [device_to_dict(cam, "camera") for cam in cameras]
     }
 
 
@@ -287,7 +305,7 @@ async def get_current_microphone(
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
         raise HTTPException(status_code=500, detail=f"Failed to get current microphone: {result}")
 
-    return device_to_dict(microphone)
+    return device_to_dict(microphone, "microphone")
 
 
 @router.get("/devices/current/speaker")
@@ -302,7 +320,7 @@ async def get_current_speaker(
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
         raise HTTPException(status_code=500, detail=f"Failed to get current speaker: {result}")
 
-    return device_to_dict(speaker)
+    return device_to_dict(speaker, "speaker")
 
 
 @router.get("/devices/current/camera")
@@ -317,7 +335,7 @@ async def get_current_camera(
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
         raise HTTPException(status_code=500, detail=f"Failed to get current camera: {result}")
 
-    return device_to_dict(camera)
+    return device_to_dict(camera, "camera")
 
 
 @router.post("/devices/current/microphone")
