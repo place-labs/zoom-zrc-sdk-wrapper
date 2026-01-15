@@ -53,3 +53,4 @@ logs/
 .coverage
 htmlcov/
 *.gz
+/zrc-data
