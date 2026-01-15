@@ -47,7 +47,48 @@ def get_recording_helper(room_id: str, room_manager):
     if not meeting_service:
         raise HTTPException(status_code=404, detail=f"Meeting service not available for room {room_id}")
 
-    return meeting_service.GetRecordingHelper()
+    recording_helper = meeting_service.GetRecordingHelper()
+    if not recording_helper:
+        raise HTTPException(status_code=404, detail=f"Recording helper not available for room {room_id}")
+    return recording_helper
+
+
+ZRCSDK_ERROR_NAMES = {
+    0: "ZRCSDKERR_SUCCESS",
+    1: "ZRCSDKERR_INTERNAL_ERROR",
+    2: "ZRCSDKERR_SERVICE_UNINITIALIZE",
+    3: "ZRCSDKERR_NO_PERMISSION",
+    4: "ZRCSDKERR_FEATURE_DISABLED",
+    5: "ZRCSDKERR_ZR_NO_CAPABILITY",
+    6: "ZRCSDKERR_INVALID_PARAMETER",
+    8: "ZRCSDKERR_API_NOT_SUPPORT_IN_WEBINAR",
+    9: "ZRCSDKERR_API_WRONG_USAGE",
+    10: "ZRCSDKERR_ALREADY_IN_THIS_STATE",
+    11: "ZRCSDKERR_NOT_CONNECT_TO_ZOOMROOM",
+    12: "ZRCSDKERR_HOST_WITHOUT_CAPABILITY",
+    13: "ZRCSDKERR_HOST_NOT_IN_MEETING",
+    14: "ZRCSDKERR_CAN_NOT_PERFORM_ACTION",
+    50: "ZRCSDKERR_API_NOT_SUPPORT_IN_MEETING",
+    51: "ZRCSDKERR_API_NOT_SUPPORT_IN_BO",
+    52: "ZRCSDKERR_API_NOT_SUPPORT_IN_WEBINAR_BO",
+    53: "ZRCSDKERR_API_NOT_SUPPORT_IN_WEBINAR_DEBRIEF_SESSION",
+    54: "ZRCSDKERR_API_NOT_SUPPORT_IN_SWITCHING_MEETING",
+    200: "ZRCSDKERR_INVALID_MEETING",
+    201: "ZRCSDKERR_INVALID_MEETING_NUMBER",
+    220: "ZRCSDKERR_ALREADY_IN_MEETING",
+    221: "ZRCSDKERR_NOT_IN_MEETING",
+    222: "ZRCSDKERR_NOT_IN_WEBINAR",
+    223: "ZRCSDKERR_NOT_IN_PSTN_CALLOUT_MEETING",
+    224: "ZRCSDKERR_NOT_IN_E2EE_Meeting",
+    225: "ZRCSDKERR_NOT_IN_INTEGRATION_MEETING",
+    226: "ZRCSDKERR_NOT_IN_WEBINAR_PRACTICE_SESSION",
+    230: "ZRCSDKERR_IN_E2EE_MEETING",
+    231: "ZRCSDKERR_IN_WAITING_ROOM",
+}
+
+
+def zrcsdk_error_name(result: int) -> str:
+    return ZRCSDK_ERROR_NAMES.get(int(result), f"Unknown({int(result)})")
 
 
 def recording_type_to_string(recording_type: int) -> str:
@@ -69,6 +110,15 @@ def permission_type_to_string(permission_type: int) -> str:
         zrc_sdk.RecordingPermissionTypeRequestCloudRecording: "RequestCloudRecording"
     }
     return type_map.get(permission_type, f"Unknown({permission_type})")
+
+
+def permission_info_to_dict(info) -> dict:
+    return {
+        "type": int(info.type),
+        "type_name": permission_type_to_string(info.type),
+        "is_enabled": info.isEnable,
+        "is_locked": info.isLocked,
+    }
 
 
 # ===== Endpoints =====
@@ -175,10 +225,62 @@ async def start_cloud_recording(
 ):
     """Start cloud recording"""
     recording_helper = get_recording_helper(room_id, room_manager)
+
+    precheck = {}
+    try:
+        result, need_disclaimer = recording_helper.IsNeedPromptStartRecordingDisclaimer()
+        precheck["disclaimer_check_result"] = int(result)
+        precheck["disclaimer_needed"] = need_disclaimer if result == zrc_sdk.ZRCSDKERR_SUCCESS else None
+    except Exception:
+        precheck["disclaimer_check_result"] = None
+
+    try:
+        result, storage_full = recording_helper.IsMeetingCMRNoStorage()
+        precheck["storage_check_result"] = int(result)
+        precheck["storage_full"] = storage_full if result == zrc_sdk.ZRCSDKERR_SUCCESS else None
+    except Exception:
+        precheck["storage_check_result"] = None
+
+    try:
+        result, permissions = recording_helper.GetRecoringPemissionInfo()
+        precheck["permission_check_result"] = int(result)
+        if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+            precheck["recording_permissions"] = [permission_info_to_dict(item) for item in permissions]
+    except Exception:
+        precheck["permission_check_result"] = None
+
+    if precheck.get("disclaimer_needed"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Recording disclaimer required before starting cloud recording",
+                "precheck": precheck,
+                "next_step": "POST /api/rooms/{room_id}/recording/prompt-disclaimer",
+            },
+        )
+
+    if precheck.get("storage_full"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Cloud recording storage is full",
+                "precheck": precheck,
+                "next_step": "POST /api/rooms/{room_id}/recording/query-storage",
+            },
+        )
+
     result = recording_helper.StartMeetingCloudRecording()
 
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-        raise HTTPException(status_code=500, detail=f"Failed to start cloud recording: {result}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Failed to start cloud recording",
+                "error_code": int(result),
+                "error_name": zrcsdk_error_name(result),
+                "precheck": precheck,
+            },
+        )
 
     return {"message": "Cloud recording started"}
 
