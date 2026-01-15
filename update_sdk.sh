@@ -51,8 +51,18 @@ echo ""
 
 # Step 4: Verify installation
 echo -e "${BLUE}[4/4] Verifying installation...${NC}"
-if [ -f "service/zrc_sdk.*.so" ] || [ -f "service/zrc_sdk.so" ]; then
+shopt -s nullglob
+module_candidates=(service/zrc_sdk*.so)
+shopt -u nullglob
+if [ ${#module_candidates[@]} -gt 0 ]; then
     echo -e "${GREEN}✓ Module installed successfully${NC}"
+    latest_module=""
+    for candidate in "${module_candidates[@]}"; do
+        if [ -z "$latest_module" ] || [ "$candidate" -nt "$latest_module" ]; then
+            latest_module="$candidate"
+        fi
+    done
+    echo -e "${GREEN}  - ${latest_module}${NC}"
 else
     echo -e "${YELLOW}WARNING: Module file not found in service/${NC}"
     echo -e "${YELLOW}Build may have failed${NC}"

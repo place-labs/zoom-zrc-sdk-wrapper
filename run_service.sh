@@ -10,7 +10,10 @@ cd "$SCRIPT_DIR"
 export LD_LIBRARY_PATH="$SCRIPT_DIR/libs:$LD_LIBRARY_PATH"
 
 # Check if module is built
-if [ ! -f "service/zrc_sdk."*".so" ] && [ ! -f "service/zrc_sdk.so" ]; then
+shopt -s nullglob
+modules=(service/zrc_sdk*.so)
+shopt -u nullglob
+if [ ${#modules[@]} -eq 0 ]; then
     echo "ERROR: zrc_sdk module not found. Run './build.sh' first."
     exit 1
 fi
@@ -21,9 +24,16 @@ if [ ! -d ".venv" ]; then
     python3 -m venv .venv
 fi
 
+# Ensure pip works in the venv
+if ! .venv/bin/python -c "import pip" >/dev/null 2>&1; then
+    echo "Bootstrapping pip into virtual environment..."
+    VENV_SITE="$(.venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+    python3 -m pip install -q --upgrade --ignore-installed --target "$VENV_SITE" pip setuptools wheel
+fi
+
 # Install Python dependencies
 echo "Installing Python dependencies..."
-.venv/bin/pip install -q -r requirements.txt
+.venv/bin/python -m pip install -q -r requirements.txt
 
 # Run the service
 echo "Starting Zoom Rooms SDK microservice..."

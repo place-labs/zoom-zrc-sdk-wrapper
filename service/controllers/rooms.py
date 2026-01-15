@@ -78,7 +78,7 @@ async def pair_room(room_id: str, request: PairRoomRequest, room_manager = Depen
 
         # Start pairing
         logger.info(f"Pairing room: {room_id}")
-        result = room_service.PairRoom(request.activation_code)
+        result = room_service.PairRoomWithActivationCode(request.activation_code)
 
         if result != zrc_sdk.ZRCSDKERR_SUCCESS:
             raise HTTPException(
@@ -140,6 +140,8 @@ async def unpair_room(room_id: str, room_manager = Depends(lambda: get_room_mana
             del room_manager.room_sinks[room_id]
         if room_id in room_manager.premeeting_sinks:
             del room_manager.premeeting_sinks[room_id]
+        if room_id in room_manager.meeting_list_sinks:
+            del room_manager.meeting_list_sinks[room_id]
 
         return {
             "room_id": room_id,

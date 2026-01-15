@@ -328,8 +328,14 @@ def generate_bindings(output_path: Path):
     """Generate the pybind11 C++ file"""
     print("Generating Zoom Rooms SDK bindings...")
 
+    template_path = Path(__file__).parent / "templates" / "zrc_bindings.cpp"
+    if not template_path.exists():
+        raise FileNotFoundError(
+            f"Binding template not found: {template_path}. Run from repo root or restore the template."
+        )
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(BINDING_TEMPLATE)
+    output_path.write_text(template_path.read_text())
 
     print(f"✓ Generated: {output_path}")
     print(f"  - {len(SDK_CONFIG['core_classes'])} core classes")

@@ -6,7 +6,9 @@ import asyncio
 import logging
 import sqlite3
 import os
-from typing import Dict, Optional
+import threading
+from collections import deque
+from typing import Deque, Dict, Optional, Tuple
 
 try:
     import zrc_sdk
@@ -102,6 +104,63 @@ class PreMeetingServiceSink:
         logger.info(f"[{self.room_id}] Shutdown OS notification: restart={restart_os}")
 
 
+class MeetingListHelperSink:
+    """Callback sink for meeting list helper events"""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+        self._pending_list_futures: Deque[asyncio.Future] = deque()
+        self._lock = threading.Lock()
+
+    def create_list_future(self) -> asyncio.Future:
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        with self._lock:
+            self._pending_list_futures.append(future)
+        return future
+
+    def cancel_list_future(self, future: asyncio.Future) -> None:
+        with self._lock:
+            try:
+                self._pending_list_futures.remove(future)
+            except ValueError:
+                pass
+        if not future.done():
+            future.cancel()
+
+    def _pop_next_pending(self) -> Optional[asyncio.Future]:
+        with self._lock:
+            while self._pending_list_futures:
+                future = self._pending_list_futures.popleft()
+                if not future.done():
+                    return future
+        return None
+
+    def OnUpdateMeetingList(self, result: int, meeting_list):
+        """Called when meeting list changes or a ListMeeting result arrives"""
+        future = self._pop_next_pending()
+        if not future:
+            logger.debug(f"[{self.room_id}] Meeting list update received with no pending request")
+            return
+        payload: Tuple[int, list] = (int(result), meeting_list)
+        future.get_loop().call_soon_threadsafe(future.set_result, payload)
+
+    def OnUpdatedScheduleCalendarEventNotification(self, schedule_result: int):
+        logger.debug(f"[{self.room_id}] Schedule calendar event result: {schedule_result}")
+
+    def OnUpdatedDeleteCalendarEventNotification(self, delete_result: int):
+        logger.debug(f"[{self.room_id}] Delete calendar event result: {delete_result}")
+
+    def OnShowUpcomingMeetingAlertResult(self, result: int, meeting_item):
+        logger.debug(f"[{self.room_id}] Show upcoming meeting alert result: {result}")
+
+    def OnCloseUpcomingMeetingAlertResult(self, result: int):
+        logger.debug(f"[{self.room_id}] Close upcoming meeting alert result: {result}")
+
+    def OnMeetingWillReleaseAutomatically(self, meeting_item):
+        logger.debug(f"[{self.room_id}] Meeting will release automatically notification received")
+
+
 # ===== Room Manager =====
 
 class RoomManager:
@@ -112,6 +171,7 @@ class RoomManager:
         self.rooms: Dict[str, any] = {}  # room_id -> IZoomRoomsService
         self.room_sinks: Dict[str, ZoomRoomsServiceSink] = {}
         self.premeeting_sinks: Dict[str, PreMeetingServiceSink] = {}
+        self.meeting_list_sinks: Dict[str, MeetingListHelperSink] = {}
         self.heartbeat_task = None
         self.sdk_sink = SDKSinkImpl()
 
@@ -240,6 +300,22 @@ class RoomManager:
         else:
             logger.error(f"Failed to register pre-meeting sink: {result}")
 
+        meeting_service = room_service.GetMeetingService()
+        if meeting_service:
+            list_helper = meeting_service.GetMeetingListHelper()
+            if list_helper:
+                meeting_list_sink = MeetingListHelperSink(room_id)
+                result = list_helper.RegisterSink(meeting_list_sink)
+                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                    self.meeting_list_sinks[room_id] = meeting_list_sink
+                    logger.info(f"✓ Registered meeting list sink for: {room_id}")
+                else:
+                    logger.error(f"Failed to register meeting list sink: {result}")
+            else:
+                logger.error(f"Failed to get meeting list helper for room: {room_id}")
+        else:
+            logger.error(f"Failed to get meeting service for room: {room_id}")
+
     def create_room_service(self, room_id: str):
         """Create a new room service instance with callbacks"""
         if room_id in self.rooms:
@@ -258,9 +334,61 @@ class RoomManager:
         """Get existing room service or None"""
         return self.rooms.get(room_id)
 
+    def get_meeting_list_sink(self, room_id: str) -> Optional[MeetingListHelperSink]:
+        sink = self.meeting_list_sinks.get(room_id)
+        if sink:
+            return sink
+        room_service = self.rooms.get(room_id)
+        if not room_service:
+            return None
+        meeting_service = room_service.GetMeetingService()
+        if not meeting_service:
+            return None
+        list_helper = meeting_service.GetMeetingListHelper()
+        if not list_helper:
+            return None
+        meeting_list_sink = MeetingListHelperSink(room_id)
+        result = list_helper.RegisterSink(meeting_list_sink)
+        if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+            logger.error(f"Failed to register meeting list sink: {result}")
+            return None
+        self.meeting_list_sinks[room_id] = meeting_list_sink
+        return meeting_list_sink
+
     def shutdown(self):
         """Clean up SDK resources"""
         logger.info("Shutting down SDK...")
+        for room_id, room_service in list(self.rooms.items()):
+            try:
+                room_service.DeregisterSink()
+            except Exception as e:
+                logger.debug(f"[{room_id}] Failed to deregister room sink: {e}")
+            try:
+                premeeting = room_service.GetPreMeetingService()
+                if premeeting:
+                    premeeting.DeregisterSink()
+            except Exception as e:
+                logger.debug(f"[{room_id}] Failed to deregister premeeting sink: {e}")
+            try:
+                meeting_service = room_service.GetMeetingService()
+                if meeting_service:
+                    list_helper = meeting_service.GetMeetingListHelper()
+                    if list_helper:
+                        list_helper.DeregisterSink()
+            except Exception as e:
+                logger.debug(f"[{room_id}] Failed to deregister meeting list sink: {e}")
+
+        self.room_sinks.clear()
+        self.premeeting_sinks.clear()
+        self.meeting_list_sinks.clear()
+        self.rooms.clear()
+
+        if self.sdk and hasattr(zrc_sdk, "ClearSDKSink"):
+            try:
+                zrc_sdk.ClearSDKSink(self.sdk)
+            except Exception as e:
+                logger.debug(f"Failed to clear SDK sink: {e}")
+
         # Don't call DestroyInstance - it can cause crashes
         # The SDK will clean up on process exit
         self.sdk = None

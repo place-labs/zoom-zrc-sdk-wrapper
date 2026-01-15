@@ -3,6 +3,7 @@ Meeting list endpoints - calendar, scheduling, check-in/out
 """
 
 import logging
+import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Callable, List
@@ -42,8 +43,57 @@ class MeetingItemRequest(BaseModel):
 
 # ===== Endpoints =====
 
+def dial_number_to_dict(dial_number: zrc_sdk.DialNumber) -> dict:
+    return {
+        "country_code": dial_number.countryCode,
+        "phone_number": dial_number.phoneNumber,
+    }
+
+
+def third_party_meeting_to_dict(info: zrc_sdk.ThirdPartyMeeting) -> dict:
+    return {
+        "service_provider": int(info.serviceProvider),
+        "meeting_number": info.meetingNumber,
+        "sip_address": info.sipAddress,
+        "h323_address": info.h323Address,
+        "join_meeting_url": info.joinMeetingURL,
+        "dial_numbers": [dial_number_to_dict(item) for item in info.dialNumbers],
+    }
+
+
+def scheduled_by_to_dict(info: zrc_sdk.EventScheduledByUserInfo) -> dict:
+    return {
+        "user_id": info.userID,
+        "user_name": info.userName,
+        "user_avatar_url": info.userAvatarURL,
+    }
+
+
+def meeting_item_to_dict(item: zrc_sdk.MeetingItem) -> dict:
+    return {
+        "zoom_meeting_item_type": int(item.zoomMeetingItemType),
+        "meeting_number": item.meetingNumber,
+        "meeting_name": item.meetingName,
+        "host_name": item.hostName,
+        "start_time": item.startTime,
+        "end_time": item.endTime,
+        "scheduled_from": item.scheduledFrom,
+        "is_private": item.isPrivate,
+        "is_all_day_event": item.isAllDayEvent,
+        "is_checked_in": item.isCheckedIn,
+        "meeting_domain": item.meetingDomain,
+        "is_instant_meeting": item.isInstantMeeting,
+        "third_party_meeting_info": third_party_meeting_to_dict(item.thirdPartyMeetingInfo),
+        "scheduled_by_info": scheduled_by_to_dict(item.scheduledByInfo),
+    }
+
+
 @router.get("/meetings/list")
-async def list_meetings(room_id: str, room_manager = Depends(lambda: get_room_manager())):
+async def list_meetings(
+    room_id: str,
+    timeout: float = 15.0,
+    room_manager = Depends(lambda: get_room_manager()),
+):
     """List all meetings from the room's calendar"""
     room_service = room_manager.get_room_service(room_id)
     if not room_service:
@@ -51,15 +101,40 @@ async def list_meetings(room_id: str, room_manager = Depends(lambda: get_room_ma
 
     try:
         meeting_service = room_service.GetMeetingService()
+        if not meeting_service:
+            raise HTTPException(status_code=500, detail="Meeting service not available")
         list_helper = meeting_service.GetMeetingListHelper()
+        if not list_helper:
+            raise HTTPException(status_code=500, detail="Meeting list helper not available")
+        meeting_list_sink = room_manager.get_meeting_list_sink(room_id)
+        if not meeting_list_sink:
+            raise HTTPException(status_code=500, detail="Meeting list callbacks not registered")
+
+        future = meeting_list_sink.create_list_future()
         result = list_helper.ListMeeting()
+
+        if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+            meeting_list_sink.cancel_list_future(future)
+            raise HTTPException(status_code=500, detail=f"ListMeeting request failed: {result}")
+
+        try:
+            list_result, meeting_list = await asyncio.wait_for(future, timeout=timeout)
+        except asyncio.TimeoutError:
+            meeting_list_sink.cancel_list_future(future)
+            raise HTTPException(status_code=408, detail="ListMeeting timeout - no callback received")
+
+        meetings = [meeting_item_to_dict(item) for item in (meeting_list or [])]
 
         return {
             "room_id": room_id,
-            "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS,
-            "message": "ListMeeting request sent - results will be delivered via callback"
+            "request_result": int(result),
+            "request_success": result == zrc_sdk.ZRCSDKERR_SUCCESS,
+            "list_result": int(list_result),
+            "list_success": list_result == zrc_sdk.ListMeetingResult.LIST_MEETING_SUCCESS,
+            "meetings": meetings,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -127,6 +127,30 @@ public:
     }
 };
 
+// No-op SDK sink for shutdown to avoid Python callbacks during interpreter teardown.
+class NoopSinkImpl : public IZRCSDKSink {
+public:
+    std::string OnGetDeviceManufacturer() override { return "ZRC_Wrapper"; }
+    std::string OnGetDeviceModel() override { return "v1.0"; }
+    std::string OnGetDeviceSerialNumber() override { return "0000"; }
+    std::string OnGetDeviceMacAddress() override { return "00:00:00:00:00:00"; }
+    std::string OnGetDeviceIP() override { return "0.0.0.0"; }
+    std::string OnGetFirmwareVersion() override { return "1.0.0"; }
+    std::string OnGetAppName() override { return "ZRC_Wrapper"; }
+    std::string OnGetAppVersion() override { return "1.0.0"; }
+    std::string OnGetAppDeveloper() override { return "Custom"; }
+    std::string OnGetAppContact() override { return "support@example.com"; }
+    std::string OnGetAppContentDirPath() override { return "/root/.zoom/data"; }
+    bool OnPromptToInputUserNamePasswordForProxyServer(const std::string&, uint32_t, const std::string&) override {
+        return false;
+    }
+};
+
+namespace {
+    std::shared_ptr<SimpleSinkImpl> g_sdk_sink_impl;
+    NoopSinkImpl g_noop_sdk_sink;
+}
+
 // Trampoline for IZoomRoomsServiceSink
 class ZoomRoomsServiceSinkTrampoline : public IZoomRoomsServiceSink {
 private:
@@ -170,6 +194,57 @@ public:
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnShutdownOSNot")) {
             py_sink.attr("OnShutdownOSNot")(restartOS);
+        }
+    }
+};
+
+// Trampoline for IMeetingListHelperSink
+class MeetingListHelperSinkTrampoline : public IMeetingListHelperSink {
+private:
+    py::object py_sink;
+
+public:
+    MeetingListHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnUpdateMeetingList(ListMeetingResult result, const std::vector<MeetingItem>& meetingList) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMeetingList")) {
+            py_sink.attr("OnUpdateMeetingList")(result, meetingList);
+        }
+    }
+
+    void OnUpdatedScheduleCalendarEventNotification(ScheduleCalendarEventResult scheduleResult) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdatedScheduleCalendarEventNotification")) {
+            py_sink.attr("OnUpdatedScheduleCalendarEventNotification")(scheduleResult);
+        }
+    }
+
+    void OnUpdatedDeleteCalendarEventNotification(DeleteCalendarEventResult deleteResult) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdatedDeleteCalendarEventNotification")) {
+            py_sink.attr("OnUpdatedDeleteCalendarEventNotification")(deleteResult);
+        }
+    }
+
+    void OnShowUpcomingMeetingAlertResult(int32_t result, const MeetingItem& meetingItem) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnShowUpcomingMeetingAlertResult")) {
+            py_sink.attr("OnShowUpcomingMeetingAlertResult")(result, meetingItem);
+        }
+    }
+
+    void OnCloseUpcomingMeetingAlertResult(int32_t result) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCloseUpcomingMeetingAlertResult")) {
+            py_sink.attr("OnCloseUpcomingMeetingAlertResult")(result);
+        }
+    }
+
+    void OnMeetingWillReleaseAutomatically(const MeetingItem& meetingItem) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingWillReleaseAutomatically")) {
+            py_sink.attr("OnMeetingWillReleaseAutomatically")(meetingItem);
         }
     }
 };
@@ -244,10 +319,14 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     // Helper to register SDK sink
     m.def("RegisterSDKSink", [](IZRCSDK* sdk, py::object py_sink) {
-        static std::shared_ptr<SimpleSinkImpl> sink_impl;
-        sink_impl = std::make_shared<SimpleSinkImpl>(py_sink);
-        return sdk->RegisterSink(sink_impl.get());
+        g_sdk_sink_impl = std::make_shared<SimpleSinkImpl>(py_sink);
+        return sdk->RegisterSink(g_sdk_sink_impl.get());
     }, py::arg("sdk"), py::arg("sink"));
+    m.def("ClearSDKSink", [](IZRCSDK* sdk) {
+        ZRCSDKError result = sdk->RegisterSink(&g_noop_sdk_sink);
+        g_sdk_sink_impl.reset();
+        return result;
+    }, py::arg("sdk"));
 
     // ===== ZoomRooms Service =====
     py::class_<IZoomRoomsService>(m, "IZoomRoomsService")
@@ -1281,6 +1360,22 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     // ===== Meeting List Helper =====
     py::class_<IMeetingListHelper>(m, "IMeetingListHelper")
+        .def("RegisterSink", [](IMeetingListHelper* self, py::object py_sink) {
+            static std::map<IMeetingListHelper*, std::shared_ptr<MeetingListHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingListHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingListHelper* self) {
+            static std::map<IMeetingListHelper*, std::shared_ptr<MeetingListHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        })
         .def("ListMeeting", &IMeetingListHelper::ListMeeting)
         .def("ScheduleCalendarEvent", &IMeetingListHelper::ScheduleCalendarEvent)
         .def("DeleteCalendarEvent", &IMeetingListHelper::DeleteCalendarEvent)
