@@ -21,8 +21,7 @@ RUN echo "Downloading Zoom Rooms SDK..." && \
     curl -L "$SDK_URL" -o zrc_sdk.zip && \
     echo "Extracting SDK..." && \
     unzip -q zrc_sdk.zip && \
-    rm zrc_sdk.zip && \
-    ls -la
+    rm zrc_sdk.zip
 
 # Set library path for SDK
 ENV LD_LIBRARY_PATH=/app/libs
@@ -59,4 +58,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run the service
 WORKDIR /app/service
-CMD ["python", "app.py"]
+ENTRYPOINT ["python", "app.py"]

@@ -317,16 +317,14 @@ PYBIND11_MODULE(zrc_sdk, m) {
              py::return_value_policy::reference)
         .def("QueryAllZoomRoomsServices", &IZRCSDK::QueryAllZoomRoomsServices);
 
-    // Helper to register SDK sink
-    m.def("RegisterSDKSink", [](IZRCSDK* sdk, py::object py_sink) {
+    // Helper to create SDK instance with sink (new API in SDK 6.7+)
+    m.def("CreateInstanceWithSink", [](py::object py_sink) -> IZRCSDK* {
         g_sdk_sink_impl = std::make_shared<SimpleSinkImpl>(py_sink);
-        return sdk->RegisterSink(g_sdk_sink_impl.get());
-    }, py::arg("sdk"), py::arg("sink"));
-    m.def("ClearSDKSink", [](IZRCSDK* sdk) {
-        ZRCSDKError result = sdk->RegisterSink(&g_noop_sdk_sink);
+        return IZRCSDK::CreateInstance(g_sdk_sink_impl.get());
+    }, py::arg("sink"), py::return_value_policy::reference);
+    m.def("ClearSDKSink", []() {
         g_sdk_sink_impl.reset();
-        return result;
-    }, py::arg("sdk"));
+    });
 
     // ===== ZoomRooms Service =====
     py::class_<IZoomRoomsService>(m, "IZoomRoomsService")
@@ -338,14 +336,14 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetPhoneCallService", &IZoomRoomsService::GetPhoneCallService, py::return_value_policy::reference)
         .def("GetProAVService", &IZoomRoomsService::GetProAVService, py::return_value_policy::reference)
         .def("GetSettingService", &IZoomRoomsService::GetSettingService, py::return_value_policy::reference)
-        .def("RegisterSink", [](IZoomRoomsService* self, py::object py_sink) {
+        .def("RegisterSink", [](IZoomRoomsService* self, py::object py_sink) -> ZRCSDKError {
             // Create a trampoline and keep it alive in a static map
             static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
             auto trampoline = std::make_shared<ZoomRoomsServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
-        .def("DeregisterSink", [](IZoomRoomsService* self) {
+        .def("DeregisterSink", [](IZoomRoomsService* self) -> ZRCSDKError {
             static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
             auto it = sinks.find(self);
             if (it != sinks.end()) {
@@ -376,14 +374,14 @@ PYBIND11_MODULE(zrc_sdk, m) {
             ZRCSDKError result = self->GetConnectionState(state);
             return py::make_tuple(result, state);
         })
-        .def("RegisterSink", [](IPreMeetingService* self, py::object py_sink) {
+        .def("RegisterSink", [](IPreMeetingService* self, py::object py_sink) -> ZRCSDKError {
             // Create a trampoline and keep it alive in a static map
             static std::map<IPreMeetingService*, std::shared_ptr<PreMeetingServiceSinkTrampoline>> sinks;
             auto trampoline = std::make_shared<PreMeetingServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
-        .def("DeregisterSink", [](IPreMeetingService* self) {
+        .def("DeregisterSink", [](IPreMeetingService* self) -> ZRCSDKError {
             static std::map<IPreMeetingService*, std::shared_ptr<PreMeetingServiceSinkTrampoline>> sinks;
             auto it = sinks.find(self);
             if (it != sinks.end()) {
@@ -480,11 +478,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("MeetWithIMUsers", &IMeetingService::MeetWithIMUsers)
         .def("StartMeeting", &IMeetingService::StartMeeting, py::arg("meeting"), py::arg("bringShareToMeeting") = false)
         .def("StartMeetingWithHostKey", &IMeetingService::StartMeetingWithHostKey)
-        .def("JoinMeeting",
-            static_cast<ZRCSDKError(IMeetingService::*)(const std::string&, bool)>(&IMeetingService::JoinMeeting),
-            py::arg("meetingNumber"), py::arg("bringShareToMeeting") = false)
-        .def("JoinMeetingWithURL", &IMeetingService::JoinMeetingWithURL, py::arg("url"), py::arg("bringShareToMeeting") = false)
-        .def("JoinMeetingWithContactID", &IMeetingService::JoinMeetingWithContactID, py::arg("contactID"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeeting", &IMeetingService::JoinMeetingWithMeetingNumber, py::arg("meetingNumber"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeetingWithMeetingNumber", &IMeetingService::JoinMeetingWithMeetingNumber, py::arg("meetingNumber"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeetingWithURL", &IMeetingService::JoinMeetingWithURL, py::arg("url"))
+        .def("JoinMeetingWithContactID", &IMeetingService::JoinMeetingWithContactID, py::arg("contactID"))
+        .def("JoinMeetingWithPersonalLinkName", &IMeetingService::JoinMeetingWithPersonalLinkName, py::arg("personalLinkName"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeetingWithPersonalLink", &IMeetingService::JoinMeetingWithPersonalLink, py::arg("personalLink"))
+        .def("CancelConfirmPersonalLink", &IMeetingService::CancelConfirmPersonalLink)
         .def("ExitMeeting", &IMeetingService::ExitMeeting)
         .def("SetRoomTempDisplayNameForMeeting", &IMeetingService::SetRoomTempDisplayNameForMeeting)
         .def("SendMeetingPassword", &IMeetingService::SendMeetingPassword)
@@ -1370,13 +1370,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     // ===== Meeting List Helper =====
     py::class_<IMeetingListHelper>(m, "IMeetingListHelper")
-        .def("RegisterSink", [](IMeetingListHelper* self, py::object py_sink) {
+        .def("RegisterSink", [](IMeetingListHelper* self, py::object py_sink) -> ZRCSDKError {
             static std::map<IMeetingListHelper*, std::shared_ptr<MeetingListHelperSinkTrampoline>> sinks;
             auto trampoline = std::make_shared<MeetingListHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
-        .def("DeregisterSink", [](IMeetingListHelper* self) {
+        .def("DeregisterSink", [](IMeetingListHelper* self) -> ZRCSDKError {
             static std::map<IMeetingListHelper*, std::shared_ptr<MeetingListHelperSinkTrampoline>> sinks;
             auto it = sinks.find(self);
             if (it != sinks.end()) {

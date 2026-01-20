@@ -109,7 +109,8 @@ async def join_meeting_url(room_id: str, url: str, bring_share: bool = False, ro
 
     try:
         meeting_service = room_service.GetMeetingService()
-        result = meeting_service.JoinMeetingWithURL(url, bring_share)
+        # Note: bring_share parameter removed in SDK 6.7+
+        result = meeting_service.JoinMeetingWithURL(url)
 
         return {
             "room_id": room_id,
@@ -130,7 +131,8 @@ async def join_meeting_contact(room_id: str, contact_id: str, bring_share: bool 
 
     try:
         meeting_service = room_service.GetMeetingService()
-        result = meeting_service.JoinMeetingWithContactID(contact_id, bring_share)
+        # Note: bring_share parameter removed in SDK 6.7+
+        result = meeting_service.JoinMeetingWithContactID(contact_id)
 
         return {
             "room_id": room_id,

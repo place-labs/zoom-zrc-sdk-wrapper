@@ -178,15 +178,13 @@ class RoomManager:
     def initialize(self):
         """Initialize the SDK"""
         logger.info("Initializing Zoom Rooms SDK...")
-        self.sdk = zrc_sdk.IZRCSDK.GetInstance()
+        # Create SDK instance with sink (new API in SDK 6.7+)
+        self.sdk = zrc_sdk.CreateInstanceWithSink(self.sdk_sink)
+        logger.info("SDK instance created with sink")
 
         # Initialize web domain (required for SDK to work properly)
         result = self.sdk.InitWebDomain("https://zoom.us")
         logger.info(f"InitWebDomain result: {result}")
-
-        # Register SDK sink using the helper function
-        result = zrc_sdk.RegisterSDKSink(self.sdk, self.sdk_sink)
-        logger.info(f"SDK sink registered: {result}")
 
         # Try QueryAllZoomRoomsServices first (should work according to docs)
         logger.info("Querying for previously paired rooms...")
