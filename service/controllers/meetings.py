@@ -88,7 +88,7 @@ async def join_meeting(room_id: str, request: JoinMeetingRequest, room_manager =
 
     try:
         meeting_service = room_service.GetMeetingService()
-        result = meeting_service.JoinMeeting(request.meeting_number, request.bring_share)
+        result = meeting_service.JoinMeetingWithMeetingNumber(request.meeting_number, request.bring_share)
 
         return {
             "room_id": room_id,

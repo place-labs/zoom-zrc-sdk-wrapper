@@ -15,9 +15,10 @@ RUN apt-get update && apt-get install -y \
 # Create app directory
 WORKDIR /app
 
-# Download and extract Zoom Rooms SDK
-ARG SDK_URL="https://nws.zoom.us/nws/pkg/1.0/package/download?identifier=us.zoom.ZRC.SDK.LINUX&arch=x86_64"
-RUN echo "Downloading Zoom Rooms SDK..." && \
+# Copy SDK version lock file and download SDK
+COPY sdk-version.lock ./sdk-version.lock
+RUN SDK_URL=$(cat sdk-version.lock | tr -d '[:space:]') && \
+    echo "Downloading Zoom Rooms SDK..." && \
     curl -L "$SDK_URL" -o zrc_sdk.zip && \
     echo "Extracting SDK..." && \
     unzip -q zrc_sdk.zip && \

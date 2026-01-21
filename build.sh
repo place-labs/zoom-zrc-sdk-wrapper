@@ -15,7 +15,12 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}Building Zoom Rooms SDK Python wrapper...${NC}"
 
 # SDK download URL and paths
-SDK_URL="https://nws.zoom.us/nws/pkg/1.0/package/download?identifier=us.zoom.ZRC.SDK.LINUX&arch=x86_64"
+LOCK_FILE="$SCRIPT_DIR/sdk-version.lock"
+if [ ! -f "$LOCK_FILE" ]; then
+    echo -e "\033[0;31mERROR: sdk-version.lock not found. Run update_sdk.sh first.${NC}"
+    exit 1
+fi
+SDK_URL=$(cat "$LOCK_FILE" | tr -d '[:space:]')
 SDK_ZIP="zrc_sdk.zip"
 
 # Download and extract SDK if not present

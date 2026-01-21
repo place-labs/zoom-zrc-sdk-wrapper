@@ -1,6 +1,6 @@
 #!/bin/bash
-# Update script for new Zoom Rooms SDK versions
-# Run this after replacing the SDK files (include/, libs/)
+# Update script for Zoom Rooms SDK
+# Updates the sdk-version.lock to the latest release and rebuilds
 
 set -e
 
@@ -11,28 +11,44 @@ cd "$SCRIPT_DIR"
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
+
+# SDK URL (latest release endpoint)
+LATEST_SDK_URL="https://nws.zoom.us/nws/pkg/1.0/package/download?identifier=us.zoom.ZRC.SDK.LINUX&arch=x86_64"
+LOCK_FILE="$SCRIPT_DIR/sdk-version.lock"
 
 echo -e "${BLUE}================================================${NC}"
 echo -e "${BLUE}Zoom Rooms SDK Update Script${NC}"
 echo -e "${BLUE}================================================${NC}"
 echo ""
 
-# Step 1: Check SDK files exist
-echo -e "${BLUE}[1/4] Checking SDK files...${NC}"
-if [ ! -d "../include" ]; then
-    echo -e "${YELLOW}ERROR: SDK include/ directory not found${NC}"
+# Step 1: Resolve the latest URL to get the versioned URL
+echo -e "${BLUE}[1/5] Resolving latest SDK version...${NC}"
+VERSIONED_URL=$(curl -Ls -o /dev/null -w '%{url_effective}' "$LATEST_SDK_URL")
+if [ -z "$VERSIONED_URL" ] || [ "$VERSIONED_URL" = "$LATEST_SDK_URL" ]; then
+    echo -e "${RED}ERROR: Could not resolve versioned URL from latest endpoint${NC}"
     exit 1
 fi
-if [ ! -d "../libs" ]; then
-    echo -e "${YELLOW}ERROR: SDK libs/ directory not found${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ SDK files found${NC}"
+echo -e "${GREEN}✓ Resolved to: $VERSIONED_URL${NC}"
+echo "$VERSIONED_URL" > "$LOCK_FILE"
+echo -e "${GREEN}✓ Lock file updated${NC}"
 echo ""
 
-# Step 2: Regenerate bindings
-echo -e "${BLUE}[2/4] Regenerating pybind11 bindings...${NC}"
+# Step 2: Clean existing SDK files to force fresh download
+echo -e "${BLUE}[2/5] Cleaning existing SDK files...${NC}"
+rm -rf libs/ include/ zrc_sdk.zip
+echo -e "${GREEN}✓ SDK files cleaned${NC}"
+echo ""
+
+# Step 3: Download and build using build.sh
+echo -e "${BLUE}[3/5] Downloading SDK and building...${NC}"
+./build.sh
+echo -e "${GREEN}✓ SDK downloaded and built${NC}"
+echo ""
+
+# Step 4: Regenerate bindings
+echo -e "${BLUE}[4/5] Regenerating pybind11 bindings...${NC}"
 if [ ! -f ".venv/bin/python" ]; then
     echo -e "${YELLOW}Virtual environment not found, creating...${NC}"
     python3 -m venv .venv
@@ -42,15 +58,14 @@ fi
 echo -e "${GREEN}✓ Bindings regenerated${NC}"
 echo ""
 
-# Step 3: Rebuild C++ module
-echo -e "${BLUE}[3/4] Rebuilding C++ Python module...${NC}"
+# Step 5: Rebuild with new bindings
+echo -e "${BLUE}[5/5] Rebuilding with updated bindings...${NC}"
 rm -rf build/
 ./build.sh
 echo -e "${GREEN}✓ Module rebuilt${NC}"
 echo ""
 
-# Step 4: Verify installation
-echo -e "${BLUE}[4/4] Verifying installation...${NC}"
+# Verify installation
 shopt -s nullglob
 module_candidates=(service/zrc_sdk*.so)
 shopt -u nullglob
@@ -64,8 +79,8 @@ if [ ${#module_candidates[@]} -gt 0 ]; then
     done
     echo -e "${GREEN}  - ${latest_module}${NC}"
 else
-    echo -e "${YELLOW}WARNING: Module file not found in service/${NC}"
-    echo -e "${YELLOW}Build may have failed${NC}"
+    echo -e "${RED}WARNING: Module file not found in service/${NC}"
+    echo -e "${RED}Build may have failed${NC}"
     exit 1
 fi
 echo ""
