@@ -16,6 +16,7 @@ echo -e "${BLUE}Building Zoom Rooms SDK Python wrapper...${NC}"
 
 # SDK download URL and paths
 LOCK_FILE="$SCRIPT_DIR/sdk-version.lock"
+SDK_URL_CACHE="$SCRIPT_DIR/.sdk-url"
 if [ ! -f "$LOCK_FILE" ]; then
     echo -e "\033[0;31mERROR: sdk-version.lock not found. Run update_sdk.sh first.${NC}"
     exit 1
@@ -23,17 +24,23 @@ fi
 SDK_URL=$(cat "$LOCK_FILE" | tr -d '[:space:]')
 SDK_ZIP="zrc_sdk.zip"
 
-# Download and extract SDK if not present
+# Check if SDK needs to be downloaded/updated
+NEED_DOWNLOAD=false
 if [ ! -d "libs" ] || [ ! -d "include" ]; then
-    echo -e "${YELLOW}Zoom Rooms SDK not found. Downloading...${NC}"
+    NEED_DOWNLOAD=true
+    echo -e "${YELLOW}Zoom Rooms SDK not found.${NC}"
+elif [ ! -f "$SDK_URL_CACHE" ]; then
+    NEED_DOWNLOAD=true
+    echo -e "${YELLOW}SDK version cache not found, will verify SDK.${NC}"
+elif [ "$(cat "$SDK_URL_CACHE" | tr -d '[:space:]')" != "$SDK_URL" ]; then
+    NEED_DOWNLOAD=true
+    echo -e "${YELLOW}SDK version mismatch detected. Updating SDK...${NC}"
+    rm -rf libs/ include/ zrc_sdk.zip build/
+fi
 
-    # Download SDK
-    if [ ! -f "$SDK_ZIP" ]; then
-        echo -e "${BLUE}Downloading SDK from Zoom...${NC}"
-        curl -L "$SDK_URL" -o "$SDK_ZIP"
-    else
-        echo -e "${YELLOW}Using cached SDK zip file${NC}"
-    fi
+if [ "$NEED_DOWNLOAD" = true ]; then
+    echo -e "${BLUE}Downloading SDK from Zoom...${NC}"
+    curl -L "$SDK_URL" -o "$SDK_ZIP"
 
     # Extract SDK
     echo -e "${BLUE}Extracting SDK...${NC}"
@@ -42,12 +49,14 @@ if [ ! -d "libs" ] || [ ! -d "include" ]; then
     # Verify extraction
     if [ -d "libs" ] && [ -d "include" ]; then
         echo -e "${GREEN}✓ SDK extracted successfully${NC}"
+        # Cache the URL we downloaded
+        echo "$SDK_URL" > "$SDK_URL_CACHE"
     else
         echo -e "\033[0;31mERROR: SDK extraction failed. Expected libs/ and include/ directories.${NC}"
         exit 1
     fi
 else
-    echo -e "${GREEN}✓ SDK already present${NC}"
+    echo -e "${GREEN}✓ SDK already present and matches sdk-version.lock${NC}"
 fi
 
 # Create build directory
