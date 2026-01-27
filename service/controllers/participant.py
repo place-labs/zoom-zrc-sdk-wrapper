@@ -59,7 +59,7 @@ def audio_status_to_dict(status):
     if not status:
         return None
     return {
-        "audio_type": int(status.audioType),
+        "audio_type": status.audioType.name,
         "is_muted": status.isMuted,
     }
 

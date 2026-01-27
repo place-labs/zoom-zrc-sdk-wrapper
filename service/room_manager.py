@@ -160,6 +160,33 @@ class MeetingListHelperSink:
     def OnMeetingWillReleaseAutomatically(self, meeting_item):
         logger.debug(f"[{self.room_id}] Meeting will release automatically notification received")
 
+class MeetingReminderSink:
+    """Callback sink for reminder notifications"""
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+        self._lock = threading.Lock()
+
+    def OnConsentNotification(self, info):
+        logger.debug(f"[{self.room_id}] Consent notification result: {info.type}")
+        # print(f"[{self.room_id}] Consent notification result: {info.type}")
+    
+    def OnMeetingReminderNotification(self, reminder_content):
+        logger.debug(f"[{self.room_id}] meeting reminder result: {reminder_content}")
+    
+    def OnCustomizedReminderNotification(self, customized_content):
+        logger.debug(f"[{self.room_id}] customized reminder result: {customized_content}")
+    
+    def OnCombinedConsentNotification(self, combined_consent):
+        logger.debug(f"[{self.room_id}] combined consent notification result: {combined_consent}")
+    
+    def OnPrivacyAlertNotification(self, action, alert_type, message):
+        logger.debug(f"[{self.room_id}] privacy alert notificationt: {action}, {alert_type}")
+    
+    def OnMessageEventNotification(self, message_event):
+        logger.debug(f"[{self.room_id}] message event notification result: {message_event}")
+    
+    def OnInactiveDetectionNotification(self, is_show_prompt, auto_end_time):
+        logger.debug(f"[{self.room_id}] inactive detection notification result: {auto_end_time}")
 
 # ===== Room Manager =====
 
@@ -172,6 +199,7 @@ class RoomManager:
         self.room_sinks: Dict[str, ZoomRoomsServiceSink] = {}
         self.premeeting_sinks: Dict[str, PreMeetingServiceSink] = {}
         self.meeting_list_sinks: Dict[str, MeetingListHelperSink] = {}
+        self.meeting_reminder_sinks: Dict[str, MeetingReminderSink] = {}
         self.heartbeat_task = None
         self.sdk_sink = SDKSinkImpl()
 
@@ -311,6 +339,17 @@ class RoomManager:
                     logger.error(f"Failed to register meeting list sink: {result}")
             else:
                 logger.error(f"Failed to get meeting list helper for room: {room_id}")
+            reminder_helper = meeting_service.GetMeetingReminderHelper()
+            if reminder_helper:
+                reminder_sink = MeetingReminderSink(room_id)
+                result = reminder_helper.RegisterSink(reminder_sink)
+                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                    self.meeting_reminder_sinks[room_id] = reminder_sink
+                    logger.info(f"✓ Registered meeting reminder sink for: {room_id}")
+                else:
+                    logger.error(f"Failed to register meeting reminder sink: {result}")
+            else:
+                logger.error(f"Failed to get meeting reminder helper for room: {room_id}")
         else:
             logger.error(f"Failed to get meeting service for room: {room_id}")
 

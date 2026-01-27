@@ -18,6 +18,7 @@
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
 #include "ServiceComponents/IMeetingListHelper.h"
+#include "ServiceComponents/IMeetingReminderHelper.h"
 #include "ServiceComponents/IMeetingShareHelper.h"
 #include "ServiceComponents/IMeetingViewLayoutHelper.h"
 #include "ServiceComponents/INDIHelper.h"
@@ -245,6 +246,64 @@ public:
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMeetingWillReleaseAutomatically")) {
             py_sink.attr("OnMeetingWillReleaseAutomatically")(meetingItem);
+        }
+    }
+};
+
+// Trampoline for IMeetingReminderHelperSink
+class MeetingReminderHelperSinkTrampoline : public IMeetingReminderHelperSink {
+private:
+    py::object py_sink;
+
+public:
+    MeetingReminderHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnConsentNotification(const ConsentInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnConsentNotification")) {
+            py_sink.attr("OnConsentNotification")(info);
+        } 
+    }
+        
+    void OnMeetingReminderNotification(const MeetingReminderContent& reminderContent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingReminderNotification")) {
+            py_sink.attr("OnMeetingReminderNotification")(reminderContent);
+        }
+    }
+    
+    void OnCustomizedReminderNotification(const CustomizedMeetingReminderContent& customizedContent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCustomizedReminderNotification")) {
+            py_sink.attr("OnCustomizedReminderNotification")(customizedContent);
+        }
+    }
+    
+    void OnCombinedConsentNotification(const CombinedConsent& combinedConsent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCombinedConsentNotification")) {
+            py_sink.attr("OnCombinedConsentNotification")(combinedConsent);
+        }
+    }
+    
+    void OnPrivacyAlertNotification(PrivacyAlertAction action, PrivacyAlertType type, const DisclaimerPrivacy& message) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnPrivacyAlertNotification")) {
+            py_sink.attr("OnPrivacyAlertNotification")(action, type, message);
+        }
+    }
+    
+    void OnMessageEventNotification(MessageEvent messageEvent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMessageEventNotification")) {
+            py_sink.attr("OnMessageEventNotification")(messageEvent);
+        }
+    }
+    
+    void OnInactiveDetectionNotification(bool isShowPrompt, time_t autoEndTime) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnInactiveDetectionNotification")) {
+            py_sink.attr("OnInactiveDetectionNotification")(isShowPrompt, autoEndTime);
         }
     }
 };
@@ -514,6 +573,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
         .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference)
         .def("GetMeetingListHelper", &IMeetingService::GetMeetingListHelper, py::return_value_policy::reference)
+        .def("GetMeetingReminderHelper", &IMeetingService::GetMeetingReminderHelper, py::return_value_policy::reference)
         .def("GetMeetingShareHelper", &IMeetingService::GetMeetingShareHelper, py::return_value_policy::reference)
         .def("GetMeetingViewLayoutHelper", &IMeetingService::GetMeetingViewLayoutHelper, py::return_value_policy::reference)
         .def("GetNDIHelper", &IMeetingService::GetNDIHelper, py::return_value_policy::reference)
@@ -1079,6 +1139,12 @@ PYBIND11_MODULE(zrc_sdk, m) {
     py::enum_<ConfSessionType>(m, "ConfSessionType")
         .value("CurrentSession", ConfSessionType::CurrentSession)
         .value("MasterSession", ConfSessionType::MasterSession)
+        .export_values();
+
+    py::enum_<AudioType>(m, "AudioType", py::arithmetic())
+        .value("AudioTypeNone", AudioType::AudioTypeNone)
+        .value("AudioTypeVoIP", AudioType::AudioTypeVoIP)
+        .value("AudioTypePhone", AudioType::AudioTypePhone)
         .export_values();
 
     // ===== Phone Call Service Enums =====
@@ -1668,6 +1734,131 @@ PYBIND11_MODULE(zrc_sdk, m) {
             ZRCSDKError result = self->GetRecoringPemissionInfo(permissionInfo);
             return py::make_tuple(result, permissionInfo);
         });
+
+    // ===== Meeting Reminder Enums ====-
+    py::enum_<MeetingReminderType>(m, "MeetingReminderType")
+        .value("REMINDER_TYPE_NONE", MeetingReminderType::REMINDER_TYPE_NONE)
+        .value("REMINDER_TYPE_START_OR_JOIN_MEETING", MeetingReminderType::REMINDER_TYPE_START_OR_JOIN_MEETING)
+        .value("REMINDER_TYPE_JOIN_EXTERNAL_MEETING", MeetingReminderType::REMINDER_TYPE_JOIN_EXTERNAL_MEETING)
+        .value("REMINDER_TYPE_RECORDING_REMINDER", MeetingReminderType::REMINDER_TYPE_RECORDING_REMINDER)
+        .value("REMINDER_TYPE_RECORDING_DISCLAIMER", MeetingReminderType::REMINDER_TYPE_RECORDING_DISCLAIMER)
+        .value("REMINDER_TYPE_ARCHIVING_FAIL", MeetingReminderType::REMINDER_TYPE_ARCHIVING_FAIL)
+        .value("REMINDER_TYPE_JOIN_WEBINAR_AS_PANELIST", MeetingReminderType::REMINDER_TYPE_JOIN_WEBINAR_AS_PANELIST)
+        .export_values();
+
+    py::enum_<ConsentType>(m, "ConsentType")
+        .value("CONSENT_TYPE_NONE", ConsentType::CONSENT_TYPE_NONE)
+        .value("CONSENT_TYPE_LIVE_STREAMING", ConsentType::CONSENT_TYPE_LIVE_STREAMING)
+        .value("CONSENT_TYPE_PROMOTED_TO_PANELIST", ConsentType::CONSENT_TYPE_PROMOTED_TO_PANELIST)
+        .value("CONSENT_TYPE_ARCHIVING", ConsentType::CONSENT_TYPE_ARCHIVING)
+        .value("CONSENT_TYPE_NDI", ConsentType::CONSENT_TYPE_NDI)
+        .value("CONSENT_TYPE_FOCUS_MODE_START", ConsentType::CONSENT_TYPE_FOCUS_MODE_START)
+        .value("CONSENT_TYPE_FOCUS_MODE_ENDING", ConsentType::CONSENT_TYPE_FOCUS_MODE_ENDING)
+        .value("CONSENT_TYPE_ADMIN_PAY_REMIND", ConsentType::CONSENT_TYPE_ADMIN_PAY_REMIND)
+        .value("CONSENT_TYPE_PAC", ConsentType::CONSENT_TYPE_PAC)
+        .value("CONSENT_TYPE_ZOOM_PHONE_ACR", ConsentType::CONSENT_TYPE_ZOOM_PHONE_ACR)
+        .value("CONSENT_TYPE_HDMI_CONNECTED", ConsentType::CONSENT_TYPE_HDMI_CONNECTED)
+        .value("CONSENT_TYPE_MEETING_SUMMARY", ConsentType::CONSENT_TYPE_MEETING_SUMMARY)
+        .value("CONSENT_TYPE_MEETING_QUERY", ConsentType::CONSENT_TYPE_MEETING_QUERY)
+        .value("CONSENT_TYPE_CUSTOM_AI_COMPANION", ConsentType::CONSENT_TYPE_CUSTOM_AI_COMPANION)
+        .value("CONSENT_TYPE_COMMON", ConsentType::CONSENT_TYPE_COMMON)
+        .value("CONSENT_TYPE_SIMULIVE_WEBINAR", ConsentType::CONSENT_TYPE_SIMULIVE_WEBINAR)
+        .value("CONSENT_TYPE_CUSTOM_RECORDING", ConsentType::CONSENT_TYPE_CUSTOM_RECORDING)
+        .export_values();
+ 
+    py::enum_<PrivacyAlertAction>(m, "PrivacyAlertAction")
+        .value("PRIVACY_ALERT_ACTION_NONE", PrivacyAlertAction::PRIVACY_ALERT_ACTION_NONE)
+        .value("PRIVACY_ALERT_ACTION_SHOW", PrivacyAlertAction::PRIVACY_ALERT_ACTION_SHOW)
+        .value("PRIVACY_ALERT_ACTION_CLOSE", PrivacyAlertAction::PRIVACY_ALERT_ACTION_CLOSE)
+        .value("PRIVACY_ALERT_ACTION_SHOW_DISCLAIMER", PrivacyAlertAction::PRIVACY_ALERT_ACTION_SHOW_DISCLAIMER)
+        .value("PRIVACY_ALERT_ACTION_CLOSE_DISCLAIMER", PrivacyAlertAction::PRIVACY_ALERT_ACTION_CLOSE_DISCLAIMER)
+        .export_values();
+
+    py::enum_<PrivacyAlertType>(m, "PrivacyAlertType")
+        .value("PRIVACY_ALERT_TYPE_LIVE_TRANSCRIPTION", PrivacyAlertType::PRIVACY_ALERT_TYPE_LIVE_TRANSCRIPTION)
+        .value("PRIVACY_ALERT_TYPE_NEW_LTT_CAPTION", PrivacyAlertType::PRIVACY_ALERT_TYPE_NEW_LTT_CAPTION)
+        .export_values();     
+    py::enum_<CustomizedMeetingReminderType>(m, "CustomizedMeetingReminderType")
+        .value("CUSTOMIZED_REMINDER_TYPE_NONE", CustomizedMeetingReminderType::CUSTOMIZED_REMINDER_TYPE_NONE)
+        .value("CUSTOMIZED_REMINDER_TYPE_ONZOOM_JOIN_AS_PANELIST", CustomizedMeetingReminderType::CUSTOMIZED_REMINDER_TYPE_ONZOOM_JOIN_AS_PANELIST)
+        .export_values();
+
+    py::enum_<MessageEvent>(m, "MessageEvent")
+        .value("MESSAGE_EVENT_UNKNOWN", MessageEvent::MESSAGE_EVENT_UNKNOWN)
+        .value("MESSAGE_EVENT_OpenVideoFailForHostStop", MessageEvent::MESSAGE_EVENT_OpenVideoFailForHostStop)
+        .value("MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserOptionDisabled", MessageEvent::MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserOptionDisabled)
+        .value("MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserNoGreenScreen", MessageEvent::MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserNoGreenScreen)
+        .value("MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButDeviceNotSupport", MessageEvent::MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButDeviceNotSupport)
+        .export_values();
+        
+    // ===== Meeting Reminder Structs =====
+    py::class_<MeetingReminderContent>(m, "MeetingReminderContent")
+        .def(py::init<>())
+        .def_readwrite("reminderType", &MeetingReminderContent::reminderType)
+        .def_readwrite("disclaimerPrivacy", &MeetingReminderContent::disclaimerPrivacy)
+        .def_readwrite("isShowing", &MeetingReminderContent::isShowing);
+
+    py::class_<CustomizedMeetingReminderContent>(m, "CustomizedMeetingReminderContent")
+        .def(py::init<>())
+        .def_readwrite("customizedDisclaimerType", &CustomizedMeetingReminderContent::customizedDisclaimerType)
+        .def_readwrite("disclaimerPrivacy", &CustomizedMeetingReminderContent::disclaimerPrivacy)
+        .def_readwrite("isShowing", &CustomizedMeetingReminderContent::isShowing);
+
+    py::class_<CombinedConsent>(m, "CombinedConsent")
+        .def(py::init<>())
+        .def_readwrite("isShowing", &CombinedConsent::isShowing)
+        .def_readwrite("type", &CombinedConsent::type)
+        .def_readwrite("disclaimerPrivacy", &CombinedConsent::disclaimerPrivacy);
+
+    py::class_<PrivacyMessage>(m, "PrivacyMessage")
+        .def(py::init<>())
+        .def_readwrite("privacyMessage", &PrivacyMessage::privacyMessage)
+        .def_readwrite("hyperlinkKey", &PrivacyMessage::hyperlinkKey)
+        .def_readwrite("hyperlinkURL", &PrivacyMessage::hyperlinkURL);  
+
+    py::class_<DisclaimerPrivacy>(m, "DisclaimerPrivacy")
+        .def(py::init<>())
+        .def_readwrite("title", &DisclaimerPrivacy::title)
+        .def_readwrite("privacyMessage", &DisclaimerPrivacy::privacyMessage)
+        .def_readwrite("message", &DisclaimerPrivacy::message)
+        .def_readwrite("linkUrl", &DisclaimerPrivacy::linkUrl)
+        .def_readwrite("linkText", &DisclaimerPrivacy::linkText)
+        .def_readwrite("positiveActionText", &DisclaimerPrivacy::positiveActionText)
+        .def_readwrite("negativeActionText", &DisclaimerPrivacy::negativeActionText)
+        .def_readwrite("privacySection", &DisclaimerPrivacy::privacySection);
+
+    py::class_<ConsentInfo>(m, "ConsentInfo")
+        .def(py::init<>())
+        .def_readwrite("type", &ConsentInfo::type)
+        .def_readwrite("disclaimer", &ConsentInfo::disclaimer)
+        .def_readwrite("is_showing", &ConsentInfo::isShowing)
+        .def_readwrite("consent_id", &ConsentInfo::consentID);
+        
+    // ===== Meeting Reminder Helper ====-
+    py::class_<IMeetingReminderHelper>(m, "IMeetingReminderHelper")
+        .def("RegisterSink", [](IMeetingReminderHelper* self, py::object py_sink) {
+            // Create a trampoline and keep it alive in a static map
+            static std::map<IMeetingReminderHelper*, std::shared_ptr<MeetingReminderHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingReminderHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingReminderHelper* self) {
+            static std::map<IMeetingReminderHelper*, std::shared_ptr<MeetingReminderHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        })
+        .def("ConfirmMeetingReminder", &IMeetingReminderHelper::ConfirmMeetingReminder)
+        .def("ConfirmCustomizedMeetingReminder", &IMeetingReminderHelper::ConfirmCustomizedMeetingReminder)
+        .def("ConfirmConsent", &IMeetingReminderHelper::ConfirmConsent)
+        .def("ConfirmCombinedConsent", &IMeetingReminderHelper::ConfirmCombinedConsent)
+        .def("HandlePrivacyAlert", &IMeetingReminderHelper::HandlePrivacyAlert)
+        .def("ContinueMeetingOnInactivity", &IMeetingReminderHelper::ContinueMeetingOnInactivity);
 
     // ===== Setting Service Enums =====
     py::enum_<AudioCheckupCommand>(m, "AudioCheckupCommand")
