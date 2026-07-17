@@ -330,7 +330,7 @@ async def get_meeting_info(room_id: str):
 
 - Python 3.9+
 - CMake 3.12+
-- C++14 compiler (gcc/clang)
+- C++17 compiler (gcc/clang) — required by Zoom Rooms SDK 7.1.0+
 - Zoom Rooms C++ SDK
 
 ### Manual Build

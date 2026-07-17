@@ -1,4 +1,44 @@
-# Changelog
+ # Changelog
+
+## [1.2.0] - 2026-07-16 - SDK 7.1 Upgrade & Call-Control Sinks
+
+### Major Changes
+
+#### ⬆️ Zoom Rooms SDK `6.7.0.1264` → `7.1.0.523`
+- Docker build pulls the new version automatically via `sdk-version.lock`
+- **Requires C++17** — 7.1.0 adds `std::optional` params (`AssignHost` / `AssignCohost`)
+
+#### 🔔 New Event Sinks
+- **`MeetingControlHelperSink`** — AI Companion prompts, meeting lock, focus mode, live stream, archiving, smart summary, side panel
+- **`WaitingRoomHelperSink`** — admission & silent-mode events, plus admit / admit-all / put-back actions
+- Both stream over the existing WebSocket and register per room
+
+#### 🩹 SDK 7.0+ Compatibility
+- No-op trampoline stubs for new callbacks so existing sinks stay concrete — `OnZRWarningNotification`, `OnConsolidatedCustomizedConsentNotification`, `OnShowParticipantLocalTimeNotification`
+
+#### 📝 Documentation
+- Troubleshooting for pairing **error 100** and the Docker `172.17.0.0/16` subnet collision
+
+### Modified Files
+
+#### SDK & Build
+- **`sdk-version.lock`** — pin → `7.1.0.523`
+- **`CMakeLists.txt`, `CMakeLists.docker.txt`** — `CMAKE_CXX_STANDARD` 14 → 17
+
+#### Bindings
+- **`generator/templates/zrc_bindings.cpp`** — trampolines, `RegisterSink`, structs/enums, compat stubs _(source of truth)_
+- **`bindings/zrc_bindings.cpp`** — regenerated from template
+
+#### Service
+- **`service/room_manager.py`** — new sink classes + per-room registration
+
+#### Documentation
+- **`DOCKER.md`** — error-100 / subnet-collision troubleshooting
+- **`README.md`** — build requirement C++14 → C++17
+
+### Pending
+
+Not yet wired: `IRecordingHelper`, `IMeetingAudioHelper`, `IMeetingVideoHelper`, `IMeetingShareHelper`.
 
 ## [1.1.0] - 2025-10-16 - Self-Contained Setup
 

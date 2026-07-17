@@ -17,7 +17,9 @@
 #include "ServiceComponents/IMeetingAudioHelper.h"
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
+#include "ServiceComponents/IWaitingRoomHelper.h"
 #include "ServiceComponents/IMeetingListHelper.h"
+#include "ServiceComponents/IMeetingReminderHelper.h"
 #include "ServiceComponents/IMeetingShareHelper.h"
 #include "ServiceComponents/IMeetingViewLayoutHelper.h"
 #include "ServiceComponents/INDIHelper.h"
@@ -196,6 +198,8 @@ public:
             py_sink.attr("OnShutdownOSNot")(restartOS);
         }
     }
+    // Added in SDK 7.0+ (required override — no-op):
+    void OnZRWarningNotification(const ZRWarningInfo& warningInfo) override {}
 };
 
 // Trampoline for IMeetingListHelperSink
@@ -247,6 +251,304 @@ public:
             py_sink.attr("OnMeetingWillReleaseAutomatically")(meetingItem);
         }
     }
+};
+
+// Trampoline for IMeetingReminderHelperSink
+class MeetingReminderHelperSinkTrampoline : public IMeetingReminderHelperSink {
+private:
+    py::object py_sink;
+
+public:
+    MeetingReminderHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnConsentNotification(const ConsentInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnConsentNotification")) {
+            py_sink.attr("OnConsentNotification")(info);
+        } 
+    }
+        
+    void OnMeetingReminderNotification(const MeetingReminderContent& reminderContent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingReminderNotification")) {
+            py_sink.attr("OnMeetingReminderNotification")(reminderContent);
+        }
+    }
+    
+    void OnCustomizedReminderNotification(const CustomizedMeetingReminderContent& customizedContent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCustomizedReminderNotification")) {
+            py_sink.attr("OnCustomizedReminderNotification")(customizedContent);
+        }
+    }
+    
+    void OnCombinedConsentNotification(const CombinedConsent& combinedConsent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCombinedConsentNotification")) {
+            py_sink.attr("OnCombinedConsentNotification")(combinedConsent);
+        }
+    }
+    
+    void OnPrivacyAlertNotification(PrivacyAlertAction action, PrivacyAlertType type, const DisclaimerPrivacy& message) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnPrivacyAlertNotification")) {
+            py_sink.attr("OnPrivacyAlertNotification")(action, type, message);
+        }
+    }
+    
+    void OnMessageEventNotification(MessageEvent messageEvent) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMessageEventNotification")) {
+            py_sink.attr("OnMessageEventNotification")(messageEvent);
+        }
+    }
+    
+    void OnInactiveDetectionNotification(bool isShowPrompt, time_t autoEndTime) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnInactiveDetectionNotification")) {
+            py_sink.attr("OnInactiveDetectionNotification")(isShowPrompt, autoEndTime);
+        }
+    }
+    // Added in SDK 7.0+ (required override — no-op):
+    void OnConsolidatedCustomizedConsentNotification(const std::vector<DisclaimerPrivacy>& disclaimers, bool isAudioVideoBlocked) override {}
+};
+
+// Trampoline for IMeetingServiceSink (forwards live-event callbacks to Python; others are no-ops)
+class MeetingServiceSinkTrampoline : public IMeetingServiceSink {
+private:
+    py::object py_sink;
+public:
+    MeetingServiceSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnStartMeetingResult(int32_t result) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnStartMeetingResult")) {
+            py_sink.attr("OnStartMeetingResult")(result);
+        }
+    }
+    void OnStartPmiResult(int32_t result, const std::string& meetingNumber, MeetingType meetingType) override {}
+    void OnStartPmiNotification(bool success) override {}
+    void OnUpdateMeetingStatus(MeetingStatus meetingStatus) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMeetingStatus")) {
+            py_sink.attr("OnUpdateMeetingStatus")(meetingStatus);
+        }
+    }
+    void OnConfReadyNotification() override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnConfReadyNotification")) {
+            py_sink.attr("OnConfReadyNotification")();
+        }
+    }
+    void OnUpdateMeetingInfoNotification(const MeetingInfo& meetingInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMeetingInfoNotification")) {
+            py_sink.attr("OnUpdateMeetingInfoNotification")(meetingInfo);
+        }
+    }
+    void OnExitMeetingNotification(int32_t result, ExitMeetingReason reason) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnExitMeetingNotification")) {
+            py_sink.attr("OnExitMeetingNotification")(result, reason);
+        }
+    }
+    void OnMeetingErrorNotification(const MeetingErrorInfo& errorInfo) override {}
+    void OnMeetingEndedNotification(const MeetingErrorInfo& errorInfo) override {}
+    void OnReceiveMeetingInviteNotification(const MeetingInvitationInfo& invitation) override {}
+    void OnAnswerMeetingInviteResponse(int32_t result, const MeetingInvitationInfo& invitation, bool accepted) override {}
+    void OnTreatedMeetingInviteNotification(const MeetingInvitationInfo& invitation, bool accepted) override {}
+    void OnStartMeetingWithHostKeyResult(int32_t result) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnStartMeetingWithHostKeyResult")) {
+            py_sink.attr("OnStartMeetingWithHostKeyResult")(result);
+        }
+    }
+    void OnUpdateDataCenterRegionNotification(const DataCenterRegion& dcRegion) override {}
+    void OnUpdateE2ESecurityCode(const E2ESecurityCode& code) override {}
+    void OnBandwidthLimitNotification(const BandwidthLimitInfo& info) override {}
+    void OnSendMeetingInviteEmailNotification(int32_t result) override {}
+    void OnSetRoomTempDisplayNameNotification(bool isShow) override {}
+    void OnMeetingNeedsPasswordNotification(bool showPasswordDialog, bool wrongAndRetry, const ConfDeviceLockStatus& lockStatus) override {}
+    void OnConfDeviceLockStatusNotification(const ConfDeviceLockStatus& status) override {}
+    void OnJBHWaitingHostNotification(bool showWaitForHostDialog, WaitingHostReason reason) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnJBHWaitingHostNotification")) {
+            py_sink.attr("OnJBHWaitingHostNotification")(showWaitForHostDialog, reason);
+        }
+    }
+    void OnE2eeMeetingStatusNotification(const E2eeMeetingStatus& e2eeMeetingStatus) override {}
+    void OnMeshInfoNotification(const MeshInfoNotification& meshInfo) override {}
+    void OnMeetingWillStopAutomatically() override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingWillStopAutomatically")) {
+            py_sink.attr("OnMeetingWillStopAutomatically")();
+        }
+    }
+    void OnExtendMeetingResult(int32_t extendMins) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnExtendMeetingResult")) {
+            py_sink.attr("OnExtendMeetingResult")(extendMins);
+        }
+    }
+    void OnConfirmPersonalLink(const std::string& personalLink) override {}
+};
+
+// Trampoline for IParticipantHelperSink (forwards live-event callbacks to Python; others are no-ops)
+class ParticipantHelperSinkTrampoline : public IParticipantHelperSink {
+private:
+    py::object py_sink;
+public:
+    ParticipantHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnInitMeetingParticipants(const std::vector<MeetingParticipant>& participants, int32_t totalParticipantsCount, bool needCleanUpUserList, ConfSessionType session) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnInitMeetingParticipants")) {
+            py_sink.attr("OnInitMeetingParticipants")(participants, totalParticipantsCount, needCleanUpUserList, session);
+        }
+    }
+    void OnUserJoin(const std::vector<MeetingParticipant>& participants, ConfSessionType session) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUserJoin")) {
+            py_sink.attr("OnUserJoin")(participants, session);
+        }
+    }
+    void OnUserLeave(const std::vector<MeetingParticipant>& participants, ConfSessionType session) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUserLeave")) {
+            py_sink.attr("OnUserLeave")(participants, session);
+        }
+    }
+    void OnUserUpdate(const std::vector<MeetingParticipant>& participants, ConfSessionType session) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUserUpdate")) {
+            py_sink.attr("OnUserUpdate")(participants, session);
+        }
+    }
+    void OnHostChangedNotification(int32_t hostUserID, bool amIHost, ConfSessionType session) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnHostChangedNotification")) {
+            py_sink.attr("OnHostChangedNotification")(hostUserID, amIHost, session);
+        }
+    }
+    void OnMeetingParticipantsChanged(ConfSessionType session) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingParticipantsChanged")) {
+            py_sink.attr("OnMeetingParticipantsChanged")(session);
+        }
+    }
+    void OnUpdateHideProfilePictures(bool isHideProfilePictures) override {}
+    void OnHideFullRoomViewNotification(const std::vector<int32_t>& userIDs) override {}
+    void OnClaimHostNotification(ClaimHostResult result) override {}
+    void OnUpdateSharingAnnotationInfo(bool support, bool enable) override {}
+    void OnAllowAttendeesRenameThemselvesNotification(bool allow) override {}
+    void OnAllowAttendeesShareWhiteboardsNotification(bool isSupported, bool isAllowed) override {}
+    void OnAllowRaiseHandForAttendeeNotification(bool canRaiseHandForAttendee) override {}
+    void OnUpdateOnZRWUserChangeNotification(ZRWUserChangeType type, int32_t zrwUserID) override {}
+    void OnUpdateHasRemoteControlAdmin(bool isAdminExist) override {}
+    void OnUpdateHasRemoteControlAssistant(bool isAssistantExist) override {}
+    void OnDownloadingFinished(const std::string& localFilePath, uint32_t result) override {}
+    // Added in SDK 7.0+ (required override — no-op):
+    void OnShowParticipantLocalTimeNotification(bool isShowing) override {}
+};
+
+class WaitingRoomHelperSinkTrampoline : public IWaitingRoomHelperSink {
+private:
+    py::object py_sink;
+public:
+    WaitingRoomHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnInSilentModeNotification(const InSilentModeInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnInSilentModeNotification")) {
+            py_sink.attr("OnInSilentModeNotification")(info);
+        }
+    }
+    void OnEnableWaitingRoomOnEntryNotification(bool isEnable) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnEnableWaitingRoomOnEntryNotification")) {
+            py_sink.attr("OnEnableWaitingRoomOnEntryNotification")(isEnable);
+        }
+    }
+    void OnUpdateAdmitGuestEnableNotification(bool isEnabled) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateAdmitGuestEnableNotification")) {
+            py_sink.attr("OnUpdateAdmitGuestEnableNotification")(isEnabled);
+        }
+    }
+};
+
+class MeetingControlHelperSinkTrampoline : public IMeetingControlHelperSink {
+private:
+    py::object py_sink;
+public:
+    MeetingControlHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnUpdateMeetingLockStatus(bool meetingLocked) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMeetingLockStatus")) {
+            py_sink.attr("OnUpdateMeetingLockStatus")(meetingLocked);
+        }
+    }
+    void OnUpdateFocusModeOptionsNotification(bool enable, FocusModeStatus status) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateFocusModeOptionsNotification")) {
+            py_sink.attr("OnUpdateFocusModeOptionsNotification")(enable, status);
+        }
+    }
+    void OnUpdateLiveStreamStatus(const LiveStreamStatus& status) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateLiveStreamStatus")) {
+            py_sink.attr("OnUpdateLiveStreamStatus")(status);
+        }
+    }
+    void OnArchivingStatusNotification(bool isInProgress) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnArchivingStatusNotification")) {
+            py_sink.attr("OnArchivingStatusNotification")(isInProgress);
+        }
+    }
+    void OnShowArchivingStatusFailNotification(bool showArchivingFail) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnShowArchivingStatusFailNotification")) {
+            py_sink.attr("OnShowArchivingStatusFailNotification")(showArchivingFail);
+        }
+    }
+    void OnSmartSummaryOn(bool summaryOn, bool hasSetEmail) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnSmartSummaryOn")) {
+            py_sink.attr("OnSmartSummaryOn")(summaryOn, hasSetEmail);
+        }
+    }
+    void OnReceiveAICompanionRequest(const AICompanionRequestInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnReceiveAICompanionRequest")) {
+            py_sink.attr("OnReceiveAICompanionRequest")(info);
+        }
+    }
+    void OnAICompanionStatusNeedConfirm(const AICompanionStatusInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnAICompanionStatusNeedConfirm")) {
+            py_sink.attr("OnAICompanionStatusNeedConfirm")(info);
+        }
+    }
+    void OnShowSidePanel(bool isShow, PanelType currentPanel) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnShowSidePanel")) {
+            py_sink.attr("OnShowSidePanel")(isShow, currentPanel);
+        }
+    }
+    // Unforwarded callbacks (required overrides — no-ops):
+    void OnUpdateIsDisplayTopBannerNotification(bool isDisplayTopBanner) override {}
+    void OnHiFiMusicModeNotification(bool isAllow, bool isEnable) override {}
+    void OnHasAppSignalingChanged(bool hasNewAppSignaling) override {}
+    void OnUpdateSignalingApps(const SignalingAppList& list) override {}
+    void OnUpdateAccessedUsers(const SignalingAppAccessedUserList& list) override {}
+    void OnUpdateAppPermissionLink(const SignalingAppPermissionLink& link) override {}
+    void OnZoomPhoneACRStatusNotification(bool isInProgress) override {}
+    void OnSetMeetingSummaryNotificationEmailNotification(int32_t result) override {}
+    void OnUpdateMeetingQueryBaseInfo(const MeetingQueryInfo& info) override {}
+    void OnChangeMeetingQueryPrivilegeSettingID(int32_t settingID) override {}
+    void OnUpdateMeetingMynotesSetting(const MeetingMynotesSetting& setting) override {}
 };
 
 PYBIND11_MODULE(zrc_sdk, m) {
@@ -307,6 +609,10 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     // ===== Core SDK =====
     py::class_<IZRCSDK>(m, "IZRCSDK")
+        .def_static("CreateInstance", [](py::object py_sink) {
+            g_sdk_sink_impl = std::make_shared<SimpleSinkImpl>(py_sink);
+            return IZRCSDK::CreateInstance(g_sdk_sink_impl.get());
+        }, py::arg("sink"), py::return_value_policy::reference)
         .def_static("GetInstance", &IZRCSDK::GetInstance, py::return_value_policy::reference)
         .def_static("DestroyInstance", &IZRCSDK::DestroyInstance)
         .def("InitWebDomain", &IZRCSDK::InitWebDomain)
@@ -317,16 +623,11 @@ PYBIND11_MODULE(zrc_sdk, m) {
              py::return_value_policy::reference)
         .def("QueryAllZoomRoomsServices", &IZRCSDK::QueryAllZoomRoomsServices);
 
-    // Helper to register SDK sink
-    m.def("RegisterSDKSink", [](IZRCSDK* sdk, py::object py_sink) {
+    // Module-level helper to create SDK instance with sink (for backwards compatibility)
+    m.def("CreateInstanceWithSink", [](py::object py_sink) {
         g_sdk_sink_impl = std::make_shared<SimpleSinkImpl>(py_sink);
-        return sdk->RegisterSink(g_sdk_sink_impl.get());
-    }, py::arg("sdk"), py::arg("sink"));
-    m.def("ClearSDKSink", [](IZRCSDK* sdk) {
-        ZRCSDKError result = sdk->RegisterSink(&g_noop_sdk_sink);
-        g_sdk_sink_impl.reset();
-        return result;
-    }, py::arg("sdk"));
+        return IZRCSDK::CreateInstance(g_sdk_sink_impl.get());
+    }, py::arg("sink"), py::return_value_policy::reference);
 
     // ===== ZoomRooms Service =====
     py::class_<IZoomRoomsService>(m, "IZoomRoomsService")
@@ -419,6 +720,18 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .value("MeetingStatusLoggedOut", MeetingStatus::MeetingStatusLoggedOut)
         .export_values();
 
+    py::enum_<ExitMeetingReason>(m, "ExitMeetingReason")
+        .value("ExitMeetingReasonDefault", ExitMeetingReason::ExitMeetingReasonDefault)
+        .value("ExitMeetingReasonJoinBO", ExitMeetingReason::ExitMeetingReasonJoinBO)
+        .value("ExitMeetingReasonLeaveBO", ExitMeetingReason::ExitMeetingReasonLeaveBO)
+        .value("ExitMeetingReasonRejoinNewMeeting", ExitMeetingReason::ExitMeetingReasonRejoinNewMeeting)
+        .export_values();
+
+    py::enum_<WaitingHostReason>(m, "WaitingHostReason")
+        .value("WaitingHostStartMeeting", WaitingHostReason::WaitingHostStartMeeting)
+        .value("WaitingHostEndAnotherMeeting", WaitingHostReason::WaitingHostEndAnotherMeeting)
+        .export_values();
+
     py::enum_<RoomSystemProtocolType>(m, "RoomSystemProtocolType")
         .value("RoomSystemProtocolTypeUnknown", RoomSystemProtocolType::RoomSystemProtocolTypeUnknown)
         .value("RoomSystemProtocolTypeH323", RoomSystemProtocolType::RoomSystemProtocolTypeH323)
@@ -480,11 +793,14 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("MeetWithIMUsers", &IMeetingService::MeetWithIMUsers)
         .def("StartMeeting", &IMeetingService::StartMeeting, py::arg("meeting"), py::arg("bringShareToMeeting") = false)
         .def("StartMeetingWithHostKey", &IMeetingService::StartMeetingWithHostKey)
-        .def("JoinMeeting",
-            static_cast<ZRCSDKError(IMeetingService::*)(const std::string&, bool)>(&IMeetingService::JoinMeeting),
+        .def("JoinMeetingWithMeetingNumber", &IMeetingService::JoinMeetingWithMeetingNumber,
             py::arg("meetingNumber"), py::arg("bringShareToMeeting") = false)
-        .def("JoinMeetingWithURL", &IMeetingService::JoinMeetingWithURL, py::arg("url"), py::arg("bringShareToMeeting") = false)
-        .def("JoinMeetingWithContactID", &IMeetingService::JoinMeetingWithContactID, py::arg("contactID"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeetingWithURL", &IMeetingService::JoinMeetingWithURL, py::arg("url"))
+        .def("JoinMeetingWithContactID", &IMeetingService::JoinMeetingWithContactID, py::arg("contactID"))
+        .def("JoinMeetingWithPersonalLinkName", &IMeetingService::JoinMeetingWithPersonalLinkName,
+            py::arg("personalLinkName"), py::arg("bringShareToMeeting") = false)
+        .def("JoinMeetingWithPersonalLink", &IMeetingService::JoinMeetingWithPersonalLink, py::arg("personalLink"))
+        .def("CancelConfirmPersonalLink", &IMeetingService::CancelConfirmPersonalLink)
         .def("ExitMeeting", &IMeetingService::ExitMeeting)
         .def("SetRoomTempDisplayNameForMeeting", &IMeetingService::SetRoomTempDisplayNameForMeeting)
         .def("SendMeetingPassword", &IMeetingService::SendMeetingPassword)
@@ -512,12 +828,30 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetMeetingVideoHelper", &IMeetingService::GetMeetingVideoHelper, py::return_value_policy::reference)
         .def("GetMeetingControlHelper", &IMeetingService::GetMeetingControlHelper, py::return_value_policy::reference)
         .def("GetMeetingListHelper", &IMeetingService::GetMeetingListHelper, py::return_value_policy::reference)
+        .def("GetMeetingReminderHelper", &IMeetingService::GetMeetingReminderHelper, py::return_value_policy::reference)
         .def("GetMeetingShareHelper", &IMeetingService::GetMeetingShareHelper, py::return_value_policy::reference)
         .def("GetMeetingViewLayoutHelper", &IMeetingService::GetMeetingViewLayoutHelper, py::return_value_policy::reference)
         .def("GetNDIHelper", &IMeetingService::GetNDIHelper, py::return_value_policy::reference)
         .def("GetParticipantHelper", &IMeetingService::GetParticipantHelper, py::return_value_policy::reference)
         .def("GetRecordingHelper", &IMeetingService::GetRecordingHelper, py::return_value_policy::reference)
-        .def("GetThirdPartyMeetingHelper", &IMeetingService::GetThirdPartyMeetingHelper, py::return_value_policy::reference);
+        .def("GetThirdPartyMeetingHelper", &IMeetingService::GetThirdPartyMeetingHelper, py::return_value_policy::reference)
+        .def("GetWaitingRoomHelper", &IMeetingService::GetWaitingRoomHelper, py::return_value_policy::reference)
+        .def("RegisterSink", [](IMeetingService* self, py::object py_sink) {
+            static std::map<IMeetingService*, std::shared_ptr<MeetingServiceSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingServiceSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingService* self) {
+            static std::map<IMeetingService*, std::shared_ptr<MeetingServiceSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Meeting Audio Helper =====
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
@@ -606,7 +940,86 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("AskHostToTurnOffAllAICompanion", &IMeetingControlHelper::AskHostToTurnOffAllAICompanion)
         .def("ConfirmAICompanionStatusWhenJoin", &IMeetingControlHelper::ConfirmAICompanionStatusWhenJoin)
         .def("AskToEnableAICompanion", &IMeetingControlHelper::AskToEnableAICompanion)
-        .def("ControlSidePanel", &IMeetingControlHelper::ControlSidePanel);
+        .def("ControlSidePanel", &IMeetingControlHelper::ControlSidePanel)
+        .def("RegisterSink", [](IMeetingControlHelper* self, py::object py_sink) {
+            static std::map<IMeetingControlHelper*, std::shared_ptr<MeetingControlHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingControlHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingControlHelper* self) {
+            static std::map<IMeetingControlHelper*, std::shared_ptr<MeetingControlHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
+
+    // ===== Meeting Control Helper sink structs/enums (AI Companion, live stream) =====
+    py::enum_<AICompanionRequestType>(m, "AICompanionRequestType")
+        .value("AICompanionRequestNone", AICompanionRequestType::AICompanionRequestNone)
+        .value("AICompanionRequestSwitch", AICompanionRequestType::AICompanionRequestSwitch)
+        .value("AICompanionRequestEnable", AICompanionRequestType::AICompanionRequestEnable)
+        .export_values();
+    py::class_<AICompanionRequestInfo>(m, "AICompanionRequestInfo")
+        .def(py::init<>())
+        .def_readwrite("type", &AICompanionRequestInfo::type)
+        .def_readwrite("senderNames", &AICompanionRequestInfo::senderNames)
+        .def_readwrite("AICFeatures", &AICompanionRequestInfo::AICFeatures)
+        .def_readwrite("switchAction", &AICompanionRequestInfo::switchAction);
+    py::class_<AICompanionStatusInfo>(m, "AICompanionStatusInfo")
+        .def(py::init<>())
+        .def_readwrite("AICFeatures", &AICompanionStatusInfo::AICFeatures)
+        .def_readwrite("assetsOption", &AICompanionStatusInfo::assetsOption);
+    py::class_<LiveStreamStatusInfo>(m, "LiveStreamStatusInfo")
+        .def(py::init<>())
+        .def_readwrite("isInProgress", &LiveStreamStatusInfo::isInProgress)
+        .def_readwrite("liveChannelName", &LiveStreamStatusInfo::liveChannelName);
+    py::class_<LiveStreamStatus>(m, "LiveStreamStatus")
+        .def(py::init<>())
+        .def_readwrite("isLiveStreamUnencrypted", &LiveStreamStatus::isLiveStreamUnencrypted)
+        .def_readwrite("liveStreamStatusInfo", &LiveStreamStatus::liveStreamStatusInfo);
+
+    // ===== Waiting Room Helper =====
+    py::class_<InSilentModeInfo>(m, "InSilentModeInfo")
+        .def(py::init<>())
+        .def_readwrite("isInSilentMode", &InSilentModeInfo::isInSilentMode)
+        .def_readwrite("silentModeForNoHost", &InSilentModeInfo::silentModeForNoHost)
+        .def_readwrite("isPutInByManual", &InSilentModeInfo::isPutInByManual);
+    py::class_<IWaitingRoomHelper>(m, "IWaitingRoomHelper")
+        .def("PutUsersIntoMeeting", &IWaitingRoomHelper::PutUsersIntoMeeting)
+        .def("PutUsersIntoWaitingRoom", &IWaitingRoomHelper::PutUsersIntoWaitingRoom)
+        .def("PutAllUsersIntoMeeting", &IWaitingRoomHelper::PutAllUsersIntoMeeting)
+        .def("EnableWaitingRoomOnEntry", &IWaitingRoomHelper::EnableWaitingRoomOnEntry)
+        .def("IsWaitingRoomLocked", [](IWaitingRoomHelper* self) {
+            bool locked = false;
+            auto r = self->IsWaitingRoomLocked(locked);
+            return py::make_tuple(r, locked);
+        })
+        .def("IsWaitingRoomOnEntry", [](IWaitingRoomHelper* self) {
+            bool onEntry = false;
+            auto r = self->IsWaitingRoomOnEntry(onEntry);
+            return py::make_tuple(r, onEntry);
+        })
+        .def("RegisterSink", [](IWaitingRoomHelper* self, py::object py_sink) {
+            static std::map<IWaitingRoomHelper*, std::shared_ptr<WaitingRoomHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<WaitingRoomHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IWaitingRoomHelper* self) {
+            static std::map<IWaitingRoomHelper*, std::shared_ptr<WaitingRoomHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Meeting Share Helper Enums =====
     py::enum_<ConfInstType>(m, "ConfInstType")
@@ -1079,6 +1492,12 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .value("MasterSession", ConfSessionType::MasterSession)
         .export_values();
 
+    py::enum_<AudioType>(m, "AudioType", py::arithmetic())
+        .value("AudioTypeNone", AudioType::AudioTypeNone)
+        .value("AudioTypeVoIP", AudioType::AudioTypeVoIP)
+        .value("AudioTypePhone", AudioType::AudioTypePhone)
+        .export_values();
+
     // ===== Phone Call Service Enums =====
     py::enum_<SIPCallStatus>(m, "SIPCallStatus")
         .value("SIPCallStatusInit", SIPCallStatus::SIPCallStatusInit)
@@ -1500,7 +1919,6 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("pronouns", &MeetingParticipant::pronouns)
         .def_readwrite("avatarUrl", &MeetingParticipant::avatarUrl)
         .def_readwrite("isMySelf", &MeetingParticipant::isMySelf)
-        .def_readwrite("isMyself", &MeetingParticipant::isMySelf)
         .def_readwrite("isHost", &MeetingParticipant::isHost)
         .def_readwrite("isCohost", &MeetingParticipant::isCohost)
         .def_readwrite("isGuest", &MeetingParticipant::isGuest)
@@ -1584,7 +2002,23 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("SuspendParticipantsActivities", &IParticipantHelper::SuspendParticipantsActivities)
         .def("ReportIssue", &IParticipantHelper::ReportIssue)
         .def("SetMySelfAsActiveSpeaker", &IParticipantHelper::SetMySelfAsActiveSpeaker)
-        .def("SetMyChildAsActiveSpeaker", &IParticipantHelper::SetMyChildAsActiveSpeaker);
+        .def("SetMyChildAsActiveSpeaker", &IParticipantHelper::SetMyChildAsActiveSpeaker)
+        .def("RegisterSink", [](IParticipantHelper* self, py::object py_sink) {
+            static std::map<IParticipantHelper*, std::shared_ptr<ParticipantHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<ParticipantHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IParticipantHelper* self) {
+            static std::map<IParticipantHelper*, std::shared_ptr<ParticipantHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Recording Helper Enums =====
     py::enum_<MeetingRecordingError>(m, "MeetingRecordingError")
@@ -1666,6 +2100,131 @@ PYBIND11_MODULE(zrc_sdk, m) {
             ZRCSDKError result = self->GetRecoringPemissionInfo(permissionInfo);
             return py::make_tuple(result, permissionInfo);
         });
+
+    // ===== Meeting Reminder Enums ====-
+    py::enum_<MeetingReminderType>(m, "MeetingReminderType")
+        .value("REMINDER_TYPE_NONE", MeetingReminderType::REMINDER_TYPE_NONE)
+        .value("REMINDER_TYPE_START_OR_JOIN_MEETING", MeetingReminderType::REMINDER_TYPE_START_OR_JOIN_MEETING)
+        .value("REMINDER_TYPE_JOIN_EXTERNAL_MEETING", MeetingReminderType::REMINDER_TYPE_JOIN_EXTERNAL_MEETING)
+        .value("REMINDER_TYPE_RECORDING_REMINDER", MeetingReminderType::REMINDER_TYPE_RECORDING_REMINDER)
+        .value("REMINDER_TYPE_RECORDING_DISCLAIMER", MeetingReminderType::REMINDER_TYPE_RECORDING_DISCLAIMER)
+        .value("REMINDER_TYPE_ARCHIVING_FAIL", MeetingReminderType::REMINDER_TYPE_ARCHIVING_FAIL)
+        .value("REMINDER_TYPE_JOIN_WEBINAR_AS_PANELIST", MeetingReminderType::REMINDER_TYPE_JOIN_WEBINAR_AS_PANELIST)
+        .export_values();
+
+    py::enum_<ConsentType>(m, "ConsentType")
+        .value("CONSENT_TYPE_NONE", ConsentType::CONSENT_TYPE_NONE)
+        .value("CONSENT_TYPE_LIVE_STREAMING", ConsentType::CONSENT_TYPE_LIVE_STREAMING)
+        .value("CONSENT_TYPE_PROMOTED_TO_PANELIST", ConsentType::CONSENT_TYPE_PROMOTED_TO_PANELIST)
+        .value("CONSENT_TYPE_ARCHIVING", ConsentType::CONSENT_TYPE_ARCHIVING)
+        .value("CONSENT_TYPE_NDI", ConsentType::CONSENT_TYPE_NDI)
+        .value("CONSENT_TYPE_FOCUS_MODE_START", ConsentType::CONSENT_TYPE_FOCUS_MODE_START)
+        .value("CONSENT_TYPE_FOCUS_MODE_ENDING", ConsentType::CONSENT_TYPE_FOCUS_MODE_ENDING)
+        .value("CONSENT_TYPE_ADMIN_PAY_REMIND", ConsentType::CONSENT_TYPE_ADMIN_PAY_REMIND)
+        .value("CONSENT_TYPE_PAC", ConsentType::CONSENT_TYPE_PAC)
+        .value("CONSENT_TYPE_ZOOM_PHONE_ACR", ConsentType::CONSENT_TYPE_ZOOM_PHONE_ACR)
+        .value("CONSENT_TYPE_HDMI_CONNECTED", ConsentType::CONSENT_TYPE_HDMI_CONNECTED)
+        .value("CONSENT_TYPE_MEETING_SUMMARY", ConsentType::CONSENT_TYPE_MEETING_SUMMARY)
+        .value("CONSENT_TYPE_MEETING_QUERY", ConsentType::CONSENT_TYPE_MEETING_QUERY)
+        .value("CONSENT_TYPE_CUSTOM_AI_COMPANION", ConsentType::CONSENT_TYPE_CUSTOM_AI_COMPANION)
+        .value("CONSENT_TYPE_COMMON", ConsentType::CONSENT_TYPE_COMMON)
+        .value("CONSENT_TYPE_SIMULIVE_WEBINAR", ConsentType::CONSENT_TYPE_SIMULIVE_WEBINAR)
+        .value("CONSENT_TYPE_CUSTOM_RECORDING", ConsentType::CONSENT_TYPE_CUSTOM_RECORDING)
+        .export_values();
+ 
+    py::enum_<PrivacyAlertAction>(m, "PrivacyAlertAction")
+        .value("PRIVACY_ALERT_ACTION_NONE", PrivacyAlertAction::PRIVACY_ALERT_ACTION_NONE)
+        .value("PRIVACY_ALERT_ACTION_SHOW", PrivacyAlertAction::PRIVACY_ALERT_ACTION_SHOW)
+        .value("PRIVACY_ALERT_ACTION_CLOSE", PrivacyAlertAction::PRIVACY_ALERT_ACTION_CLOSE)
+        .value("PRIVACY_ALERT_ACTION_SHOW_DISCLAIMER", PrivacyAlertAction::PRIVACY_ALERT_ACTION_SHOW_DISCLAIMER)
+        .value("PRIVACY_ALERT_ACTION_CLOSE_DISCLAIMER", PrivacyAlertAction::PRIVACY_ALERT_ACTION_CLOSE_DISCLAIMER)
+        .export_values();
+
+    py::enum_<PrivacyAlertType>(m, "PrivacyAlertType")
+        .value("PRIVACY_ALERT_TYPE_LIVE_TRANSCRIPTION", PrivacyAlertType::PRIVACY_ALERT_TYPE_LIVE_TRANSCRIPTION)
+        .value("PRIVACY_ALERT_TYPE_NEW_LTT_CAPTION", PrivacyAlertType::PRIVACY_ALERT_TYPE_NEW_LTT_CAPTION)
+        .export_values();     
+    py::enum_<CustomizedMeetingReminderType>(m, "CustomizedMeetingReminderType")
+        .value("CUSTOMIZED_REMINDER_TYPE_NONE", CustomizedMeetingReminderType::CUSTOMIZED_REMINDER_TYPE_NONE)
+        .value("CUSTOMIZED_REMINDER_TYPE_ONZOOM_JOIN_AS_PANELIST", CustomizedMeetingReminderType::CUSTOMIZED_REMINDER_TYPE_ONZOOM_JOIN_AS_PANELIST)
+        .export_values();
+
+    py::enum_<MessageEvent>(m, "MessageEvent")
+        .value("MESSAGE_EVENT_UNKNOWN", MessageEvent::MESSAGE_EVENT_UNKNOWN)
+        .value("MESSAGE_EVENT_OpenVideoFailForHostStop", MessageEvent::MESSAGE_EVENT_OpenVideoFailForHostStop)
+        .value("MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserOptionDisabled", MessageEvent::MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserOptionDisabled)
+        .value("MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserNoGreenScreen", MessageEvent::MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButUserNoGreenScreen)
+        .value("MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButDeviceNotSupport", MessageEvent::MESSAGE_EVENT_OpenVideoFailForForceVBEnabledButDeviceNotSupport)
+        .export_values();
+        
+    // ===== Meeting Reminder Structs =====
+    py::class_<MeetingReminderContent>(m, "MeetingReminderContent")
+        .def(py::init<>())
+        .def_readwrite("reminderType", &MeetingReminderContent::reminderType)
+        .def_readwrite("disclaimerPrivacy", &MeetingReminderContent::disclaimerPrivacy)
+        .def_readwrite("isShowing", &MeetingReminderContent::isShowing);
+
+    py::class_<CustomizedMeetingReminderContent>(m, "CustomizedMeetingReminderContent")
+        .def(py::init<>())
+        .def_readwrite("customizedDisclaimerType", &CustomizedMeetingReminderContent::customizedDisclaimerType)
+        .def_readwrite("disclaimerPrivacy", &CustomizedMeetingReminderContent::disclaimerPrivacy)
+        .def_readwrite("isShowing", &CustomizedMeetingReminderContent::isShowing);
+
+    py::class_<CombinedConsent>(m, "CombinedConsent")
+        .def(py::init<>())
+        .def_readwrite("isShowing", &CombinedConsent::isShowing)
+        .def_readwrite("type", &CombinedConsent::type)
+        .def_readwrite("disclaimerPrivacy", &CombinedConsent::disclaimerPrivacy);
+
+    py::class_<PrivacyMessage>(m, "PrivacyMessage")
+        .def(py::init<>())
+        .def_readwrite("privacyMessage", &PrivacyMessage::privacyMessage)
+        .def_readwrite("hyperlinkKey", &PrivacyMessage::hyperlinkKey)
+        .def_readwrite("hyperlinkURL", &PrivacyMessage::hyperlinkURL);  
+
+    py::class_<DisclaimerPrivacy>(m, "DisclaimerPrivacy")
+        .def(py::init<>())
+        .def_readwrite("title", &DisclaimerPrivacy::title)
+        .def_readwrite("privacyMessage", &DisclaimerPrivacy::privacyMessage)
+        .def_readwrite("message", &DisclaimerPrivacy::message)
+        .def_readwrite("linkUrl", &DisclaimerPrivacy::linkUrl)
+        .def_readwrite("linkText", &DisclaimerPrivacy::linkText)
+        .def_readwrite("positiveActionText", &DisclaimerPrivacy::positiveActionText)
+        .def_readwrite("negativeActionText", &DisclaimerPrivacy::negativeActionText)
+        .def_readwrite("privacySection", &DisclaimerPrivacy::privacySection);
+
+    py::class_<ConsentInfo>(m, "ConsentInfo")
+        .def(py::init<>())
+        .def_readwrite("type", &ConsentInfo::type)
+        .def_readwrite("disclaimer", &ConsentInfo::disclaimer)
+        .def_readwrite("is_showing", &ConsentInfo::isShowing)
+        .def_readwrite("consent_id", &ConsentInfo::consentID);
+        
+    // ===== Meeting Reminder Helper ====-
+    py::class_<IMeetingReminderHelper>(m, "IMeetingReminderHelper")
+        .def("RegisterSink", [](IMeetingReminderHelper* self, py::object py_sink) {
+            // Create a trampoline and keep it alive in a static map
+            static std::map<IMeetingReminderHelper*, std::shared_ptr<MeetingReminderHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingReminderHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingReminderHelper* self) {
+            static std::map<IMeetingReminderHelper*, std::shared_ptr<MeetingReminderHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        })
+        .def("ConfirmMeetingReminder", &IMeetingReminderHelper::ConfirmMeetingReminder)
+        .def("ConfirmCustomizedMeetingReminder", &IMeetingReminderHelper::ConfirmCustomizedMeetingReminder)
+        .def("ConfirmConsent", &IMeetingReminderHelper::ConfirmConsent)
+        .def("ConfirmCombinedConsent", &IMeetingReminderHelper::ConfirmCombinedConsent)
+        .def("HandlePrivacyAlert", &IMeetingReminderHelper::HandlePrivacyAlert)
+        .def("ContinueMeetingOnInactivity", &IMeetingReminderHelper::ContinueMeetingOnInactivity);
 
     // ===== Setting Service Enums =====
     py::enum_<AudioCheckupCommand>(m, "AudioCheckupCommand")
