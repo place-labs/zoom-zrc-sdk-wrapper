@@ -16,6 +16,8 @@ The SDK stores paired room credentials in `/root/.zoom/data/third_zrc_data.db`. 
 
 **The docker-compose.yml already handles this** via a named Docker volume (`zrc-data`). Room data automatically persists through container recreations and image updates.
 
+**Pinned MAC required:** `docker-compose.yml` also pins a fixed `mac_address`. The SDK keys its credential encryption to the container's NIC MAC, so Docker's per-start random MAC would otherwise make the stored credentials undecryptable on restart (`hmac check failed` → `RetryToPairRoom` → `ZRCSDKERR_INTERNAL_ERROR`). **Never change the pinned MAC** — doing so orphans the credentials and forces re-pairing of every room.
+
 **Backup your data:**
 ```bash
 ./backup.sh  # Creates backups/zrc-data-YYYYMMDD_HHMMSS.tar.gz
@@ -215,6 +217,8 @@ ws.onmessage = (event) => {
 // {"event": "OnConfReadyNotification"}
 // {"event": "OnExitMeetingNotification"}
 ```
+
+**Connection lifecycle & auto-reconnect:** room online/offline transitions arrive as `OnZRConnectionStateChanged` (`ConnectionStateDisconnected` → `Established` → `Connected`). If a room drops, the wrapper automatically retries `RetryToPairRoom()` on a backoff (5s → 10s → 20s → cap 30s) until it reconnects — consumers just observe the state, no action required.
 
 ### Python WebSocket Client Example
 

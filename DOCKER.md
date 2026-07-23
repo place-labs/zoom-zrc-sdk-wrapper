@@ -70,6 +70,32 @@ volumes:
 
 This ensures SDK logs are preserved across container restarts.
 
+### Pinned MAC Address (required for pairing persistence)
+
+`docker-compose.yml` pins a fixed `mac_address` on the container:
+
+```yaml
+services:
+  zrc-microservice:
+    mac_address: c0:ff:ee:11:00:99
+```
+
+The SDK derives its credential-encryption key material (`ZRCSDK.conf`) from the container's **NIC MAC**. Docker assigns a **random** MAC on every start, which regenerates that key and makes the stored room credentials undecryptable — the SDK logs `sqlcipher … hmac check failed`, `RetryToPairRoom` returns `ZRCSDKERR_INTERNAL_ERROR`, and paired rooms fail to restore. Pinning the MAC keeps the key stable so pairings survive restarts and rebuilds.
+
+> ⚠️ **Pick a MAC once and never change it.** Changing it orphans the encrypted credentials (same symptom as above) and every room must be re-paired. Use a valid unicast, locally-administered address (first octet even — e.g. `DE`/`CA`/`FE`/`C0`).
+
+### Platform (Apple Silicon / non-x86 hosts)
+
+The ZRC SDK ships **x86_64 only** (`libZRCSdk.so`). `docker-compose.yml` pins the build/run platform so it works on ARM hosts (e.g. Apple Silicon) via emulation:
+
+```yaml
+services:
+  zrc-microservice:
+    platform: linux/amd64
+```
+
+Without this, Docker builds natively for `arm64` and the bindings fail to link against the x86_64 SDK. On native x86_64 hosts (prod) it's a no-op.
+
 ### Development Mode
 
 To mount the service code for live development, uncomment this line in `docker-compose.yml`:
@@ -275,16 +301,6 @@ networks:
 > change Docker's `bip`/`default-address-pools` to a non-overlapping range (e.g.
 > `10.200.0.0/24` / `10.201.0.0/16`). See *Troubleshooting → Pairing fails with
 > error code 100*.
-
-## Environment Variables
-
-You can pass environment variables in `docker-compose.yml`:
-
-```yaml
-environment:
-  - LOG_LEVEL=DEBUG
-  - MAX_ROOMS=10
-```
 
 ## Updating the Service
 

@@ -1,5 +1,59 @@
  # Changelog
 
+## [1.3.0] - 2026-07-23 - Live WebSocket Streaming & Connection Resilience
+
+### Major Changes
+
+#### 📡 Live WebSocket Event Streaming
+- New endpoint **`GET /api/rooms/{room_id}/events`** — per-room live stream of SDK callbacks as flat JSON, delivered as they fire
+- Enums emitted **name-only** (e.g. `MeetingStatusInMeeting`); raw `int32_t` result/error codes stay numeric; struct payloads pass through in full, curation left to the consumer
+- Idle **keepalive** frame every 30s; per-room subscriber registry with a bounded, drop-oldest queue; SDK-thread callbacks marshalled to the event loop via `call_soon_threadsafe`
+
+#### 🔔 New Event Sinks
+- Meeting lifecycle & participants — **`MeetingServiceSink`** (`OnUpdateMeetingStatus`, meeting info) and **`ParticipantHelperSink`** (roster init, join / leave / update)
+- Resolves the four sinks left **Pending** in 1.2.0 — **`RecordingHelperSink`**, **`MeetingAudioHelperSink`**, **`MeetingVideoHelperSink`**, **`MeetingShareHelperSink`**
+- Calls & devices — **`PhoneCallServiceSink`**, **`SettingServiceSink`**
+- Layout & captions — **`MeetingViewLayoutHelperSink`**, **`ClosedCaptionHelperSink`**
+- Pro AV & infrastructure — **`ProAVServiceSink`**, **`HWIOHelperSink`**, **`DanteOutputHelperSink`**, **`NDIHelperSink`**, **`ControlSystemHelperSink`**, **`BYODHelperSink`**, **`CalibrationHelperSink`**
+- All stream over the WebSocket and register per room; high-value/state callbacks forwarded, deep-nested-struct callbacks stubbed
+
+#### ♻️ Auto-Reconnect
+- On `OnZRConnectionStateChanged` → `Disconnected`, a per-room backoff loop (5s → 10s → 20s → cap 30s) calls `RetryToPairRoom()` until reconnected, then stops on `Connected`
+- Gives up (and does not restart) on `OnRoomUnpairedReason`; re-pairing clears the flag. Connection lifecycle is owned by the wrapper — consumers just observe state over the WebSocket
+
+#### 🔐 Paired-Credential Persistence
+- `docker-compose.yml` pins a fixed **`mac_address`** — the SDK keys its `ZRCSDK.conf` credential encryption off the NIC MAC, and Docker's per-start random MAC made stored credentials undecryptable (`sqlcipher … hmac check failed` → `RetryToPairRoom` returns `ZRCSDKERR_INTERNAL_ERROR`). A stable MAC keeps pairings across restarts and rebuilds
+- **Never change the pinned MAC once set** — it orphans the encrypted credentials and forces re-pairing
+
+#### 🩹 Stability Fixes
+- **GIL guards** — `SimpleSinkImpl`'s 11 device-info callbacks now `py::gil_scoped_acquire` before touching Python, matching every other trampoline
+- **Clean shutdown** — `app.py` hard-exits with `os._exit(0)`; the SDK's static `RegisterSink` registries hold `py::object`s destroyed after `Py_Finalize` (`thread state is NULL`, `signal 6`), so skipping finalization eliminates the shutdown/restart crash
+
+#### 🐳 Build
+- **`docker-compose.yml`** — added `platform: linux/amd64` (the SDK ships x86_64-only; matches prod, emulates on Apple Silicon)
+
+#### 📝 Documentation
+- **`DOCKER.md`** — pinned-MAC requirement and `platform: linux/amd64` configuration
+- **`README.md`** — pinned-MAC persistence note; auto-reconnect / connection-lifecycle behavior
+
+### Modified Files
+
+#### Bindings
+- **`bindings/zrc_bindings.cpp`** — `MeetingServiceSink` + `ParticipantHelperSink` trampolines; GIL guards on `SimpleSinkImpl`
+- **`generator/templates/zrc_bindings.cpp`** — mirrored _(source of truth)_
+
+#### Service
+- **`service/room_manager.py`** — WebSocket subscriber registry & broadcast, meeting/participant sink classes, per-room auto-reconnect
+- **`service/controllers/events.py`** — WebSocket `/api/rooms/{room_id}/events` endpoint _(new)_
+- **`service/app.py`** — event-router wiring; `os._exit(0)` shutdown fix
+
+#### Docker
+- **`docker-compose.yml`** — pinned `mac_address`, `platform: linux/amd64`
+
+#### Documentation
+- **`DOCKER.md`** — pinned-MAC + platform configuration
+- **`README.md`** — pinned-MAC note; auto-reconnect / connection-lifecycle
+
 ## [1.2.0] - 2026-07-16 - SDK 7.1 Upgrade & Call-Control Sinks
 
 ### Major Changes

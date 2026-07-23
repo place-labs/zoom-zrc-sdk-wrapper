@@ -152,6 +152,10 @@ class ZoomRoomsServiceSink(_Broadcaster):
         """Called when room is unpaired"""
         logger.warning(f"[{self.room_id}] Room unpaired, reason: {reason}")
         self.emit("OnRoomUnpairedReason", reason=_enum_name(reason))
+        # An unpaired room can't be recovered by retrying -> stop and don't restart.
+        mgr = getattr(self, "mgr", None)
+        if mgr is not None:
+            mgr.mark_unpaired(self.room_id)
 
 
 class PreMeetingServiceSink(_Broadcaster):
@@ -169,6 +173,13 @@ class PreMeetingServiceSink(_Broadcaster):
         if state == zrc_sdk.ConnectionStateConnected:
             self.connected_event.set()
         self.emit("OnZRConnectionStateChanged", state=_enum_name(state))
+        # Self-healing: keep a paired room connected without any consumer involvement.
+        mgr = getattr(self, "mgr", None)
+        if mgr is not None:
+            if state == zrc_sdk.ConnectionStateConnected:
+                mgr.cancel_reconnect(self.room_id)
+            elif state == zrc_sdk.ConnectionStateDisconnected:
+                mgr.schedule_reconnect(self.room_id)
 
     def OnShutdownOSNot(self, restart_os: bool):
         """Called when shutdown notification received"""
@@ -412,6 +423,364 @@ class WaitingRoomHelperSink(_Broadcaster):
         self.emit("OnUpdateAdmitGuestEnableNotification", isEnabled=is_enabled)
 
 
+class RecordingHelperSink(_Broadcaster):
+    """Callback sink for recording events: recording state, requests, permissions, disclaimers, CMR errors."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnUpdateMeetingRecordingInfo(self, recording_info):
+        self.emit("OnUpdateMeetingRecordingInfo", recordingInfo=_pybind_to_jsonable(recording_info))
+
+    def OnReceiveRecordingRequest(self, info):
+        logger.info(f"[{self.room_id}] Recording request received")
+        self.emit("OnReceiveRecordingRequest", info=_pybind_to_jsonable(info))
+
+    def OnNeedPromptStartRecordingDisclaimerUpdate(self, need: bool):
+        self.emit("OnNeedPromptStartRecordingDisclaimerUpdate", need=need)
+
+    def OnQueryMeetingCloudRecordingNotification(self, error_code, has_cmr_edit: bool):
+        self.emit("OnQueryMeetingCloudRecordingNotification", errorCode=_enum_name(error_code), hasCMREdit=has_cmr_edit)
+
+    def OnUpdateMeetingUserRecordingStatus(self, user_id: int, can_record: bool, is_recording: bool, is_local_recording_disabled: bool):
+        self.emit("OnUpdateMeetingUserRecordingStatus", userID=int(user_id), canRecord=can_record,
+                  isRecording=is_recording, isLocalRecordingDisabled=is_local_recording_disabled)
+
+    def OnSetRecordingNotificationEmailNotification(self, result: int):
+        self.emit("OnSetRecordingNotificationEmailNotification", result=int(result))
+
+    def OnSetMeetingRecordingResult(self, result: int, recording_notification_email: str, type):
+        self.emit("OnSetMeetingRecordingResult", result=int(result),
+                  recordingNotificationEmail=recording_notification_email, type=_enum_name(type))
+
+    def OnUpdateRecordingPermission(self, info):
+        self.emit("OnUpdateRecordingPermission", info=[_pybind_to_jsonable(i) for i in info])
+
+    def OnMeetingCloudRecordingErrorNotification(self, show: bool, error_code, has_cmr_edit: bool, grace_period_date: int):
+        self.emit("OnMeetingCloudRecordingErrorNotification", show=show, errorCode=_enum_name(error_code),
+                  hasCMREdit=has_cmr_edit, gracePeriodDate=int(grace_period_date))
+
+    # Second (2-arg) overload of the C++ callback, forwarded under a distinct name.
+    def OnMeetingCloudRecordingErrorReason(self, result: bool, reason: str):
+        self.emit("OnMeetingCloudRecordingErrorReason", result=result, reason=reason)
+
+
+class MeetingAudioHelperSink(_Broadcaster):
+    """Callback sink for meeting-audio host-control events (mute, ask-to-unmute, mute-on-entry)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnUpdateMyAudioStatus(self, audio_status):
+        self.emit("OnUpdateMyAudioStatus", audioStatus=_pybind_to_jsonable(audio_status))
+
+    def OnMuteUserAudioNotification(self, user_id: int, audio_status):
+        self.emit("OnMuteUserAudioNotification", userID=int(user_id), audioStatus=_pybind_to_jsonable(audio_status))
+
+    def OnMuteOnEntryNotification(self, is_mute_on_entry: bool):
+        self.emit("OnMuteOnEntryNotification", isMuteOnEntry=is_mute_on_entry)
+
+    def OnAskUnmuteAudioByHostNotification(self, show: bool, type):
+        self.emit("OnAskUnmuteAudioByHostNotification", show=show, type=_enum_name(type))
+
+    def OnAllowAttendeesUnmuteThemselvesNotification(self, can_attendees_unmute_themselves: bool):
+        self.emit("OnAllowAttendeesUnmuteThemselvesNotification", canAttendeesUnmuteThemselves=can_attendees_unmute_themselves)
+
+
+class MeetingVideoHelperSink(_Broadcaster):
+    """Callback sink for meeting-video host-control events (mute, ask-start, spotlight)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnUpdateMyVideoNotification(self, video_status):
+        self.emit("OnUpdateMyVideoNotification", videoStatus=_pybind_to_jsonable(video_status))
+
+    def OnMuteUserVideoNotification(self, user_id: int, video_status):
+        self.emit("OnMuteUserVideoNotification", userID=int(user_id), videoStatus=_pybind_to_jsonable(video_status))
+
+    def OnAskStartVideoByHostNotification(self, user_id: int):
+        self.emit("OnAskStartVideoByHostNotification", userID=int(user_id))
+
+    def OnSpotlightStatusNotification(self, spotlight_status):
+        self.emit("OnSpotlightStatusNotification", spotlightStatus=_pybind_to_jsonable(spotlight_status))
+
+    def OnUpdateAllowAttendeesStartVideo(self, allow: bool):
+        self.emit("OnUpdateAllowAttendeesStartVideo", allow=allow)
+
+
+class MeetingShareHelperSink(_Broadcaster):
+    """Callback sink for meeting-share / presentation events."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnSharingStatusNotification(self, status):
+        self.emit("OnSharingStatusNotification", status=_pybind_to_jsonable(status))
+
+    def OnShareSettingNotification(self, setting):
+        self.emit("OnShareSettingNotification", setting=_pybind_to_jsonable(setting))
+
+    def OnSharingSourceNotification(self, zr_share_sources, zrw_share_sources):
+        self.emit("OnSharingSourceNotification",
+                  zrShareSources=[_pybind_to_jsonable(s) for s in zr_share_sources],
+                  zrwShareSources=[_pybind_to_jsonable(s) for s in zrw_share_sources])
+
+    def OnIncomingMeetingShareNotification(self, noti):
+        self.emit("OnIncomingMeetingShareNotification", noti=_pybind_to_jsonable(noti))
+
+    def OnUpdateLocalViewStatus(self, is_on: bool):
+        self.emit("OnUpdateLocalViewStatus", isOn=is_on)
+
+    def OnStartLocalPresentResult(self, is_sharing_meeting: bool, display_state):
+        self.emit("OnStartLocalPresentResult", isSharingMeeting=is_sharing_meeting, displayState=_enum_name(display_state))
+
+
+class PhoneCallServiceSink(_Broadcaster):
+    """Callback sink for SIP / phone-call events (incoming, status, transfer, upgrade-to-meeting)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnReceiveIncomingSIPCallNotification(self, sip_call_info):
+        logger.info(f"[{self.room_id}] Incoming SIP call")
+        self.emit("OnReceiveIncomingSIPCallNotification", sipCallInfo=_pybind_to_jsonable(sip_call_info))
+
+    def OnUpdateSIPCallStatusNotification(self, sip_call_info):
+        self.emit("OnUpdateSIPCallStatusNotification", sipCallInfo=_pybind_to_jsonable(sip_call_info))
+
+    def OnUpdateSIPServiceStatusNotification(self, sip_service):
+        self.emit("OnUpdateSIPServiceStatusNotification", sipService=_pybind_to_jsonable(sip_service))
+
+    def OnTerminateSIPCallNotification(self, reason, sip_call_info):
+        self.emit("OnTerminateSIPCallNotification", reason=_enum_name(reason), sipCallInfo=_pybind_to_jsonable(sip_call_info))
+
+    def OnUpdateSIPCallAudioStatusNotification(self, muted: bool):
+        self.emit("OnUpdateSIPCallAudioStatusNotification", muted=muted)
+
+    def OnAnswerSIPCallResult(self, succeeded: bool, sip_call_info, accepted: bool):
+        self.emit("OnAnswerSIPCallResult", succeeded=succeeded, sipCallInfo=_pybind_to_jsonable(sip_call_info), accepted=accepted)
+
+    def OnUpgradeSIPCallToMeetingResult(self, succeeded: bool, sip_call_info):
+        self.emit("OnUpgradeSIPCallToMeetingResult", succeeded=succeeded, sipCallInfo=_pybind_to_jsonable(sip_call_info))
+
+    def OnUpgradeSIPCallToMeetingNotification(self, succeeded: bool, sip_call_info):
+        self.emit("OnUpgradeSIPCallToMeetingNotification", succeeded=succeeded, sipCallInfo=_pybind_to_jsonable(sip_call_info))
+
+    def OnTransferSIPCallResult(self, succeeded: bool, sip_call_info, transfer_info):
+        self.emit("OnTransferSIPCallResult", succeeded=succeeded, sipCallInfo=_pybind_to_jsonable(sip_call_info),
+                  transferInfo=_pybind_to_jsonable(transfer_info))
+
+    def OnTransferSIPCallNotification(self, succeeded: bool, sip_call_info):
+        self.emit("OnTransferSIPCallNotification", succeeded=succeeded, sipCallInfo=_pybind_to_jsonable(sip_call_info))
+
+
+class MeetingViewLayoutHelperSink(_Broadcaster):
+    """Callback sink for meeting view / layout events (wall view, pages, screen layout, confidence monitor)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnUpdateWallviewStyleNotification(self, status):
+        self.emit("OnUpdateWallviewStyleNotification", status=_pybind_to_jsonable(status))
+
+    def OnUpdateVideoThumbInfo(self, info):
+        self.emit("OnUpdateVideoThumbInfo", info=_pybind_to_jsonable(info))
+
+    def OnUpdateVideoPageStatusNotification(self, noti):
+        self.emit("OnUpdateVideoPageStatusNotification", noti=_pybind_to_jsonable(noti))
+
+    def OnUpdateIsNonVideoParticipantsShowedNotification(self, is_show: bool):
+        self.emit("OnUpdateIsNonVideoParticipantsShowedNotification", isShowNonVideoParticipants=is_show)
+
+    def OnUpdateScreenLayoutStatus(self, status):
+        self.emit("OnUpdateScreenLayoutStatus", status=_pybind_to_jsonable(status))
+
+    def OnConfidenceMonitorNotification(self, info):
+        self.emit("OnConfidenceMonitorNotification", info=_pybind_to_jsonable(info))
+
+    def OnDynamicLayoutOptionNotification(self, layout):
+        self.emit("OnDynamicLayoutOptionNotification", layout=_enum_name(layout))
+
+    def OnThumbnailsPositionNotification(self, type):
+        self.emit("OnThumbnailsPositionNotification", type=_enum_name(type))
+
+    def OnChangeAttendeeViewNotification(self, layout):
+        self.emit("OnChangeAttendeeViewNotification", layout=_enum_name(layout))
+
+    def OnVideoOrderNotification(self, video_order_info):
+        self.emit("OnVideoOrderNotification", videoOrderInfo=_pybind_to_jsonable(video_order_info))
+
+
+class SettingServiceSink(_Broadcaster):
+    """Callback sink for device / settings events: mic/speaker/camera lists, current
+    device, volume, mute state, network adapters."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnMicrophoneListChanged(self, microphones):
+        self.emit("OnMicrophoneListChanged", microphones=[_pybind_to_jsonable(d) for d in microphones])
+
+    def OnSpeakerListChanged(self, speakers):
+        self.emit("OnSpeakerListChanged", speakers=[_pybind_to_jsonable(d) for d in speakers])
+
+    def OnCameraListChanged(self, cameras):
+        self.emit("OnCameraListChanged", cameras=[_pybind_to_jsonable(d) for d in cameras])
+
+    def OnUpdateCOMList(self, com_list):
+        self.emit("OnUpdateCOMList", comList=[_pybind_to_jsonable(d) for d in com_list])
+
+    def OnCurrentMicrophoneChanged(self, exist: bool, microphone):
+        self.emit("OnCurrentMicrophoneChanged", exist=exist, microphone=_pybind_to_jsonable(microphone))
+
+    def OnCurrentSpeakerChanged(self, exist: bool, speaker):
+        self.emit("OnCurrentSpeakerChanged", exist=exist, speaker=_pybind_to_jsonable(speaker))
+
+    def OnCurrentCameraChanged(self, exist: bool, camera):
+        self.emit("OnCurrentCameraChanged", exist=exist, camera=_pybind_to_jsonable(camera))
+
+    def OnCurrentMicrophoneVolumeChanged(self, volume: float):
+        self.emit("OnCurrentMicrophoneVolumeChanged", volume=volume)
+
+    def OnCurrentSpeakerVolumeChanged(self, volume: float):
+        self.emit("OnCurrentSpeakerVolumeChanged", volume=volume)
+
+    def OnCurrentSelectedMicrophoneMuted(self, muted: bool):
+        self.emit("OnCurrentSelectedMicrophoneMuted", muted=muted)
+
+    def OnNetworkAdapterUpdateInfo(self, network_adapter_infos):
+        self.emit("OnNetworkAdapterUpdateInfo", networkAdapterInfos=[_pybind_to_jsonable(n) for n in network_adapter_infos])
+
+
+class ClosedCaptionHelperSink(_Broadcaster):
+    """Callback sink for closed-caption / live-transcript events."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnUpdateClosedCaptionNotification(self, closed_caption_info):
+        self.emit("OnUpdateClosedCaptionNotification", closedCaptionInfo=_pybind_to_jsonable(closed_caption_info))
+
+    def OnNewLTTLanguageNotification(self, new_ltt_caption_info):
+        self.emit("OnNewLTTLanguageNotification", newLttCaptionInfo=_pybind_to_jsonable(new_ltt_caption_info))
+
+    def OnNewLTTCaptionNotification(self, type):
+        self.emit("OnNewLTTCaptionNotification", type=_enum_name(type))
+
+    def OnMessageAdd(self, message):
+        self.emit("OnMessageAdd", message=_pybind_to_jsonable(message))
+
+    def OnMessageUpdate(self, message):
+        self.emit("OnMessageUpdate", message=_pybind_to_jsonable(message))
+
+    def OnMessageLoad(self, messages, has_more_history: bool):
+        self.emit("OnMessageLoad", messages=[_pybind_to_jsonable(m) for m in messages], hasMoreHistory=has_more_history)
+
+
+class ProAVServiceSink(_Broadcaster):
+    """Callback sink for Pro AV events (video overlay/loss/unassigned behavior, assigned-gallery seats)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnProAVVideoOverlaySettingsNotification(self, settings):
+        self.emit("OnProAVVideoOverlaySettingsNotification", settings=_pybind_to_jsonable(settings))
+
+    def OnProAVUnassignedBehaviorNotification(self, behavior):
+        self.emit("OnProAVUnassignedBehaviorNotification", behavior=_pybind_to_jsonable(behavior))
+
+    def OnProAVVideoLossBehaviorNotification(self, behavior):
+        self.emit("OnProAVVideoLossBehaviorNotification", behavior=_pybind_to_jsonable(behavior))
+
+    def OnProAVNonPersistentAssignedGalleryUpdate(self, info):
+        self.emit("OnProAVNonPersistentAssignedGalleryUpdate", info=_pybind_to_jsonable(info))
+
+    def OnProAVPersistentAssignedGalleryUpdate(self, infos):
+        self.emit("OnProAVPersistentAssignedGalleryUpdate", infos=[_pybind_to_jsonable(i) for i in infos])
+
+    def OnProAVAssignedGalleryStatusUpdate(self, status, delete_indices):
+        self.emit("OnProAVAssignedGalleryStatusUpdate", status=_pybind_to_jsonable(status),
+                  deleteIndices=[int(i) for i in delete_indices])
+
+    def OnProAVAssignedGalleryHideOptionsUpdate(self, options):
+        self.emit("OnProAVAssignedGalleryHideOptionsUpdate", options=_pybind_to_jsonable(options))
+
+
+class HWIOHelperSink(_Broadcaster):
+    """Callback sink for hardware I/O events (service availability gate)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnHWIOServiceStatusUpdated(self, is_service_available: bool, is_feature_allowed: bool, companion_zrid: str):
+        self.emit("OnHWIOServiceStatusUpdated", isServiceAvailable=is_service_available,
+                  isFeatureAllowed=is_feature_allowed, companionZRID=companion_zrid)
+
+
+class DanteOutputHelperSink(_Broadcaster):
+    """Callback sink for Dante / local-network audio device events."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnCreateLocalNetworkAudioDevice(self, result: int, info):
+        self.emit("OnCreateLocalNetworkAudioDevice", result=int(result), info=_pybind_to_jsonable(info))
+
+    def OnDestroyLocalNetworkAudioDevice(self, result: int):
+        self.emit("OnDestroyLocalNetworkAudioDevice", result=int(result))
+
+    def OnLocalNetworkAudioDeviceError(self, error):
+        self.emit("OnLocalNetworkAudioDeviceError", error=_pybind_to_jsonable(error))
+
+    def OnLocalNetworkAudioDeviceInfoNotification(self, info):
+        self.emit("OnLocalNetworkAudioDeviceInfoNotification", info=_pybind_to_jsonable(info))
+
+
+class NDIHelperSink(_Broadcaster):
+    """Callback sink for NDI events (usage settings, device list)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnNDIUsageSettingsNotification(self, settings):
+        self.emit("OnNDIUsageSettingsNotification", settings=_pybind_to_jsonable(settings))
+
+    def OnNDIDeviceListNotification(self, devices):
+        self.emit("OnNDIDeviceListNotification", devices=[_pybind_to_jsonable(d) for d in devices])
+
+
+class ControlSystemHelperSink(_Broadcaster):
+    """Callback sink for control-system (ZRCS) events (enable state, scene list)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnEnableZRCSNotification(self, enable: bool):
+        self.emit("OnEnableZRCSNotification", enable=enable)
+
+    def OnUpdateZRCSSceneList(self, scenes):
+        self.emit("OnUpdateZRCSSceneList", scenes=[_pybind_to_jsonable(s) for s in scenes])
+
+
+class BYODHelperSink(_Broadcaster):
+    """Callback sink for BYOD (bring-your-own-device) events (emergency-call result)."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+    def OnMakeEmergencyCallInBYODModeNotification(self, succeed: bool):
+        self.emit("OnMakeEmergencyCallInBYODModeNotification", succeed=succeed)
+
+
+class CalibrationHelperSink(_Broadcaster):
+    """Callback sink for camera-calibration events. Registered for completeness;
+    calibration-wizard callbacks are not forwarded (deep/niche) — extend as needed."""
+
+    def __init__(self, room_id: str):
+        self.room_id = room_id
+
+
 # ===== Room Manager =====
 
 class RoomManager:
@@ -428,6 +797,21 @@ class RoomManager:
         self.participant_sinks: Dict[str, ParticipantHelperSink] = {}
         self.meeting_control_sinks: Dict[str, MeetingControlHelperSink] = {}
         self.waiting_room_sinks: Dict[str, WaitingRoomHelperSink] = {}
+        self.recording_sinks: Dict[str, RecordingHelperSink] = {}
+        self.meeting_audio_sinks: Dict[str, MeetingAudioHelperSink] = {}
+        self.meeting_video_sinks: Dict[str, MeetingVideoHelperSink] = {}
+        self.meeting_share_sinks: Dict[str, MeetingShareHelperSink] = {}
+        self.meeting_viewlayout_sinks: Dict[str, MeetingViewLayoutHelperSink] = {}
+        self.phone_call_sinks: Dict[str, PhoneCallServiceSink] = {}
+        self.setting_sinks: Dict[str, SettingServiceSink] = {}
+        self.closed_caption_sinks: Dict[str, ClosedCaptionHelperSink] = {}
+        self.proav_sinks: Dict[str, ProAVServiceSink] = {}
+        self.hwio_sinks: Dict[str, HWIOHelperSink] = {}
+        self.dante_sinks: Dict[str, DanteOutputHelperSink] = {}
+        self.ndi_sinks: Dict[str, NDIHelperSink] = {}
+        self.control_system_sinks: Dict[str, ControlSystemHelperSink] = {}
+        self.byod_sinks: Dict[str, BYODHelperSink] = {}
+        self.calibration_sinks: Dict[str, CalibrationHelperSink] = {}
         self.heartbeat_task = None
         self.sdk_sink = SDKSinkImpl()
         # ===== Live event streaming (WebSocket) =====
@@ -436,6 +820,11 @@ class RoomManager:
         # The filter is a ConfSessionType enum name (e.g. "CurrentSession"); when set,
         # the subscriber only receives session-tagged events for that session.
         self._ws_subscribers: Dict[str, Dict[asyncio.Queue, Optional[str]]] = {}
+        # ===== Auto-reconnect (self-healing paired rooms) =====
+        # room_id -> asyncio.Task running the backoff retry loop while a room is offline.
+        self._reconnect_tasks: Dict[str, asyncio.Task] = {}
+        # rooms that were explicitly unpaired -> never auto-reconnect (retry can't recover them).
+        self._unpaired_rooms: set = set()
 
     # ----- WebSocket event fan-out -----
 
@@ -478,6 +867,69 @@ class RoomManager:
                     queue.put_nowait(payload)
                 except asyncio.QueueFull:
                     pass
+
+    # ----- Auto-reconnect (self-healing) -----
+    # Backoff schedule (seconds) between reconnect attempts; holds at the final value.
+    _RECONNECT_BACKOFF = (5, 10, 20, 30)
+
+    def schedule_reconnect(self, room_id: str) -> None:
+        """Room went offline -> start a backoff retry loop. Safe to call from any thread."""
+        loop = self._event_loop
+        if loop is not None:
+            loop.call_soon_threadsafe(self._start_reconnect, room_id)
+
+    def cancel_reconnect(self, room_id: str) -> None:
+        """Room reconnected (or is going away) -> stop retrying. Safe from any thread."""
+        loop = self._event_loop
+        if loop is not None:
+            loop.call_soon_threadsafe(self._stop_reconnect, room_id)
+
+    def mark_unpaired(self, room_id: str) -> None:
+        """Room was unpaired -> stop retrying and don't restart (retry can't recover it)."""
+        self._unpaired_rooms.add(room_id)
+        self.cancel_reconnect(room_id)
+
+    def _start_reconnect(self, room_id: str) -> None:
+        """On the loop thread: launch one reconnect loop per room, if warranted."""
+        if room_id in self._unpaired_rooms:
+            return
+        task = self._reconnect_tasks.get(room_id)
+        if task and not task.done():
+            return  # already retrying this room
+        self._reconnect_tasks[room_id] = self._event_loop.create_task(self._reconnect_loop(room_id))
+
+    def _stop_reconnect(self, room_id: str) -> None:
+        """On the loop thread: cancel any running reconnect loop for a room."""
+        task = self._reconnect_tasks.pop(room_id, None)
+        if task and not task.done():
+            task.cancel()
+
+    async def _reconnect_loop(self, room_id: str) -> None:
+        """Call the room's RetryToPairRoom() on a backoff until it reconnects.
+
+        Cancelled by cancel_reconnect() when ConnectionStateConnected fires; self-exits
+        if the room is unpaired or no longer managed. RetryToPairRoom only kicks off the
+        reconnect - success arrives asynchronously via OnZRConnectionStateChanged.
+        """
+        attempt = 0
+        try:
+            while True:
+                delay = self._RECONNECT_BACKOFF[min(attempt, len(self._RECONNECT_BACKOFF) - 1)]
+                await asyncio.sleep(delay)
+                if room_id in self._unpaired_rooms:
+                    return
+                room_service = self.rooms.get(room_id)
+                if room_service is None:
+                    return  # room no longer managed
+                attempt += 1
+                try:
+                    result = room_service.RetryToPairRoom()
+                    logger.info(f"[{room_id}] auto-reconnect attempt {attempt}: {result}")
+                except Exception as e:
+                    logger.error(f"[{room_id}] auto-reconnect attempt {attempt} raised: {e}")
+        except asyncio.CancelledError:
+            logger.info(f"[{room_id}] auto-reconnect stopped (reconnected or shutting down)")
+            raise
 
     def initialize(self):
         """Initialize the SDK"""
@@ -587,6 +1039,8 @@ class RoomManager:
 
     def register_sinks_for_room(self, room_id: str, room_service):
         """Register callback sinks for a room service"""
+        # (Re)pairing/restoring a room clears any prior unpaired flag so it can auto-reconnect again.
+        self._unpaired_rooms.discard(room_id)
         # Register room service callback sink
         room_sink = ZoomRoomsServiceSink(room_id)
         room_sink.mgr = self
@@ -607,6 +1061,95 @@ class RoomManager:
             logger.info(f"✓ Registered pre-meeting sink for: {room_id}")
         else:
             logger.error(f"Failed to register pre-meeting sink: {result}")
+
+        # Pre-meeting helper sinks (control system, BYOD)
+        for helper_getter, sink_cls, store, label in (
+            (premeeting.GetControlSystemHelper, ControlSystemHelperSink, self.control_system_sinks, "control system"),
+            (premeeting.GetBYODHelper, BYODHelperSink, self.byod_sinks, "BYOD"),
+        ):
+            helper = helper_getter()
+            if not helper:
+                logger.error(f"Failed to get {label} helper for room: {room_id}")
+                continue
+            sink = sink_cls(room_id)
+            sink.mgr = self
+            result = helper.RegisterSink(sink)
+            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                store[room_id] = sink
+                logger.info(f"✓ Registered {label} sink for: {room_id}")
+            else:
+                logger.error(f"Failed to register {label} sink: {result}")
+
+        # Register phone-call service sink (SIP calls — service-level, independent of meetings)
+        phone_call_service = room_service.GetPhoneCallService()
+        if phone_call_service:
+            phone_call_sink = PhoneCallServiceSink(room_id)
+            phone_call_sink.mgr = self
+            result = phone_call_service.RegisterSink(phone_call_sink)
+            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                self.phone_call_sinks[room_id] = phone_call_sink
+                logger.info(f"✓ Registered phone call sink for: {room_id}")
+            else:
+                logger.error(f"Failed to register phone call sink: {result}")
+        else:
+            logger.error(f"Failed to get phone call service for room: {room_id}")
+
+        # Register setting service sink (device lists, volume, mute, network — service-level)
+        setting_service = room_service.GetSettingService()
+        if setting_service:
+            setting_sink = SettingServiceSink(room_id)
+            setting_sink.mgr = self
+            result = setting_service.RegisterSink(setting_sink)
+            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                self.setting_sinks[room_id] = setting_sink
+                logger.info(f"✓ Registered setting service sink for: {room_id}")
+            else:
+                logger.error(f"Failed to register setting service sink: {result}")
+
+            # Calibration helper sink (camera calibration — hangs off setting service)
+            calibration_helper = setting_service.GetCalibrationHelper()
+            if calibration_helper:
+                calibration_sink = CalibrationHelperSink(room_id)
+                calibration_sink.mgr = self
+                result = calibration_helper.RegisterSink(calibration_sink)
+                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                    self.calibration_sinks[room_id] = calibration_sink
+                    logger.info(f"✓ Registered calibration sink for: {room_id}")
+                else:
+                    logger.error(f"Failed to register calibration sink: {result}")
+        else:
+            logger.error(f"Failed to get setting service for room: {room_id}")
+
+        # Register Pro AV service sink + its HWIO / Dante helper sinks (service-level)
+        proav_service = room_service.GetProAVService()
+        if proav_service:
+            proav_sink = ProAVServiceSink(room_id)
+            proav_sink.mgr = self
+            result = proav_service.RegisterSink(proav_sink)
+            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                self.proav_sinks[room_id] = proav_sink
+                logger.info(f"✓ Registered pro AV sink for: {room_id}")
+            else:
+                logger.error(f"Failed to register pro AV sink: {result}")
+
+            for helper_getter, sink_cls, store, label in (
+                (proav_service.GetHWIOHelper, HWIOHelperSink, self.hwio_sinks, "HWIO"),
+                (proav_service.GetDanteOutputHelper, DanteOutputHelperSink, self.dante_sinks, "Dante output"),
+            ):
+                helper = helper_getter()
+                if not helper:
+                    logger.error(f"Failed to get {label} helper for room: {room_id}")
+                    continue
+                sink = sink_cls(room_id)
+                sink.mgr = self
+                result = helper.RegisterSink(sink)
+                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                    store[room_id] = sink
+                    logger.info(f"✓ Registered {label} sink for: {room_id}")
+                else:
+                    logger.error(f"Failed to register {label} sink: {result}")
+        else:
+            logger.error(f"Failed to get pro AV service for room: {room_id}")
 
         meeting_service = room_service.GetMeetingService()
         if meeting_service:
@@ -686,6 +1229,29 @@ class RoomManager:
                     logger.error(f"Failed to register waiting room sink: {result}")
             else:
                 logger.error(f"Failed to get waiting room helper for room: {room_id}")
+
+            # Register remaining in-meeting helper sinks (recording, audio, video, share)
+            for helper_getter, sink_cls, store, label in (
+                (meeting_service.GetRecordingHelper, RecordingHelperSink, self.recording_sinks, "recording"),
+                (meeting_service.GetMeetingAudioHelper, MeetingAudioHelperSink, self.meeting_audio_sinks, "meeting audio"),
+                (meeting_service.GetMeetingVideoHelper, MeetingVideoHelperSink, self.meeting_video_sinks, "meeting video"),
+                (meeting_service.GetMeetingShareHelper, MeetingShareHelperSink, self.meeting_share_sinks, "meeting share"),
+                (meeting_service.GetMeetingViewLayoutHelper, MeetingViewLayoutHelperSink, self.meeting_viewlayout_sinks, "view layout"),
+                (meeting_service.GetClosedCaptionHelper, ClosedCaptionHelperSink, self.closed_caption_sinks, "closed caption"),
+                (meeting_service.GetNDIHelper, NDIHelperSink, self.ndi_sinks, "NDI"),
+            ):
+                helper = helper_getter()
+                if not helper:
+                    logger.error(f"Failed to get {label} helper for room: {room_id}")
+                    continue
+                sink = sink_cls(room_id)
+                sink.mgr = self
+                result = helper.RegisterSink(sink)
+                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
+                    store[room_id] = sink
+                    logger.info(f"✓ Registered {label} sink for: {room_id}")
+                else:
+                    logger.error(f"Failed to register {label} sink: {result}")
         else:
             logger.error(f"Failed to get meeting service for room: {room_id}")
 
@@ -732,6 +1298,9 @@ class RoomManager:
     def shutdown(self):
         """Clean up SDK resources"""
         logger.info("Shutting down SDK...")
+        # Stop any in-flight auto-reconnect loops.
+        for room_id in list(self._reconnect_tasks):
+            self._stop_reconnect(room_id)
         for room_id, room_service in list(self.rooms.items()):
             try:
                 room_service.DeregisterSink()

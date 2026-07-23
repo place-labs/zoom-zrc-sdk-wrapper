@@ -18,6 +18,7 @@
 #include "ServiceComponents/IMeetingVideoHelper.h"
 #include "ServiceComponents/IMeetingControlHelper.h"
 #include "ServiceComponents/IWaitingRoomHelper.h"
+#include "ServiceComponents/IClosedCaptionHelper.h"
 #include "ServiceComponents/IMeetingListHelper.h"
 #include "ServiceComponents/IMeetingReminderHelper.h"
 #include "ServiceComponents/IMeetingShareHelper.h"
@@ -47,6 +48,7 @@ public:
     SimpleSinkImpl(py::object obj) : py_sink(obj) {}
 
     std::string OnGetDeviceManufacturer() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceManufacturer")) {
             return py_sink.attr("OnGetDeviceManufacturer")().cast<std::string>();
         }
@@ -54,6 +56,7 @@ public:
     }
 
     std::string OnGetDeviceModel() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceModel")) {
             return py_sink.attr("OnGetDeviceModel")().cast<std::string>();
         }
@@ -61,6 +64,7 @@ public:
     }
 
     std::string OnGetDeviceSerialNumber() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceSerialNumber")) {
             return py_sink.attr("OnGetDeviceSerialNumber")().cast<std::string>();
         }
@@ -68,6 +72,7 @@ public:
     }
 
     std::string OnGetDeviceMacAddress() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceMacAddress")) {
             return py_sink.attr("OnGetDeviceMacAddress")().cast<std::string>();
         }
@@ -75,6 +80,7 @@ public:
     }
 
     std::string OnGetDeviceIP() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceIP")) {
             return py_sink.attr("OnGetDeviceIP")().cast<std::string>();
         }
@@ -82,6 +88,7 @@ public:
     }
 
     std::string OnGetFirmwareVersion() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetFirmwareVersion")) {
             return py_sink.attr("OnGetFirmwareVersion")().cast<std::string>();
         }
@@ -89,6 +96,7 @@ public:
     }
 
     std::string OnGetAppName() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppName")) {
             return py_sink.attr("OnGetAppName")().cast<std::string>();
         }
@@ -96,6 +104,7 @@ public:
     }
 
     std::string OnGetAppVersion() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppVersion")) {
             return py_sink.attr("OnGetAppVersion")().cast<std::string>();
         }
@@ -103,6 +112,7 @@ public:
     }
 
     std::string OnGetAppDeveloper() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppDeveloper")) {
             return py_sink.attr("OnGetAppDeveloper")().cast<std::string>();
         }
@@ -110,6 +120,7 @@ public:
     }
 
     std::string OnGetAppContact() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppContact")) {
             return py_sink.attr("OnGetAppContact")().cast<std::string>();
         }
@@ -117,6 +128,7 @@ public:
     }
 
     std::string OnGetAppContentDirPath() override {
+        py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppContentDirPath")) {
             return py_sink.attr("OnGetAppContentDirPath")().cast<std::string>();
         }
@@ -551,6 +563,669 @@ public:
     void OnUpdateMeetingMynotesSetting(const MeetingMynotesSetting& setting) override {}
 };
 
+class RecordingHelperSinkTrampoline : public IRecordingHelperSink {
+private:
+    py::object py_sink;
+public:
+    RecordingHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnUpdateMeetingRecordingInfo(const MeetingRecordingInfo& recordingInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMeetingRecordingInfo")) {
+            py_sink.attr("OnUpdateMeetingRecordingInfo")(recordingInfo);
+        }
+    }
+    void OnMeetingCloudRecordingErrorNotification(bool show, MeetingRecordingError errorCode, bool hasCMREdit, uint64_t gracePeriodDate) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingCloudRecordingErrorNotification")) {
+            py_sink.attr("OnMeetingCloudRecordingErrorNotification")(show, errorCode, hasCMREdit, gracePeriodDate);
+        }
+    }
+    // Second (2-arg) overload forwarded under a distinct Python name.
+    void OnMeetingCloudRecordingErrorNotification(bool result, const std::string& reason) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingCloudRecordingErrorReason")) {
+            py_sink.attr("OnMeetingCloudRecordingErrorReason")(result, reason);
+        }
+    }
+    void OnNeedPromptStartRecordingDisclaimerUpdate(bool need) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnNeedPromptStartRecordingDisclaimerUpdate")) {
+            py_sink.attr("OnNeedPromptStartRecordingDisclaimerUpdate")(need);
+        }
+    }
+    void OnQueryMeetingCloudRecordingNotification(MeetingRecordingError errorCode, bool hasCMREdit) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnQueryMeetingCloudRecordingNotification")) {
+            py_sink.attr("OnQueryMeetingCloudRecordingNotification")(errorCode, hasCMREdit);
+        }
+    }
+    void OnUpdateMeetingUserRecordingStatus(int32_t userID, bool canRecord, bool isRecording, bool isLocalRecordingDisabled) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMeetingUserRecordingStatus")) {
+            py_sink.attr("OnUpdateMeetingUserRecordingStatus")(userID, canRecord, isRecording, isLocalRecordingDisabled);
+        }
+    }
+    void OnSetRecordingNotificationEmailNotification(int32_t result) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnSetRecordingNotificationEmailNotification")) {
+            py_sink.attr("OnSetRecordingNotificationEmailNotification")(result);
+        }
+    }
+    void OnSetMeetingRecordingResult(int32_t result, const std::string& recordingNotificationEmail, RecordingRequestType type) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnSetMeetingRecordingResult")) {
+            py_sink.attr("OnSetMeetingRecordingResult")(result, recordingNotificationEmail, type);
+        }
+    }
+    void OnUpdateRecordingPermission(const std::vector<RecordPermissionInfo>& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateRecordingPermission")) {
+            py_sink.attr("OnUpdateRecordingPermission")(info);
+        }
+    }
+    void OnReceiveRecordingRequest(const RecordingRequestInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnReceiveRecordingRequest")) {
+            py_sink.attr("OnReceiveRecordingRequest")(info);
+        }
+    }
+};
+
+class MeetingAudioHelperSinkTrampoline : public IMeetingAudioHelperSink {
+private:
+    py::object py_sink;
+public:
+    MeetingAudioHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnUpdateMyAudioStatus(const AudioStatus& audioStatus) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMyAudioStatus")) {
+            py_sink.attr("OnUpdateMyAudioStatus")(audioStatus);
+        }
+    }
+    void OnMuteUserAudioNotification(int32_t userID, const AudioStatus& audioStatus) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMuteUserAudioNotification")) {
+            py_sink.attr("OnMuteUserAudioNotification")(userID, audioStatus);
+        }
+    }
+    void OnMuteOnEntryNotification(bool isMuteOnEntry) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMuteOnEntryNotification")) {
+            py_sink.attr("OnMuteOnEntryNotification")(isMuteOnEntry);
+        }
+    }
+    void OnAskUnmuteAudioByHostNotification(bool show, AskUnmuteAudioByHostType type) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnAskUnmuteAudioByHostNotification")) {
+            py_sink.attr("OnAskUnmuteAudioByHostNotification")(show, type);
+        }
+    }
+    void OnAllowAttendeesUnmuteThemselvesNotification(bool canAttendeesUnmuteThemselves) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnAllowAttendeesUnmuteThemselvesNotification")) {
+            py_sink.attr("OnAllowAttendeesUnmuteThemselvesNotification")(canAttendeesUnmuteThemselves);
+        }
+    }
+    // Unforwarded (required overrides — no-ops):
+    void OnEnablePlayJoinOrLeaveChimeNotification(bool enable) override {}
+    void OnUpdateAudioTroubleShootingStatus(const AudioTroubleShootingStatus& status) override {}
+    void OnFEACApproveNotification(int32_t farEndUserID, const std::string& farEndUserName) override {}
+    void OnFEACDeclineNotification(int32_t farEndUserID, const std::string& farEndUserName) override {}
+    void OnFEACTakeOverNotification(int32_t farEndUserID, const std::string& farEndUserName, int32_t controllingUserID, const std::string& controllingUserName) override {}
+    void OnFEACMicListChangedNotification(int32_t farEndUserID, const std::vector<FarEndAudioDeviceInfo>& micList) override {}
+    void OnFEACSpeakerListChangedNotification(int32_t farEndUserID, const std::vector<FarEndAudioDeviceInfo>& speakerList) override {}
+    void OnFEACMuteStateChangedNotification(int32_t farEndUserID, bool muteState) override {}
+    void OnFEACUnmuteDisabledByHostNotification(int32_t farEndUserID) override {}
+    void OnFEACRequestNotification(int32_t requesterUserID, const std::string& requesterUserName) override {}
+    void OnFEACGiveUpNotification(int32_t requesterUserID, const std::string& requesterUserName) override {}
+    void OnFEACApproveControlRequestNotification(int32_t requesterUserID) override {}
+    void OnFEACDeclineControlRequestNotification(int32_t requesterUserID) override {}
+};
+
+class MeetingVideoHelperSinkTrampoline : public IMeetingVideoHelperSink {
+private:
+    py::object py_sink;
+public:
+    MeetingVideoHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnUpdateMyVideoNotification(const VideoStatus& videoStatus) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateMyVideoNotification")) {
+            py_sink.attr("OnUpdateMyVideoNotification")(videoStatus);
+        }
+    }
+    void OnMuteUserVideoNotification(int32_t userID, const VideoStatus& videoStatus) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMuteUserVideoNotification")) {
+            py_sink.attr("OnMuteUserVideoNotification")(userID, videoStatus);
+        }
+    }
+    void OnAskStartVideoByHostNotification(int32_t userID) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnAskStartVideoByHostNotification")) {
+            py_sink.attr("OnAskStartVideoByHostNotification")(userID);
+        }
+    }
+    void OnSpotlightStatusNotification(const SpotlightStatus& spotlightStatus) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnSpotlightStatusNotification")) {
+            py_sink.attr("OnSpotlightStatusNotification")(spotlightStatus);
+        }
+    }
+    void OnUpdateAllowAttendeesStartVideo(bool allow) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateAllowAttendeesStartVideo")) {
+            py_sink.attr("OnUpdateAllowAttendeesStartVideo")(allow);
+        }
+    }
+    // Unforwarded (deep-nested settings structs — required overrides, no-ops):
+    void OnUpdateScreenStatusForPinNotification(const std::vector<ScreenStatusForPin>& pinStatusList, PinShareWarningType warningType) override {}
+    void OnMyVideoSettingsNotification(const MyVideoSettings& settings) override {}
+    void OnMyMeetingVideoSettingsNotification(const MyMeetingVideoSettings& settings) override {}
+};
+
+class MeetingShareHelperSinkTrampoline : public IMeetingShareHelperSink {
+private:
+    py::object py_sink;
+public:
+    MeetingShareHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnSharingStatusNotification(const SharingStatus& status) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnSharingStatusNotification")) {
+            py_sink.attr("OnSharingStatusNotification")(status);
+        }
+    }
+    void OnShareSettingNotification(const ShareSetting& setting) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnShareSettingNotification")) {
+            py_sink.attr("OnShareSettingNotification")(setting);
+        }
+    }
+    void OnSharingSourceNotification(const std::vector<ShareSource>& zrShareSources, const std::vector<ShareSource>& zrwShareSources) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnSharingSourceNotification")) {
+            py_sink.attr("OnSharingSourceNotification")(zrShareSources, zrwShareSources);
+        }
+    }
+    void OnIncomingMeetingShareNotification(const IncomingMeetingShareNot& noti) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnIncomingMeetingShareNotification")) {
+            py_sink.attr("OnIncomingMeetingShareNotification")(noti);
+        }
+    }
+    void OnUpdateLocalViewStatus(bool isOn) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateLocalViewStatus")) {
+            py_sink.attr("OnUpdateLocalViewStatus")(isOn);
+        }
+    }
+    void OnStartLocalPresentResult(bool isSharingMeeting, SharingInstructionDisplayState displayState) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnStartLocalPresentResult")) {
+            py_sink.attr("OnStartLocalPresentResult")(isSharingMeeting, displayState);
+        }
+    }
+    // Unforwarded (required overrides — no-ops):
+    void OnStartLocalPresentNotification(const LocalPresentationInfo& info) override {}
+    void OnSwitchToNormalMeetingResult(int result) override {}
+    void OnShowSharingInstructionResult(int result, bool show, SharingInstructionDisplayState instructionState) override {}
+    void OnUpdateAirPlayBlackMagicStatus(const AirplayBlackMagicStatus& status) override {}
+    void OnUpdateCameraSharingStatus(const CameraSharingStatus& status) override {}
+    void OnHDMI60FPSShareInfoNotification(bool isAllow, bool isOn, HDMI60FPSShareDisableReason disableReason) override {}
+    void OnHDMIShareResolutionAndFrameRateNotification(const std::vector<HDMIShareResolutionAndFrameRateOption>& selectionList, uint32_t selectedType) override {}
+    void OnLocalHDMIShareAudioPlaybackNotification(bool isEnabled) override {}
+    void OnUpdateClassicWhiteboardShareStatusNotification(const ClassicWhiteboardShareStatus& status) override {}
+    void OnZRWSharingStatusNotification(const ZRWSharingStatus& status) override {}
+    void OnSlideControlNotification(const std::vector<SlideControlInfo>& slideControlInfos) override {}
+    void OnDocsShareSettingsNotification(const DocsShareSettingsInfo& info) override {}
+};
+
+class PhoneCallServiceSinkTrampoline : public IPhoneCallServiceSink {
+private:
+    py::object py_sink;
+public:
+    PhoneCallServiceSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnReceiveIncomingSIPCallNotification(const SIPCallInfo& sipCallInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnReceiveIncomingSIPCallNotification")) {
+            py_sink.attr("OnReceiveIncomingSIPCallNotification")(sipCallInfo);
+        }
+    }
+    void OnUpdateSIPCallStatusNotification(const SIPCallInfo& sipCallInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateSIPCallStatusNotification")) {
+            py_sink.attr("OnUpdateSIPCallStatusNotification")(sipCallInfo);
+        }
+    }
+    void OnUpdateSIPServiceStatusNotification(const SIPService& sipService) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateSIPServiceStatusNotification")) {
+            py_sink.attr("OnUpdateSIPServiceStatusNotification")(sipService);
+        }
+    }
+    void OnTerminateSIPCallNotification(SIPCallTerminateReason reason, const SIPCallInfo& sipCallInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnTerminateSIPCallNotification")) {
+            py_sink.attr("OnTerminateSIPCallNotification")(reason, sipCallInfo);
+        }
+    }
+    void OnUpdateSIPCallAudioStatusNotification(bool muted) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateSIPCallAudioStatusNotification")) {
+            py_sink.attr("OnUpdateSIPCallAudioStatusNotification")(muted);
+        }
+    }
+    void OnAnswerSIPCallResult(bool succeeded, const SIPCallInfo& sipCallInfo, bool accepted) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnAnswerSIPCallResult")) {
+            py_sink.attr("OnAnswerSIPCallResult")(succeeded, sipCallInfo, accepted);
+        }
+    }
+    void OnUpgradeSIPCallToMeetingResult(bool succeeded, const SIPCallInfo& sipCallInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpgradeSIPCallToMeetingResult")) {
+            py_sink.attr("OnUpgradeSIPCallToMeetingResult")(succeeded, sipCallInfo);
+        }
+    }
+    void OnUpgradeSIPCallToMeetingNotification(bool succeeded, const SIPCallInfo& sipCallInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpgradeSIPCallToMeetingNotification")) {
+            py_sink.attr("OnUpgradeSIPCallToMeetingNotification")(succeeded, sipCallInfo);
+        }
+    }
+    void OnTransferSIPCallResult(bool succeeded, const SIPCallInfo& sipCallInfo, const SIPCallTransferInfo& transferInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnTransferSIPCallResult")) {
+            py_sink.attr("OnTransferSIPCallResult")(succeeded, sipCallInfo, transferInfo);
+        }
+    }
+    void OnTransferSIPCallNotification(bool succeeded, const SIPCallInfo& sipCallInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnTransferSIPCallNotification")) {
+            py_sink.attr("OnTransferSIPCallNotification")(succeeded, sipCallInfo);
+        }
+    }
+    // Unforwarded (required overrides — no-ops):
+    void OnAcceptSIPCallToMeetingResult(bool succeeded, const SIPCallInfo& sipCallInfo) override {}
+    void OnUpdateSIPCallPeerResult(bool succeeded, const SIPCallInfo& sipCallInfo) override {}
+    void OnUpdateSIPCallAudioResult(bool succeeded) override {}
+    void OnTreatSIPCallNotification(bool accepted, const SIPCallInfo& sipCallInfo) override {}
+    void OnInviteSIPCallToJoinMeetingNotification(const SIPCallInfo& sipCallInfo) override {}
+};
+
+class MeetingViewLayoutHelperSinkTrampoline : public IMeetingViewLayoutHelperSink {
+private:
+    py::object py_sink;
+public:
+    MeetingViewLayoutHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnUpdateWallviewStyleNotification(const WallViewStyleStatus& status) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateWallviewStyleNotification")) {
+            py_sink.attr("OnUpdateWallviewStyleNotification")(status);
+        }
+    }
+    void OnUpdateVideoThumbInfo(const VideoThumbInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateVideoThumbInfo")) {
+            py_sink.attr("OnUpdateVideoThumbInfo")(info);
+        }
+    }
+    void OnUpdateVideoPageStatusNotification(const VideoPageStatus& noti) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateVideoPageStatusNotification")) {
+            py_sink.attr("OnUpdateVideoPageStatusNotification")(noti);
+        }
+    }
+    void OnUpdateIsNonVideoParticipantsShowedNotification(bool isShowNonVideoParticipants) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateIsNonVideoParticipantsShowedNotification")) {
+            py_sink.attr("OnUpdateIsNonVideoParticipantsShowedNotification")(isShowNonVideoParticipants);
+        }
+    }
+    void OnUpdateScreenLayoutStatus(const ScreenLayoutStatus& status) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateScreenLayoutStatus")) {
+            py_sink.attr("OnUpdateScreenLayoutStatus")(status);
+        }
+    }
+    void OnConfidenceMonitorNotification(const ConfidenceMonitorInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnConfidenceMonitorNotification")) {
+            py_sink.attr("OnConfidenceMonitorNotification")(info);
+        }
+    }
+    void OnDynamicLayoutOptionNotification(DynamicLayoutType layout) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnDynamicLayoutOptionNotification")) {
+            py_sink.attr("OnDynamicLayoutOptionNotification")(layout);
+        }
+    }
+    void OnThumbnailsPositionNotification(ThumbnailsPositionType type) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnThumbnailsPositionNotification")) {
+            py_sink.attr("OnThumbnailsPositionNotification")(type);
+        }
+    }
+    void OnChangeAttendeeViewNotification(AttendeeViewLayoutType layout) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnChangeAttendeeViewNotification")) {
+            py_sink.attr("OnChangeAttendeeViewNotification")(layout);
+        }
+    }
+    void OnVideoOrderNotification(const VideoOrderInfo& videoOrderInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnVideoOrderNotification")) {
+            py_sink.attr("OnVideoOrderNotification")(videoOrderInfo);
+        }
+    }
+    // Unforwarded (required overrides — no-ops):
+    void OnUpdateShowUpTo49PerPageInGallery(bool enabled) override {}
+    void OnAutoSwitchSpeakerNotification(bool support, bool enable) override {}
+    void OnAttendeeViewLayoutEnableShareContentOnlyNotification(bool isSupport, bool isEnable) override {}
+    void OnUpdateGalleryGridSelectionNotification(bool isEnabled, uint32_t row, uint32_t column) override {}
+};
+
+class SettingServiceSinkTrampoline : public ISettingServiceSink {
+private:
+    py::object py_sink;
+public:
+    SettingServiceSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnMicrophoneListChanged(const std::vector<Device>& microphones) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMicrophoneListChanged")) py_sink.attr("OnMicrophoneListChanged")(microphones);
+    }
+    void OnSpeakerListChanged(const std::vector<Device>& speakers) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnSpeakerListChanged")) py_sink.attr("OnSpeakerListChanged")(speakers);
+    }
+    void OnCameraListChanged(const std::vector<Device>& cameras) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCameraListChanged")) py_sink.attr("OnCameraListChanged")(cameras);
+    }
+    void OnUpdateCOMList(const std::vector<Device>& comList) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateCOMList")) py_sink.attr("OnUpdateCOMList")(comList);
+    }
+    void OnCurrentMicrophoneChanged(bool exist, const Device& microphone) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCurrentMicrophoneChanged")) py_sink.attr("OnCurrentMicrophoneChanged")(exist, microphone);
+    }
+    void OnCurrentSpeakerChanged(bool exist, const Device& speaker) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCurrentSpeakerChanged")) py_sink.attr("OnCurrentSpeakerChanged")(exist, speaker);
+    }
+    void OnCurrentCameraChanged(bool exist, const Device& camera) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCurrentCameraChanged")) py_sink.attr("OnCurrentCameraChanged")(exist, camera);
+    }
+    void OnCurrentMicrophoneVolumeChanged(float volume) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCurrentMicrophoneVolumeChanged")) py_sink.attr("OnCurrentMicrophoneVolumeChanged")(volume);
+    }
+    void OnCurrentSpeakerVolumeChanged(float volume) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCurrentSpeakerVolumeChanged")) py_sink.attr("OnCurrentSpeakerVolumeChanged")(volume);
+    }
+    void OnCurrentSelectedMicrophoneMuted(bool muted) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCurrentSelectedMicrophoneMuted")) py_sink.attr("OnCurrentSelectedMicrophoneMuted")(muted);
+    }
+    void OnNetworkAdapterUpdateInfo(const std::vector<NetworkAdapterInfo>& networkAdapterInfos) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnNetworkAdapterUpdateInfo")) py_sink.attr("OnNetworkAdapterUpdateInfo")(networkAdapterInfos);
+    }
+    // Unforwarded (required overrides — no-ops; deep/niche settings state):
+    void OnCompanionZRDeviceUpdateNotification(const CompanionZRDeviceUpdateNot& noti) override {}
+    void OnUpdateHardwareStatus(const HardwareStatus& status) override {}
+    void OnUpdatedGenericSettings(const GenericSettings& genericSettings) override {}
+    void OnUpdateVoiceCommandStatus(const VoiceCommandStatus& status) override {}
+    void OnUpdateRoomProfileList(const RoomProfileList& list) override {}
+    void OnUpdateZoomRoomCapability(const RoomCapability& roomCapability) override {}
+    void OnMicrophoneTestingNotification(int32_t volume) override {}
+    void OnMicrophoneRecordingNotification(MicRecordTestStatus status) override {}
+    void OnSpeakerTestingNotification(int32_t volume, bool isEnabled) override {}
+    void OnSpeakerTestingResult(int32_t result, float duration, bool isStopped) override {}
+    void OnStatisticalInfoNotification(const StatisticalInfo& info) override {}
+    void OnAudioCheckupNotification(const AudioCheckupInfo& info) override {}
+    void OnAudioSystemFailureNotification(bool isDismiss) override {}
+    void OnScreenInfosNotification(const ScreenInfos& screenInfos) override {}
+    void OnAdjustScreensResponse(const AdjustScreensRes& response) override {}
+    void OnZoomPresenceScreenSaverNotification(bool running) override {}
+    void OnUpdatedOperationTimeStatusNotification(bool shouldDimScreen) override {}
+    void OnDirectorCalibrationNotification(const DirectorCalibrationNot& noti) override {}
+    void OnIntelligentDirectorInfoNotification(const IntelligentDirectorInfo& info) override {}
+    void OnCameraBoundaryConfigurationInfoNotification(const CameraBoundaryConfigurationInfo& info) override {}
+    void OnUpdateDiagnosticInfo(const DiagnosticInfo& info) override {}
+    void OnChangeWindowsPasswordNotification(int32_t result) override {}
+    void OnUpdateNetworkAudioDeviceList(const std::string& virtualDeviceID, NetworkAudioDeviceListAction action, const std::vector<NetworkAudioDevice>& networkAudioDeviceList, bool isUsedDanteController) override {}
+    void OnListAudioChannelAndCameraBindInfoNotification(const std::vector<AudioChannelAndCameraBindInfo>& bindInfoList) override {}
+    void OnBindAudioChannelAndCameraNotification(const std::vector<AudioChannelAndCameraBindInfo>& bindInfoList) override {}
+    void OnUnbindAudioChannelAndCameraNotification(const std::vector<AudioChannelAndCameraBindInfo>& bindInfoList) override {}
+    void OnUnbindAllAudioChannelAndCameraConnectionsNotification(const std::vector<AudioChannelAndCameraBindInfo>& bindInfoList) override {}
+    void OnUpdateMicStethoscopeModeEnabledStatus(bool isMicStethoscopeModeEnabled) override {}
+    void OnUpdateSystemAudioEnhancementsMode(SystemAudioEnhancementsMode mode) override {}
+};
+
+class ClosedCaptionHelperSinkTrampoline : public IClosedCaptionHelperSink {
+private:
+    py::object py_sink;
+public:
+    ClosedCaptionHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnUpdateClosedCaptionNotification(const ClosedCaptionInfo& closedCaptionInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateClosedCaptionNotification")) py_sink.attr("OnUpdateClosedCaptionNotification")(closedCaptionInfo);
+    }
+    void OnNewLTTLanguageNotification(const NewLTTCaptionInfo& newLttCaptionInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnNewLTTLanguageNotification")) py_sink.attr("OnNewLTTLanguageNotification")(newLttCaptionInfo);
+    }
+    void OnNewLTTCaptionNotification(NewLTTCaptionNotificationType type) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnNewLTTCaptionNotification")) py_sink.attr("OnNewLTTCaptionNotification")(type);
+    }
+    void OnMessageAdd(const LTTCaptionMessage& message) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMessageAdd")) py_sink.attr("OnMessageAdd")(message);
+    }
+    void OnMessageUpdate(const LTTCaptionMessage& message) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMessageUpdate")) py_sink.attr("OnMessageUpdate")(message);
+    }
+    void OnMessageLoad(const std::vector<LTTCaptionMessage>& messages, bool hasMoreHistory) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMessageLoad")) py_sink.attr("OnMessageLoad")(messages, hasMoreHistory);
+    }
+    // Unforwarded (required overrides — no-ops):
+    void OnClosedCaptionResponse(int32_t result, ClosedCaptionFontSize fontSize) override {}
+    void OnUpdateInterpretLanguageNotification(const InterpretLanguageInfoList& infoList) override {}
+    void OnMessageNotSupported(const LTTCaptionMessage& message) override {}
+    void OnMessageInstanceOnlySpeakerTagUpdate(const LTTCaptionMessage& message) override {}
+};
+
+class ProAVServiceSinkTrampoline : public IProAVServiceSink {
+private:
+    py::object py_sink;
+public:
+    ProAVServiceSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnProAVVideoOverlaySettingsNotification(const ProAVVideoOverlaySettings& settings) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnProAVVideoOverlaySettingsNotification")) py_sink.attr("OnProAVVideoOverlaySettingsNotification")(settings);
+    }
+    void OnProAVUnassignedBehaviorNotification(const ProAVUnassignedBehavior& behavior) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnProAVUnassignedBehaviorNotification")) py_sink.attr("OnProAVUnassignedBehaviorNotification")(behavior);
+    }
+    void OnProAVVideoLossBehaviorNotification(const ProAVVideoLossBehavior& behavior) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnProAVVideoLossBehaviorNotification")) py_sink.attr("OnProAVVideoLossBehaviorNotification")(behavior);
+    }
+    void OnProAVNonPersistentAssignedGalleryUpdate(const ProAVAssignedGalleryInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnProAVNonPersistentAssignedGalleryUpdate")) py_sink.attr("OnProAVNonPersistentAssignedGalleryUpdate")(info);
+    }
+    void OnProAVPersistentAssignedGalleryUpdate(const std::vector<ProAVAssignedGalleryInfo>& infos) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnProAVPersistentAssignedGalleryUpdate")) py_sink.attr("OnProAVPersistentAssignedGalleryUpdate")(infos);
+    }
+    void OnProAVAssignedGalleryStatusUpdate(const ProAVAssignedGalleryStatus& status, const std::vector<uint32_t>& deleteIndices) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnProAVAssignedGalleryStatusUpdate")) py_sink.attr("OnProAVAssignedGalleryStatusUpdate")(status, deleteIndices);
+    }
+    void OnProAVAssignedGalleryHideOptionsUpdate(const ProAVAssignedGalleryHideOptions& options) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnProAVAssignedGalleryHideOptionsUpdate")) py_sink.attr("OnProAVAssignedGalleryHideOptionsUpdate")(options);
+    }
+    void OnProAVDeleteAssignedGallerySeatFailed(const std::vector<uint32_t>& deleteIndices) override {}
+};
+
+class HWIOHelperSinkTrampoline : public IHWIOHelperSink {
+private:
+    py::object py_sink;
+public:
+    HWIOHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnHWIOServiceStatusUpdated(bool isServiceAvailable, bool isFeatureAllowed, const std::string& companionZRID) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnHWIOServiceStatusUpdated")) py_sink.attr("OnHWIOServiceStatusUpdated")(isServiceAvailable, isFeatureAllowed, companionZRID);
+    }
+    // Unforwarded (heavy device-tree structs — required overrides, no-ops):
+    void OnHWIOListDevicesResult(int32_t result, const HWIOInfo& info, const std::string& companionZRID) override {}
+    void OnHWIOConfigureDeviceResult(int32_t result, const HWIODeviceConfiguration& configuration, const std::string& companionZRID) override {}
+    void OnHWIOAssignDeviceResult(int32_t result, const HWIOAssignDeviceInfo& assignDeviceInfo, const std::string& companionZRID) override {}
+    void OnHWIODeviceUpdated(const HWIODeviceUpdate& deviceUpdate, const std::string& companionZRID) override {}
+    void OnHWIOSetVideoConvertPreferenceResult(int32_t result, const HWIOVideoConvertPreference& preference, const std::string& companionZRID) override {}
+    void OnHWIOSetInputSignalDetectionResult(int32_t result, const HWIOInputSignalDetection& signalDetection, const std::string& companionZRID) override {}
+};
+
+class DanteOutputHelperSinkTrampoline : public IDanteOutputHelperSink {
+private:
+    py::object py_sink;
+public:
+    DanteOutputHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnCreateLocalNetworkAudioDevice(int32_t result, const LocalNetworkAudioDeviceInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnCreateLocalNetworkAudioDevice")) py_sink.attr("OnCreateLocalNetworkAudioDevice")(result, info);
+    }
+    void OnDestroyLocalNetworkAudioDevice(int32_t result) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnDestroyLocalNetworkAudioDevice")) py_sink.attr("OnDestroyLocalNetworkAudioDevice")(result);
+    }
+    void OnLocalNetworkAudioDeviceError(const NetworkAudioError& error) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnLocalNetworkAudioDeviceError")) py_sink.attr("OnLocalNetworkAudioDeviceError")(error);
+    }
+    void OnLocalNetworkAudioDeviceInfoNotification(const LocalNetworkAudioDeviceInfo& info) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnLocalNetworkAudioDeviceInfoNotification")) py_sink.attr("OnLocalNetworkAudioDeviceInfoNotification")(info);
+    }
+    // Unforwarded (heavy connection-graph structs — required overrides, no-ops):
+    void OnBindUserAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnBindUserAudioConnectionError(const NetworkAudioError& result, int32_t userID, const LocalNetworkAudioChannelInfo& channel, AudioSignalType signalType) override {}
+    void OnUnbindUserAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindUserAudioConnectionError(const NetworkAudioError& result, int32_t userID, AudioSignalType signalType) override {}
+    void OnBindMixedAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnBindMixedAudioConnectionError(const NetworkAudioError& result, const LocalNetworkAudioChannelInfo& channel, AudioSignalType signalType) override {}
+    void OnUnbindMixedAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindMixedAudioConnectionError(const NetworkAudioError& result, AudioSignalType signalType) override {}
+    void OnUnbindAllAudioConnection(const NetworkAudioError& result, const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnListAllAudioConnection(const NetworkAudioError& result, const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUpdateAudioConnection(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindChannelAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindChannelAudioConnectionError(const NetworkAudioError& result, const LocalNetworkAudioChannelInfo& channel) override {}
+    void OnListAllUnbindChannel(const NetworkAudioError& result, const std::vector<LocalNetworkAudioChannelInfo>& txChannels) override {}
+    void OnBindShareContentAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnBindShareContentAudioConnectionError(const NetworkAudioError& result, const LocalNetworkAudioChannelInfo& channel, AudioSignalType signalType) override {}
+    void OnUnbindShareContentAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindShareContentAudioConnectionError(const NetworkAudioError& result, AudioSignalType signalType) override {}
+    void OnBindGalleryMixedAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnBindGalleryMixedAudioConnectionError(const NetworkAudioError& result, const NetworkAudioBroadcastGalleryBindInfo& galleryBindInfo, const LocalNetworkAudioChannelInfo& channel) override {}
+    void OnUnbindGalleryMixedAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindGalleryMixedAudioConnectionError(const NetworkAudioError& result, const NetworkAudioBroadcastGalleryBindInfo& galleryBindInfo) override {}
+    void OnBindInterpretationAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnBindInterpretationAudioConnectionError(const NetworkAudioError& result, int32_t languageID, const LocalNetworkAudioChannelInfo& channel) override {}
+    void OnUnbindInterpretationAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindInterpretationAudioConnectionError(const NetworkAudioError& result, int32_t languageID) override {}
+    void OnListAllOutputMixScreen(const NetworkAudioError& result, const std::vector<NetworkAudioBroadcastOutputMixBindInfo>& screens) override {}
+    void OnBindOutputMixAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnBindOutputMixAudioConnectionError(const NetworkAudioError& result, const NetworkAudioBroadcastOutputMixBindInfo& outputMixBindInfo, const LocalNetworkAudioChannelInfo& channel) override {}
+    void OnUnbindOutputMixAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
+    void OnUnbindOutputMixAudioConnectionError(const NetworkAudioError& result, const NetworkAudioBroadcastOutputMixBindInfo& outputMixBindInfo) override {}
+};
+
+class NDIHelperSinkTrampoline : public INDIHelperSink {
+private:
+    py::object py_sink;
+public:
+    NDIHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnNDIUsageSettingsNotification(const NDIUsageSettings& settings) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnNDIUsageSettingsNotification")) py_sink.attr("OnNDIUsageSettingsNotification")(settings);
+    }
+    void OnNDIDeviceListNotification(const std::vector<Device>& devices) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnNDIDeviceListNotification")) py_sink.attr("OnNDIDeviceListNotification")(devices);
+    }
+    // Unforwarded (NDISource-deep — required overrides, no-ops):
+    void OnNDIUsageNotification(const NDIUsageInfo& ndiUsageInfo) override {}
+    void OnNDIAvailableSourcesNotification(const std::vector<NDISource>& sources) override {}
+    void OnPersistentNDISourcesNotification(const std::vector<NDIPinnedSource>& sources) override {}
+};
+
+class ControlSystemHelperSinkTrampoline : public IControlSystemHelperSink {
+private:
+    py::object py_sink;
+public:
+    ControlSystemHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnEnableZRCSNotification(bool enable) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnEnableZRCSNotification")) py_sink.attr("OnEnableZRCSNotification")(enable);
+    }
+    void OnUpdateZRCSSceneList(const std::vector<ControlSystemSceneInfo>& scenes) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateZRCSSceneList")) py_sink.attr("OnUpdateZRCSSceneList")(scenes);
+    }
+    // Unforwarded (device-list tree — required override, no-op):
+    void OnUpdateZRCSDeviceList(ControlSystemUpdateDeviceType type, const ControlSystemDeviceList& list) override {}
+};
+
+class BYODHelperSinkTrampoline : public IBYODHelperSink {
+private:
+    py::object py_sink;
+public:
+    BYODHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+
+    void OnMakeEmergencyCallInBYODModeNotification(bool succeed) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMakeEmergencyCallInBYODModeNotification")) py_sink.attr("OnMakeEmergencyCallInBYODModeNotification")(succeed);
+    }
+    // Unforwarded (BYOD mode structs — required overrides, no-ops):
+    void OnBYODModeInfoNotification(const BYODModeInfo& info) override {}
+    void OnBYODModeResult(const BYODModeResult& result) override {}
+};
+
+class CalibrationHelperSinkTrampoline : public ICalibrationHelperSink {
+private:
+    py::object py_sink;
+public:
+    CalibrationHelperSinkTrampoline(py::object obj) : py_sink(obj) {}
+    // Camera-calibration wizard callbacks — sink registered; all no-op (deep/niche).
+    void OnDirectorCalibrationNotification(const DirectorCalibrationNot& noti) override {}
+    void OnIntelligentDirectorCalibrationActionChanged(IDCalibrationAction currentAction, const std::vector<IDCalibrationAction>& actionsOfNextStep, const std::vector<IDCalibrationAction>& actionsOfPreviousStep) override {}
+    void OnCameraBoundaryConfigurationNotification(const CameraBoundaryConfigurationNot& noti) override {}
+    void OnCameraBoundaryConfigurationActionChanged(CBConfigurationAction currentAction, const std::vector<CBConfigurationAction>& actionsOfNextStep, const std::vector<CBConfigurationAction>& actionsOfPreviousStep) override {}
+};
+
 PYBIND11_MODULE(zrc_sdk, m) {
     m.doc() = "Zoom Rooms Controller SDK Python Bindings";
 
@@ -667,8 +1342,45 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     // ===== Pre-Meeting Helper Classes (opaque for now) =====
     py::class_<IContactHelper>(m, "IContactHelper");
-    py::class_<IBYODHelper>(m, "IBYODHelper");
-    py::class_<IControlSystemHelper>(m, "IControlSystemHelper");
+    py::class_<IBYODHelper>(m, "IBYODHelper")
+        .def("RegisterSink", [](IBYODHelper* self, py::object py_sink) {
+            static std::map<IBYODHelper*, std::shared_ptr<BYODHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<BYODHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IBYODHelper* self) {
+            static std::map<IBYODHelper*, std::shared_ptr<BYODHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
+    py::class_<ControlSystemSceneInfo>(m, "ControlSystemSceneInfo")
+        .def(py::init<>())
+        .def_readwrite("sceneID", &ControlSystemSceneInfo::sceneID)
+        .def_readwrite("name", &ControlSystemSceneInfo::name)
+        .def_readwrite("icon", &ControlSystemSceneInfo::icon);
+    py::class_<IControlSystemHelper>(m, "IControlSystemHelper")
+        .def("RegisterSink", [](IControlSystemHelper* self, py::object py_sink) {
+            static std::map<IControlSystemHelper*, std::shared_ptr<ControlSystemHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<ControlSystemHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IControlSystemHelper* self) {
+            static std::map<IControlSystemHelper*, std::shared_ptr<ControlSystemHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Pre-Meeting Service =====
     py::class_<IPreMeetingService>(m, "IPreMeetingService")
@@ -836,6 +1548,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetRecordingHelper", &IMeetingService::GetRecordingHelper, py::return_value_policy::reference)
         .def("GetThirdPartyMeetingHelper", &IMeetingService::GetThirdPartyMeetingHelper, py::return_value_policy::reference)
         .def("GetWaitingRoomHelper", &IMeetingService::GetWaitingRoomHelper, py::return_value_policy::reference)
+        .def("GetClosedCaptionHelper", &IMeetingService::GetClosedCaptionHelper, py::return_value_policy::reference)
         .def("RegisterSink", [](IMeetingService* self, py::object py_sink) {
             static std::map<IMeetingService*, std::shared_ptr<MeetingServiceSinkTrampoline>> sinks;
             auto trampoline = std::make_shared<MeetingServiceSinkTrampoline>(py_sink);
@@ -854,8 +1567,30 @@ PYBIND11_MODULE(zrc_sdk, m) {
         });
 
     // ===== Meeting Audio Helper =====
+    py::enum_<AskUnmuteAudioByHostType>(m, "AskUnmuteAudioByHostType")
+        .value("AskUnmuteAudioByHostTypeUnmuteAudio", AskUnmuteAudioByHostType::AskUnmuteAudioByHostTypeUnmuteAudio)
+        .value("AskUnmuteAudioByHostTypeSpotlight", AskUnmuteAudioByHostType::AskUnmuteAudioByHostTypeSpotlight)
+        .value("AskUnmuteAudioByHostTypeViewOnlyTalk", AskUnmuteAudioByHostType::AskUnmuteAudioByHostTypeViewOnlyTalk)
+        .export_values();
+
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
-        .def("UpdateMyAudioStatus", &IMeetingAudioHelper::UpdateMyAudioStatus);
+        .def("UpdateMyAudioStatus", &IMeetingAudioHelper::UpdateMyAudioStatus)
+        .def("RegisterSink", [](IMeetingAudioHelper* self, py::object py_sink) {
+            static std::map<IMeetingAudioHelper*, std::shared_ptr<MeetingAudioHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingAudioHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingAudioHelper* self) {
+            static std::map<IMeetingAudioHelper*, std::shared_ptr<MeetingAudioHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Meeting Video Helper =====
     py::class_<IMeetingVideoHelper>(m, "IMeetingVideoHelper")
@@ -890,7 +1625,23 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("SetMyMeetingVideoTouchUp", &IMeetingVideoHelper::SetMyMeetingVideoTouchUp)
         .def("SetMyMeetingVideoLowLight", &IMeetingVideoHelper::SetMyMeetingVideoLowLight)
         .def("ShowVideoPreview",
-            static_cast<ZRCSDKError(IMeetingVideoHelper::*)(bool, PreviewVideoType, const MeetingItem&)>(&IMeetingVideoHelper::ShowVideoPreview));
+            static_cast<ZRCSDKError(IMeetingVideoHelper::*)(bool, PreviewVideoType, const MeetingItem&)>(&IMeetingVideoHelper::ShowVideoPreview))
+        .def("RegisterSink", [](IMeetingVideoHelper* self, py::object py_sink) {
+            static std::map<IMeetingVideoHelper*, std::shared_ptr<MeetingVideoHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingVideoHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingVideoHelper* self) {
+            static std::map<IMeetingVideoHelper*, std::shared_ptr<MeetingVideoHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Meeting Control Helper Enums =====
     py::enum_<FocusModeStatus>(m, "FocusModeStatus")
@@ -1012,6 +1763,115 @@ PYBIND11_MODULE(zrc_sdk, m) {
         })
         .def("DeregisterSink", [](IWaitingRoomHelper* self) {
             static std::map<IWaitingRoomHelper*, std::shared_ptr<WaitingRoomHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
+
+    // ===== Closed Caption Helper (captions / live transcript) =====
+    py::enum_<ClosedCaptionFontSize>(m, "ClosedCaptionFontSize")
+        .value("ClosedCaptionFontSizeSmall", ClosedCaptionFontSize::ClosedCaptionFontSizeSmall)
+        .value("ClosedCaptionFontSizeMedium", ClosedCaptionFontSize::ClosedCaptionFontSizeMedium)
+        .value("ClosedCaptionFontSizeLarge", ClosedCaptionFontSize::ClosedCaptionFontSizeLarge)
+        .export_values();
+    py::enum_<NewLTTCaptionNotificationType>(m, "NewLTTCaptionNotificationType")
+        .value("NewLTTCaptionNotificationTypeCaptionStart", NewLTTCaptionNotificationType::NewLTTCaptionNotificationTypeCaptionStart)
+        .value("NewLTTCaptionNotificationTypeEnableCaptionRequestReceived", NewLTTCaptionNotificationType::NewLTTCaptionNotificationTypeEnableCaptionRequestReceived)
+        .value("NewLTTCaptionNotificationTypeEnableCaptionRequestDeclined", NewLTTCaptionNotificationType::NewLTTCaptionNotificationTypeEnableCaptionRequestDeclined)
+        .value("NewLTTCaptionNotificationTypeSpeakerLanguageMismatch", NewLTTCaptionNotificationType::NewLTTCaptionNotificationTypeSpeakerLanguageMismatch)
+        .export_values();
+    py::enum_<LTTCaptionWritingDirection>(m, "LTTCaptionWritingDirection")
+        .value("LTTCaptionWritingDirectionLeftToRight", LTTCaptionWritingDirection::LTTCaptionWritingDirectionLeftToRight)
+        .value("LTTCaptionWritingDirectionRightToLeft", LTTCaptionWritingDirection::LTTCaptionWritingDirectionRightToLeft)
+        .export_values();
+    py::enum_<LTTCaptionMessageResultType>(m, "LTTCaptionMessageResultType")
+        .value("LTTCaptionMessageResultTypeSuccess", LTTCaptionMessageResultType::LTTCaptionMessageResultTypeSuccess)
+        .value("LTTCaptionMessageResultTypeTranslationNotSupport", LTTCaptionMessageResultType::LTTCaptionMessageResultTypeTranslationNotSupport)
+        .export_values();
+    py::class_<ClosedCaptionInfo>(m, "ClosedCaptionInfo")
+        .def(py::init<>())
+        .def_readwrite("available", &ClosedCaptionInfo::available)
+        .def_readwrite("visible", &ClosedCaptionInfo::visible)
+        .def_readwrite("fontSize", &ClosedCaptionInfo::fontSize);
+    py::class_<NewLTTCaptionLanguage>(m, "NewLTTCaptionLanguage")
+        .def(py::init<>())
+        .def_readwrite("languageID", &NewLTTCaptionLanguage::languageID)
+        .def_readwrite("displayName", &NewLTTCaptionLanguage::displayName)
+        .def_readwrite("abbreviatedName", &NewLTTCaptionLanguage::abbreviatedName);
+    py::class_<NewLTTCaptionSpeakerLanguageInfo>(m, "NewLTTCaptionSpeakerLanguageInfo")
+        .def(py::init<>())
+        .def_readwrite("currentLanguage", &NewLTTCaptionSpeakerLanguageInfo::currentLanguage)
+        .def_readwrite("availableLanguages", &NewLTTCaptionSpeakerLanguageInfo::availableLanguages);
+    py::class_<NewLTTCaptionTranslationInfo>(m, "NewLTTCaptionTranslationInfo")
+        .def(py::init<>())
+        .def_readwrite("currentLanguage", &NewLTTCaptionTranslationInfo::currentLanguage)
+        .def_readwrite("availableLanguages", &NewLTTCaptionTranslationInfo::availableLanguages)
+        .def_readwrite("recentlyUsedLanguages", &NewLTTCaptionTranslationInfo::recentlyUsedLanguages);
+    py::class_<NewLTTCaptionInfo>(m, "NewLTTCaptionInfo")
+        .def(py::init<>())
+        .def_readwrite("isNewLttCaptionFeatureOn", &NewLTTCaptionInfo::isNewLttCaptionFeatureOn)
+        .def_readwrite("isAutomatedCaptionFeatureOn", &NewLTTCaptionInfo::isAutomatedCaptionFeatureOn)
+        .def_readwrite("isTranslatedCaptionFeatureOn", &NewLTTCaptionInfo::isTranslatedCaptionFeatureOn)
+        .def_readwrite("isShowCaptionOn", &NewLTTCaptionInfo::isShowCaptionOn)
+        .def_readwrite("fontSize", &NewLTTCaptionInfo::fontSize)
+        .def_readwrite("isManualCaptionerEnabled", &NewLTTCaptionInfo::isManualCaptionerEnabled)
+        .def_readwrite("isShowOriginalAndTranslated", &NewLTTCaptionInfo::isShowOriginalAndTranslated)
+        .def_readwrite("speakingLanguageInfo", &NewLTTCaptionInfo::speakingLanguageInfo)
+        .def_readwrite("translationInfo", &NewLTTCaptionInfo::translationInfo)
+        .def_readwrite("isMmrSupportDisableLttCaption", &NewLTTCaptionInfo::isMmrSupportDisableLttCaption)
+        .def_readwrite("isCaptionDisabled", &NewLTTCaptionInfo::isCaptionDisabled)
+        .def_readwrite("isAllowShowCaption", &NewLTTCaptionInfo::isAllowShowCaption)
+        .def_readwrite("isAllowRequestCaption", &NewLTTCaptionInfo::isAllowRequestCaption)
+        .def_readwrite("isShowTranscriptPanelOnZR", &NewLTTCaptionInfo::isShowTranscriptPanelOnZR)
+        .def_readwrite("isAllowViewFullTranscript", &NewLTTCaptionInfo::isAllowViewFullTranscript);
+    py::class_<SmartTagUser>(m, "SmartTagUser")
+        .def(py::init<>())
+        .def_readwrite("tagID", &SmartTagUser::tagID)
+        .def_readwrite("tagName", &SmartTagUser::tagName)
+        .def_readwrite("avatarUrl", &SmartTagUser::avatarUrl)
+        .def_readwrite("avatarData", &SmartTagUser::avatarData)
+        .def_readwrite("bindNodeID", &SmartTagUser::bindNodeID)
+        .def_readwrite("bindEmail", &SmartTagUser::bindEmail)
+        .def_readwrite("bindJid", &SmartTagUser::bindJid)
+        .def_readwrite("defaultName", &SmartTagUser::defaultName)
+        .def_readwrite("streamUserID", &SmartTagUser::streamUserID);
+    py::class_<LTTCaptionMessage>(m, "LTTCaptionMessage")
+        .def(py::init<>())
+        .def_readwrite("result", &LTTCaptionMessage::result)
+        .def_readwrite("messageID", &LTTCaptionMessage::messageID)
+        .def_readwrite("userNodeID", &LTTCaptionMessage::userNodeID)
+        .def_readwrite("userName", &LTTCaptionMessage::userName)
+        .def_readwrite("messageTime", &LTTCaptionMessage::messageTime)
+        .def_readwrite("messageContent", &LTTCaptionMessage::messageContent)
+        .def_readwrite("direction", &LTTCaptionMessage::direction)
+        .def_readwrite("speakerTagID", &LTTCaptionMessage::speakerTagID)
+        .def_readwrite("speakerTagName", &LTTCaptionMessage::speakerTagName)
+        .def_readwrite("instanceOnlySpeakerTag", &LTTCaptionMessage::instanceOnlySpeakerTag)
+        .def_readwrite("attendeeJid", &LTTCaptionMessage::attendeeJid);
+    py::class_<IClosedCaptionHelper>(m, "IClosedCaptionHelper")
+        .def("EnableCaption", &IClosedCaptionHelper::EnableCaption)
+        .def("ShowCaption", &IClosedCaptionHelper::ShowCaption)
+        .def("SendEnableCaptionRequest", &IClosedCaptionHelper::SendEnableCaptionRequest)
+        .def("ApproveEnableCaptionRequest", &IClosedCaptionHelper::ApproveEnableCaptionRequest)
+        .def("SetNewLTTSpeakerLanguage", &IClosedCaptionHelper::SetNewLTTSpeakerLanguage)
+        .def("SetNewLTTTranslationLanguage", &IClosedCaptionHelper::SetNewLTTTranslationLanguage)
+        .def("ShowNewLTTOriginalAndTranslated", &IClosedCaptionHelper::ShowNewLTTOriginalAndTranslated)
+        .def("SetNewLTTCaptionFontSize", &IClosedCaptionHelper::SetNewLTTCaptionFontSize)
+        .def("LoadLTTCaptionMessage", &IClosedCaptionHelper::LoadLTTCaptionMessage)
+        .def("ShowTranscriptPanelOnZR", &IClosedCaptionHelper::ShowTranscriptPanelOnZR)
+        .def("ShowTranscriptPanelOnZRC", &IClosedCaptionHelper::ShowTranscriptPanelOnZRC)
+        .def("RegisterSink", [](IClosedCaptionHelper* self, py::object py_sink) {
+            static std::map<IClosedCaptionHelper*, std::shared_ptr<ClosedCaptionHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<ClosedCaptionHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IClosedCaptionHelper* self) {
+            static std::map<IClosedCaptionHelper*, std::shared_ptr<ClosedCaptionHelperSinkTrampoline>> sinks;
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1850,7 +2710,23 @@ PYBIND11_MODULE(zrc_sdk, m) {
             ZRCSDKError result = self->GetDocsShareSettingsInfo(info);
             return py::make_tuple(result, info);
         })
-        .def("EnableAnnotationOverHDMI", &IMeetingShareHelper::EnableAnnotationOverHDMI);
+        .def("EnableAnnotationOverHDMI", &IMeetingShareHelper::EnableAnnotationOverHDMI)
+        .def("RegisterSink", [](IMeetingShareHelper* self, py::object py_sink) {
+            static std::map<IMeetingShareHelper*, std::shared_ptr<MeetingShareHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingShareHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingShareHelper* self) {
+            static std::map<IMeetingShareHelper*, std::shared_ptr<MeetingShareHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Meeting View Layout Helper =====
     py::class_<IMeetingViewLayoutHelper>(m, "IMeetingViewLayoutHelper")
@@ -1881,7 +2757,32 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return py::make_tuple(result, type);
         })
         .def("ChangeThumbnailsPosition", &IMeetingViewLayoutHelper::ChangeThumbnailsPosition)
-        .def("ShowMyAutoGeneratedVideoStreams", &IMeetingViewLayoutHelper::ShowMyAutoGeneratedVideoStreams);
+        .def("ShowMyAutoGeneratedVideoStreams", &IMeetingViewLayoutHelper::ShowMyAutoGeneratedVideoStreams)
+        .def("RegisterSink", [](IMeetingViewLayoutHelper* self, py::object py_sink) {
+            static std::map<IMeetingViewLayoutHelper*, std::shared_ptr<MeetingViewLayoutHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<MeetingViewLayoutHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IMeetingViewLayoutHelper* self) {
+            static std::map<IMeetingViewLayoutHelper*, std::shared_ptr<MeetingViewLayoutHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
+
+    // MeetingScreen enum (used by ScreenLayoutInfo::screen — was previously unregistered).
+    py::enum_<MeetingScreen>(m, "MeetingScreen")
+        .value("MeetingScreenUnknown", MeetingScreen::MeetingScreenUnknown)
+        .value("MeetingScreenFirst", MeetingScreen::MeetingScreenFirst)
+        .value("MeetingScreenSecond", MeetingScreen::MeetingScreenSecond)
+        .value("MeetingScreenThird", MeetingScreen::MeetingScreenThird)
+        .value("MeetingScreenConfidence", MeetingScreen::MeetingScreenConfidence)
+        .export_values();
 
     // ===== NDI Helper =====
     py::class_<INDIHelper>(m, "INDIHelper")
@@ -1908,7 +2809,24 @@ PYBIND11_MODULE(zrc_sdk, m) {
         })
         .def("AddPersistentNDISource", &INDIHelper::AddPersistentNDISource)
         .def("RemovePersistentNDISource", &INDIHelper::RemovePersistentNDISource)
-        .def("ListPersistentNDISources", &INDIHelper::ListPersistentNDISources);
+        .def("ListPersistentNDISources", &INDIHelper::ListPersistentNDISources)
+        .def("RegisterSink", [](INDIHelper* self, py::object py_sink) {
+            static std::map<INDIHelper*, std::shared_ptr<NDIHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<NDIHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](INDIHelper* self) {
+            static std::map<INDIHelper*, std::shared_ptr<NDIHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
+    // (NDIResolution / NDIFrameRate / NDIUsageSettings are already registered earlier.)
 
     py::class_<MeetingParticipant>(m, "MeetingParticipant")
         .def(py::init<>())
@@ -2099,6 +3017,22 @@ PYBIND11_MODULE(zrc_sdk, m) {
             std::vector<RecordPermissionInfo> permissionInfo;
             ZRCSDKError result = self->GetRecoringPemissionInfo(permissionInfo);
             return py::make_tuple(result, permissionInfo);
+        })
+        .def("RegisterSink", [](IRecordingHelper* self, py::object py_sink) {
+            static std::map<IRecordingHelper*, std::shared_ptr<RecordingHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<RecordingHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IRecordingHelper* self) {
+            static std::map<IRecordingHelper*, std::shared_ptr<RecordingHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
         });
 
     // ===== Meeting Reminder Enums ====-
@@ -2552,7 +3486,23 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("virtualAudioDevice", &Device::virtualAudioDevice);
 
     // ===== Setting Service =====
-    py::class_<ICalibrationHelper>(m, "ICalibrationHelper");
+    py::class_<ICalibrationHelper>(m, "ICalibrationHelper")
+        .def("RegisterSink", [](ICalibrationHelper* self, py::object py_sink) {
+            static std::map<ICalibrationHelper*, std::shared_ptr<CalibrationHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<CalibrationHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](ICalibrationHelper* self) {
+            static std::map<ICalibrationHelper*, std::shared_ptr<CalibrationHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     py::class_<ISettingService>(m, "ISettingService")
         .def("GetMicrophoneList", [](ISettingService* self) {
@@ -2696,7 +3646,23 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return py::make_tuple(result, networkAdapterInfos);
         })
         .def("GetCalibrationHelper", &ISettingService::GetCalibrationHelper, py::return_value_policy::reference)
-        .def("EnableMultiCameraOnlyMode", &ISettingService::EnableMultiCameraOnlyMode);
+        .def("EnableMultiCameraOnlyMode", &ISettingService::EnableMultiCameraOnlyMode)
+        .def("RegisterSink", [](ISettingService* self, py::object py_sink) {
+            static std::map<ISettingService*, std::shared_ptr<SettingServiceSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<SettingServiceSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](ISettingService* self) {
+            static std::map<ISettingService*, std::shared_ptr<SettingServiceSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Third Party Meeting Helper Enums =====
     py::enum_<RoomSystemCallingStatus>(m, "RoomSystemCallingStatus")
@@ -2833,6 +3799,22 @@ PYBIND11_MODULE(zrc_sdk, m) {
             SIPCallInfo unholdCall;
             ZRCSDKError result = self->GetUnholdSIPCall(unholdCall);
             return py::make_tuple(result, unholdCall);
+        })
+        .def("RegisterSink", [](IPhoneCallService* self, py::object py_sink) {
+            static std::map<IPhoneCallService*, std::shared_ptr<PhoneCallServiceSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<PhoneCallServiceSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IPhoneCallService* self) {
+            static std::map<IPhoneCallService*, std::shared_ptr<PhoneCallServiceSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
         });
 
     // ===== Pro AV Service Enums =====
@@ -2894,8 +3876,61 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("wallpaperIndex", &ProAVVideoLossBehavior::wallpaperIndex);
 
     // ===== Pro AV Helper Classes (opaque for now) =====
-    py::class_<IDanteOutputHelper>(m, "IDanteOutputHelper");
-    py::class_<IHWIOHelper>(m, "IHWIOHelper");
+    py::enum_<LocalNetworkAudioChannelType>(m, "LocalNetworkAudioChannelType")
+        .value("LocalNetworkAudioChannelTypeUnknown", LocalNetworkAudioChannelType::LocalNetworkAudioChannelTypeUnknown)
+        .value("LocalNetworkAudioChannelTypeRX", LocalNetworkAudioChannelType::LocalNetworkAudioChannelTypeRX)
+        .value("LocalNetworkAudioChannelTypeTX", LocalNetworkAudioChannelType::LocalNetworkAudioChannelTypeTX)
+        .export_values();
+    py::class_<NetworkAudioError>(m, "NetworkAudioError")
+        .def(py::init<>())
+        .def_readwrite("errorCode", &NetworkAudioError::errorCode)
+        .def_readwrite("errorName", &NetworkAudioError::errorName);
+    py::class_<LocalNetworkAudioChannelInfo>(m, "LocalNetworkAudioChannelInfo")
+        .def(py::init<>())
+        .def_readwrite("channelName", &LocalNetworkAudioChannelInfo::channelName)
+        .def_readwrite("channelID", &LocalNetworkAudioChannelInfo::channelID)
+        .def_readwrite("channelType", &LocalNetworkAudioChannelInfo::channelType)
+        .def_readwrite("networkDeviceName", &LocalNetworkAudioChannelInfo::networkDeviceName);
+    py::class_<LocalNetworkAudioDeviceInfo>(m, "LocalNetworkAudioDeviceInfo")
+        .def(py::init<>())
+        .def_readwrite("networkDeviceName", &LocalNetworkAudioDeviceInfo::networkDeviceName)
+        .def_readwrite("rxChannels", &LocalNetworkAudioDeviceInfo::rxChannels)
+        .def_readwrite("txChannels", &LocalNetworkAudioDeviceInfo::txChannels)
+        .def_readwrite("identifiable", &LocalNetworkAudioDeviceInfo::identifiable);
+    py::class_<IDanteOutputHelper>(m, "IDanteOutputHelper")
+        .def("RegisterSink", [](IDanteOutputHelper* self, py::object py_sink) {
+            static std::map<IDanteOutputHelper*, std::shared_ptr<DanteOutputHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<DanteOutputHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IDanteOutputHelper* self) {
+            static std::map<IDanteOutputHelper*, std::shared_ptr<DanteOutputHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
+    py::class_<IHWIOHelper>(m, "IHWIOHelper")
+        .def("RegisterSink", [](IHWIOHelper* self, py::object py_sink) {
+            static std::map<IHWIOHelper*, std::shared_ptr<HWIOHelperSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<HWIOHelperSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IHWIOHelper* self) {
+            static std::map<IHWIOHelper*, std::shared_ptr<HWIOHelperSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
+        });
 
     // ===== Pro AV Service =====
     py::class_<IProAVService>(m, "IProAVService")
@@ -2927,5 +3962,54 @@ PYBIND11_MODULE(zrc_sdk, m) {
             ProAVVideoLossBehavior behavior;
             ZRCSDKError result = self->GetProAVVideoLossBehavior(behavior);
             return py::make_tuple(result, behavior);
+        })
+        .def("RegisterSink", [](IProAVService* self, py::object py_sink) {
+            static std::map<IProAVService*, std::shared_ptr<ProAVServiceSinkTrampoline>> sinks;
+            auto trampoline = std::make_shared<ProAVServiceSinkTrampoline>(py_sink);
+            sinks[self] = trampoline;
+            return self->RegisterSink(trampoline.get());
+        })
+        .def("DeregisterSink", [](IProAVService* self) {
+            static std::map<IProAVService*, std::shared_ptr<ProAVServiceSinkTrampoline>> sinks;
+            auto it = sinks.find(self);
+            if (it != sinks.end()) {
+                auto result = self->DeregisterSink(it->second.get());
+                sinks.erase(it);
+                return result;
+            }
+            return ZRCSDKERR_INTERNAL_ERROR;
         });
+
+    // ProAV assigned-gallery structs (used by IProAVServiceSink callbacks)
+    py::class_<ProAVAssignedSeatInfo>(m, "ProAVAssignedSeatInfo")
+        .def(py::init<>())
+        .def_readwrite("index", &ProAVAssignedSeatInfo::index)
+        .def_readwrite("isReserved", &ProAVAssignedSeatInfo::isReserved)
+        .def_readwrite("email", &ProAVAssignedSeatInfo::email)
+        .def_readwrite("name", &ProAVAssignedSeatInfo::name);
+    py::class_<ProAVAssignedGalleryHideUser>(m, "ProAVAssignedGalleryHideUser")
+        .def(py::init<>())
+        .def_readwrite("name", &ProAVAssignedGalleryHideUser::name)
+        .def_readwrite("email", &ProAVAssignedGalleryHideUser::email)
+        .def_readwrite("userGuid", &ProAVAssignedGalleryHideUser::userGuid);
+    py::class_<ProAVAssignedSeatStatus>(m, "ProAVAssignedSeatStatus")
+        .def(py::init<>())
+        .def_readwrite("seat", &ProAVAssignedSeatStatus::seat)
+        .def_readwrite("userGuid", &ProAVAssignedSeatStatus::userGuid);
+    py::class_<ProAVAssignedGalleryInfo>(m, "ProAVAssignedGalleryInfo")
+        .def(py::init<>())
+        .def_readwrite("seats", &ProAVAssignedGalleryInfo::seats)
+        .def_readwrite("meetingId", &ProAVAssignedGalleryInfo::meetingId)
+        .def_readwrite("hideUsers", &ProAVAssignedGalleryInfo::hideUsers);
+    py::class_<ProAVAssignedGalleryStatus>(m, "ProAVAssignedGalleryStatus")
+        .def(py::init<>())
+        .def_readwrite("fullUpdate", &ProAVAssignedGalleryStatus::fullUpdate)
+        .def_readwrite("configApplied", &ProAVAssignedGalleryStatus::configApplied)
+        .def_readwrite("seats", &ProAVAssignedGalleryStatus::seats)
+        .def_readwrite("hideUsers", &ProAVAssignedGalleryStatus::hideUsers);
+    py::class_<ProAVAssignedGalleryHideOptions>(m, "ProAVAssignedGalleryHideOptions")
+        .def(py::init<>())
+        .def_readwrite("hideSelf", &ProAVAssignedGalleryHideOptions::hideSelf)
+        .def_readwrite("hideHostCoHost", &ProAVAssignedGalleryHideOptions::hideHostCoHost)
+        .def_readwrite("hideNonVideo", &ProAVAssignedGalleryHideOptions::hideNonVideo);
 }

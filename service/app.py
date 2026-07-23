@@ -47,6 +47,12 @@ async def lifespan(app: FastAPI):
         await room_manager.stop_heartbeat()
         room_manager.shutdown()
         logger.info("✓ Microservice stopped")
+        # Hard-exit to skip Python finalization. The SDK holds ~20 static std::map sink
+        # registries (+ g_sdk_sink_impl) whose py::object members would be decref'd during
+        # C++ static teardown AFTER Py_Finalize -> "thread state is NULL" abort. The process
+        # is exiting anyway and nothing needs flushing (DB writes are live), so bypass it.
+        import os
+        os._exit(0)
 
 
 # ===== FastAPI Application =====
