@@ -133,15 +133,9 @@ async def unpair_room(room_id: str, room_manager = Depends(lambda: get_room_mana
     try:
         result = room_service.UnpairRoom()
 
-        # Remove from manager
-        if room_id in room_manager.rooms:
-            del room_manager.rooms[room_id]
-        if room_id in room_manager.room_sinks:
-            del room_manager.room_sinks[room_id]
-        if room_id in room_manager.premeeting_sinks:
-            del room_manager.premeeting_sinks[room_id]
-        if room_id in room_manager.meeting_list_sinks:
-            del room_manager.meeting_list_sinks[room_id]
+        # Fully forget the room: stop reconnect attempts, deregister every sink
+        # surface, and purge all per-room sink registries.
+        room_manager.remove_room(room_id)
 
         return {
             "room_id": room_id,

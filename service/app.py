@@ -36,11 +36,12 @@ def get_room_manager() -> RoomManager:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle management for the app"""
-    # Startup
+    # Startup — failures must propagate so the process exits non-zero with a
+    # traceback; only a clean shutdown may reach the hard-exit below.
+    room_manager.initialize()
+    await room_manager.start_heartbeat()
+    logger.info("✓ Microservice started successfully")
     try:
-        room_manager.initialize()
-        await room_manager.start_heartbeat()
-        logger.info("✓ Microservice started successfully")
         yield
     finally:
         # Shutdown
@@ -60,7 +61,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Zoom Rooms SDK Microservice",
     description="REST API for controlling Zoom Rooms via the ZRC SDK",
-    version="1.0.0",
+    version="1.4.0",
     lifespan=lifespan
 )
 
@@ -72,7 +73,7 @@ async def root():
     """Root endpoint"""
     return {
         "service": "Zoom Rooms SDK Microservice",
-        "version": "1.0.0",
+        "version": "1.4.0",
         "status": "running"
     }
 

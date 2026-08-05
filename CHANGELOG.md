@@ -1,5 +1,46 @@
  # Changelog
 
+## [1.4.0] - 2026-08-05 - Code-Review Hardening, Test Suites & CI Gating
+
+### Major Changes
+
+#### 🐞 Code-Review Fixes
+- **Sink deregistration actually works now** — each `RegisterSink`/`DeregisterSink` binding pair declared its own lambda-local `static std::map`, so deregistration always consulted an empty map, returned `ZRCSDKERR_INTERNAL_ERROR`, and left the trampoline registered with the SDK forever (events kept flowing after unpair; trampolines stacked up across pair/unpair cycles). Both lambdas now share one `SinkRegistry<Iface, Trampoline>()` map
+- **Full cleanup on unpair/shutdown** — new `RoomManager.remove_room()` stops the reconnect loop, deregisters **all 23** sink surfaces (mirroring registration), and purges every per-room sink store. Previously the unpair endpoint cleaned only 3 legacy stores and left the rest live; `shutdown()` covered only 5 surfaces
+- **Startup failures exit non-zero** — the lifespan's `os._exit(0)` also ran when startup raised, logging `✓ Microservice stopped` and exiting 0 (so `restart: on-failure` never restarted the container). Startup errors now propagate; only a clean shutdown reaches the hard exit
+- **Auto-reconnect survives remote unpair → re-pair** — re-pairing a room whose service was still cached returned early without clearing the unpaired flag, permanently disabling self-healing for that room
+- **Slow WebSocket consumers learn about dropped events** — on queue overflow the subscriber now receives one `{"event": "EventsDropped", "count": N}` marker before the surviving events (the gap precedes everything still queued) instead of silently losing state
+- **`isMyself` restored** — the backwards-compat alias on `MeetingParticipant` had been dropped, an `AttributeError` for external consumers of the compiled module
+
+#### 🧪 Test Suites (see `TESTING.md`)
+- **Unit** (`pytest -m unit`, `service/tests/`) — hermetic suite against a fake SDK (`_zrc_stub.py`), no compiled module / server / room: connection lifecycle (`remove_room`, re-pair flag, overflow marker), unpair endpoint via in-process FastAPI, lifespan exit codes via subprocess, and bindings source contracts (shared sink registry, `isMyself` alias, generator template byte-identical to bindings)
+- **Contract** (`service/test_sink_contracts.py`, in-image) — every forwarded SDK callback serializes to a valid, once-only WS payload (124 callbacks)
+- **Lifecycle** (`service/test_sink_lifecycle.py`, in-image) — RegisterSink/DeregisterSink cycle through the compiled bindings on every sink surface, against the real SDK (the layer where the disjoint-static-map bug lived)
+- **Smoke / live e2e** (`service/tests/test_api.py`) — safe API checks against a running service; `@live`-marked meeting-flow tests for a real paired room (manual, pre-release)
+
+#### 🐳 CI Pipeline (test-gated publishing)
+- `dockerhub-build-push.yml` now builds the image once, runs **contract → lifecycle → unit + smoke** against it, and only pushes to Docker Hub if everything passes; pytest results upload as a JUnit artifact
+
+### Modified Files
+
+#### Bindings
+- **`bindings/zrc_bindings.cpp`** — shared `SinkRegistry` for all Register/Deregister pairs; `isMyself` alias restored
+- **`generator/templates/zrc_bindings.cpp`** — mirrored _(source of truth)_
+
+#### Service
+- **`service/room_manager.py`** — `remove_room()` full-cleanup path; `_SubscriberQueue` with `EventsDropped` overflow marker; re-pair clears the unpaired flag
+- **`service/controllers/rooms.py`** — unpair now delegates to `remove_room()`
+- **`service/app.py`** — `os._exit(0)` only on clean shutdown; startup failures propagate
+
+#### Tests & CI
+- **`service/tests/`**, **`service/test_sink_lifecycle.py`**, **`pytest.ini`**, **`requirements-dev.txt`** _(new)_
+- **`service/test_sink_contracts.py`** — capture manager grew reconnect-hook no-ops
+- **`.github/workflows/dockerhub-build-push.yml`** — build → test → push gating
+
+#### Documentation
+- **`TESTING.md`** _(new)_ — the five suites, what each needs, and what CI runs
+- **`CHANGELOG.md`** — this entry
+
 ## [1.3.0] - 2026-07-23 - Live WebSocket Streaming & Connection Resilience
 
 ### Major Changes

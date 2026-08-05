@@ -781,6 +781,26 @@ class CalibrationHelperSink(_Broadcaster):
         self.room_id = room_id
 
 
+class _SubscriberQueue(asyncio.Queue):
+    """Bounded per-subscriber event queue that surfaces overflow instead of hiding it.
+
+    When the producer drops events (subscriber too slow), the next get() yields a
+    single {"event": "EventsDropped", "count": N} marker before the surviving
+    events — the gap chronologically precedes everything still queued — so the
+    consumer knows its view of room state may be stale and it should resync.
+    """
+
+    def __init__(self, maxsize: int = 0):
+        super().__init__(maxsize)
+        self.dropped = 0
+
+    async def get(self):
+        if self.dropped:
+            count, self.dropped = self.dropped, 0
+            return {"event": "EventsDropped", "count": count}
+        return await super().get()
+
+
 # ===== Room Manager =====
 
 class RoomManager:
@@ -834,7 +854,7 @@ class RoomManager:
 
     def subscribe_events(self, room_id: str) -> asyncio.Queue:
         """Register a WebSocket subscriber for a room; returns its event queue."""
-        queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        queue = _SubscriberQueue(maxsize=1000)
         self._ws_subscribers.setdefault(room_id, set()).add(queue)
         return queue
 
@@ -854,13 +874,15 @@ class RoomManager:
         loop.call_soon_threadsafe(self._deliver_event, room_id, payload)
 
     def _deliver_event(self, room_id: str, payload: dict) -> None:
-        """Runs on the event loop thread: enqueue to each subscriber (drop-oldest if full)."""
+        """Runs on the event loop thread: enqueue to each subscriber (drop-oldest if
+        full, counting the loss so the subscriber gets an EventsDropped marker)."""
         for queue in self._ws_subscribers.get(room_id, ()):
             try:
                 queue.put_nowait(payload)
             except asyncio.QueueFull:
                 try:
                     queue.get_nowait()
+                    queue.dropped += 1
                 except asyncio.QueueEmpty:
                     pass
                 try:
@@ -1257,6 +1279,9 @@ class RoomManager:
 
     def create_room_service(self, room_id: str):
         """Create a new room service instance with callbacks"""
+        # (Re)pairing always re-enables auto-reconnect — including a cached service
+        # whose room was unpaired remotely and is now being re-paired.
+        self._unpaired_rooms.discard(room_id)
         if room_id in self.rooms:
             return self.rooms[room_id]
 
@@ -1295,42 +1320,78 @@ class RoomManager:
         self.meeting_list_sinks[room_id] = meeting_list_sink
         return meeting_list_sink
 
+    def _sink_stores(self):
+        """Every per-room sink registry (room_id -> sink instance) on this manager."""
+        return [v for k, v in vars(self).items() if k.endswith("_sinks") and isinstance(v, dict)]
+
+    def _deregister_room_sinks(self, room_id: str, room_service):
+        """Deregister every sink surface that register_sinks_for_room registers."""
+        def surfaces():
+            yield "room service", room_service
+            premeeting = room_service.GetPreMeetingService()
+            if premeeting:
+                yield "pre-meeting", premeeting
+                yield "control system", premeeting.GetControlSystemHelper()
+                yield "BYOD", premeeting.GetBYODHelper()
+            yield "phone call", room_service.GetPhoneCallService()
+            setting_service = room_service.GetSettingService()
+            if setting_service:
+                yield "setting", setting_service
+                yield "calibration", setting_service.GetCalibrationHelper()
+            proav_service = room_service.GetProAVService()
+            if proav_service:
+                yield "pro AV", proav_service
+                yield "HWIO", proav_service.GetHWIOHelper()
+                yield "Dante output", proav_service.GetDanteOutputHelper()
+            meeting_service = room_service.GetMeetingService()
+            if meeting_service:
+                yield "meeting service", meeting_service
+                yield "meeting list", meeting_service.GetMeetingListHelper()
+                yield "meeting reminder", meeting_service.GetMeetingReminderHelper()
+                yield "participant", meeting_service.GetParticipantHelper()
+                yield "meeting control", meeting_service.GetMeetingControlHelper()
+                yield "waiting room", meeting_service.GetWaitingRoomHelper()
+                yield "recording", meeting_service.GetRecordingHelper()
+                yield "meeting audio", meeting_service.GetMeetingAudioHelper()
+                yield "meeting video", meeting_service.GetMeetingVideoHelper()
+                yield "meeting share", meeting_service.GetMeetingShareHelper()
+                yield "view layout", meeting_service.GetMeetingViewLayoutHelper()
+                yield "closed caption", meeting_service.GetClosedCaptionHelper()
+                yield "NDI", meeting_service.GetNDIHelper()
+
+        try:
+            for label, surface in surfaces():
+                if not surface:
+                    continue
+                try:
+                    surface.DeregisterSink()
+                except Exception as e:
+                    logger.debug(f"[{room_id}] Failed to deregister {label} sink: {e}")
+        except Exception as e:
+            logger.debug(f"[{room_id}] Sink deregistration aborted: {e}")
+
+    def remove_room(self, room_id: str) -> None:
+        """Fully forget a room: stop reconnecting, deregister every sink surface,
+        and drop it from all per-room registries. Call on the event loop thread."""
+        self._stop_reconnect(room_id)
+        self._unpaired_rooms.discard(room_id)
+        room_service = self.rooms.pop(room_id, None)
+        if room_service is not None:
+            self._deregister_room_sinks(room_id, room_service)
+        for store in self._sink_stores():
+            store.pop(room_id, None)
+
     def shutdown(self):
         """Clean up SDK resources"""
         logger.info("Shutting down SDK...")
         # Stop any in-flight auto-reconnect loops.
         for room_id in list(self._reconnect_tasks):
             self._stop_reconnect(room_id)
-        for room_id, room_service in list(self.rooms.items()):
-            try:
-                room_service.DeregisterSink()
-            except Exception as e:
-                logger.debug(f"[{room_id}] Failed to deregister room sink: {e}")
-            try:
-                premeeting = room_service.GetPreMeetingService()
-                if premeeting:
-                    premeeting.DeregisterSink()
-            except Exception as e:
-                logger.debug(f"[{room_id}] Failed to deregister premeeting sink: {e}")
-            try:
-                meeting_service = room_service.GetMeetingService()
-                if meeting_service:
-                    list_helper = meeting_service.GetMeetingListHelper()
-                    if list_helper:
-                        list_helper.DeregisterSink()
-                    meeting_service.DeregisterSink()
-                    participant_helper = meeting_service.GetParticipantHelper()
-                    if participant_helper:
-                        participant_helper.DeregisterSink()
-            except Exception as e:
-                logger.debug(f"[{room_id}] Failed to deregister meeting/participant sink: {e}")
-
-        self.room_sinks.clear()
-        self.premeeting_sinks.clear()
-        self.meeting_list_sinks.clear()
-        self.meeting_service_sinks.clear()
-        self.participant_sinks.clear()
-        self.rooms.clear()
+        for room_id in list(self.rooms):
+            self.remove_room(room_id)
+        # Belt and braces: clear any sink entries for rooms no longer in self.rooms.
+        for store in self._sink_stores():
+            store.clear()
 
         if self.sdk and hasattr(zrc_sdk, "ClearSDKSink"):
             try:

@@ -1,0 +1,9 @@
+# Test-only dependencies (not needed to run the service).
+#   pip install -r requirements-dev.txt
+# then run against a live service:
+#   pytest -v                      # safe API tests
+#   ZRC_E2E_LIVE=1 pytest -v -m live   # + live meeting flow (starts a real meeting)
+pytest>=8.0
+httpx>=0.27
+websockets>=12.0
+fastapi>=0.110  # unit tests exercise the routers in-process (no server needed)

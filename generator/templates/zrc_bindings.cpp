@@ -1226,6 +1226,19 @@ public:
     void OnCameraBoundaryConfigurationActionChanged(CBConfigurationAction currentAction, const std::vector<CBConfigurationAction>& actionsOfNextStep, const std::vector<CBConfigurationAction>& actionsOfPreviousStep) override {}
 };
 
+// One trampoline registry per (interface, trampoline) pair, shared by the
+// RegisterSink and DeregisterSink lambdas below. A `static` map declared inside
+// a lambda body is a distinct object per lambda (each lambda is its own closure
+// type), so a deregister lambda with its own map could never find what the
+// register lambda stored -- the sink would stay registered with the SDK forever.
+// Intentionally leaked at process exit (see the os._exit note in service/app.py):
+// destroying py::objects during static teardown after Py_Finalize would abort.
+template <typename Iface, typename Trampoline>
+std::map<Iface*, std::shared_ptr<Trampoline>>& SinkRegistry() {
+    static std::map<Iface*, std::shared_ptr<Trampoline>> registry;
+    return registry;
+}
+
 PYBIND11_MODULE(zrc_sdk, m) {
     m.doc() = "Zoom Rooms Controller SDK Python Bindings";
 
@@ -1316,13 +1329,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetSettingService", &IZoomRoomsService::GetSettingService, py::return_value_policy::reference)
         .def("RegisterSink", [](IZoomRoomsService* self, py::object py_sink) {
             // Create a trampoline and keep it alive in a static map
-            static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IZoomRoomsService, ZoomRoomsServiceSinkTrampoline>();
             auto trampoline = std::make_shared<ZoomRoomsServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IZoomRoomsService* self) {
-            static std::map<IZoomRoomsService*, std::shared_ptr<ZoomRoomsServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IZoomRoomsService, ZoomRoomsServiceSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1344,13 +1357,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
     py::class_<IContactHelper>(m, "IContactHelper");
     py::class_<IBYODHelper>(m, "IBYODHelper")
         .def("RegisterSink", [](IBYODHelper* self, py::object py_sink) {
-            static std::map<IBYODHelper*, std::shared_ptr<BYODHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IBYODHelper, BYODHelperSinkTrampoline>();
             auto trampoline = std::make_shared<BYODHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IBYODHelper* self) {
-            static std::map<IBYODHelper*, std::shared_ptr<BYODHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IBYODHelper, BYODHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1366,13 +1379,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("icon", &ControlSystemSceneInfo::icon);
     py::class_<IControlSystemHelper>(m, "IControlSystemHelper")
         .def("RegisterSink", [](IControlSystemHelper* self, py::object py_sink) {
-            static std::map<IControlSystemHelper*, std::shared_ptr<ControlSystemHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IControlSystemHelper, ControlSystemHelperSinkTrampoline>();
             auto trampoline = std::make_shared<ControlSystemHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IControlSystemHelper* self) {
-            static std::map<IControlSystemHelper*, std::shared_ptr<ControlSystemHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IControlSystemHelper, ControlSystemHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1391,13 +1404,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         })
         .def("RegisterSink", [](IPreMeetingService* self, py::object py_sink) {
             // Create a trampoline and keep it alive in a static map
-            static std::map<IPreMeetingService*, std::shared_ptr<PreMeetingServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IPreMeetingService, PreMeetingServiceSinkTrampoline>();
             auto trampoline = std::make_shared<PreMeetingServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IPreMeetingService* self) {
-            static std::map<IPreMeetingService*, std::shared_ptr<PreMeetingServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IPreMeetingService, PreMeetingServiceSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1550,13 +1563,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetWaitingRoomHelper", &IMeetingService::GetWaitingRoomHelper, py::return_value_policy::reference)
         .def("GetClosedCaptionHelper", &IMeetingService::GetClosedCaptionHelper, py::return_value_policy::reference)
         .def("RegisterSink", [](IMeetingService* self, py::object py_sink) {
-            static std::map<IMeetingService*, std::shared_ptr<MeetingServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingService, MeetingServiceSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingService* self) {
-            static std::map<IMeetingService*, std::shared_ptr<MeetingServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingService, MeetingServiceSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1576,13 +1589,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
         .def("UpdateMyAudioStatus", &IMeetingAudioHelper::UpdateMyAudioStatus)
         .def("RegisterSink", [](IMeetingAudioHelper* self, py::object py_sink) {
-            static std::map<IMeetingAudioHelper*, std::shared_ptr<MeetingAudioHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingAudioHelper, MeetingAudioHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingAudioHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingAudioHelper* self) {
-            static std::map<IMeetingAudioHelper*, std::shared_ptr<MeetingAudioHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingAudioHelper, MeetingAudioHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1627,13 +1640,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ShowVideoPreview",
             static_cast<ZRCSDKError(IMeetingVideoHelper::*)(bool, PreviewVideoType, const MeetingItem&)>(&IMeetingVideoHelper::ShowVideoPreview))
         .def("RegisterSink", [](IMeetingVideoHelper* self, py::object py_sink) {
-            static std::map<IMeetingVideoHelper*, std::shared_ptr<MeetingVideoHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingVideoHelper, MeetingVideoHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingVideoHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingVideoHelper* self) {
-            static std::map<IMeetingVideoHelper*, std::shared_ptr<MeetingVideoHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingVideoHelper, MeetingVideoHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1693,13 +1706,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("AskToEnableAICompanion", &IMeetingControlHelper::AskToEnableAICompanion)
         .def("ControlSidePanel", &IMeetingControlHelper::ControlSidePanel)
         .def("RegisterSink", [](IMeetingControlHelper* self, py::object py_sink) {
-            static std::map<IMeetingControlHelper*, std::shared_ptr<MeetingControlHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingControlHelper, MeetingControlHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingControlHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingControlHelper* self) {
-            static std::map<IMeetingControlHelper*, std::shared_ptr<MeetingControlHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingControlHelper, MeetingControlHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1756,13 +1769,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return py::make_tuple(r, onEntry);
         })
         .def("RegisterSink", [](IWaitingRoomHelper* self, py::object py_sink) {
-            static std::map<IWaitingRoomHelper*, std::shared_ptr<WaitingRoomHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IWaitingRoomHelper, WaitingRoomHelperSinkTrampoline>();
             auto trampoline = std::make_shared<WaitingRoomHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IWaitingRoomHelper* self) {
-            static std::map<IWaitingRoomHelper*, std::shared_ptr<WaitingRoomHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IWaitingRoomHelper, WaitingRoomHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -1865,13 +1878,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ShowTranscriptPanelOnZR", &IClosedCaptionHelper::ShowTranscriptPanelOnZR)
         .def("ShowTranscriptPanelOnZRC", &IClosedCaptionHelper::ShowTranscriptPanelOnZRC)
         .def("RegisterSink", [](IClosedCaptionHelper* self, py::object py_sink) {
-            static std::map<IClosedCaptionHelper*, std::shared_ptr<ClosedCaptionHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IClosedCaptionHelper, ClosedCaptionHelperSinkTrampoline>();
             auto trampoline = std::make_shared<ClosedCaptionHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IClosedCaptionHelper* self) {
-            static std::map<IClosedCaptionHelper*, std::shared_ptr<ClosedCaptionHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IClosedCaptionHelper, ClosedCaptionHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -2650,13 +2663,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
     // ===== Meeting List Helper =====
     py::class_<IMeetingListHelper>(m, "IMeetingListHelper")
         .def("RegisterSink", [](IMeetingListHelper* self, py::object py_sink) {
-            static std::map<IMeetingListHelper*, std::shared_ptr<MeetingListHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingListHelper, MeetingListHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingListHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingListHelper* self) {
-            static std::map<IMeetingListHelper*, std::shared_ptr<MeetingListHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingListHelper, MeetingListHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -2712,13 +2725,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         })
         .def("EnableAnnotationOverHDMI", &IMeetingShareHelper::EnableAnnotationOverHDMI)
         .def("RegisterSink", [](IMeetingShareHelper* self, py::object py_sink) {
-            static std::map<IMeetingShareHelper*, std::shared_ptr<MeetingShareHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingShareHelper, MeetingShareHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingShareHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingShareHelper* self) {
-            static std::map<IMeetingShareHelper*, std::shared_ptr<MeetingShareHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingShareHelper, MeetingShareHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -2759,13 +2772,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ChangeThumbnailsPosition", &IMeetingViewLayoutHelper::ChangeThumbnailsPosition)
         .def("ShowMyAutoGeneratedVideoStreams", &IMeetingViewLayoutHelper::ShowMyAutoGeneratedVideoStreams)
         .def("RegisterSink", [](IMeetingViewLayoutHelper* self, py::object py_sink) {
-            static std::map<IMeetingViewLayoutHelper*, std::shared_ptr<MeetingViewLayoutHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingViewLayoutHelper, MeetingViewLayoutHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingViewLayoutHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingViewLayoutHelper* self) {
-            static std::map<IMeetingViewLayoutHelper*, std::shared_ptr<MeetingViewLayoutHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingViewLayoutHelper, MeetingViewLayoutHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -2811,13 +2824,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("RemovePersistentNDISource", &INDIHelper::RemovePersistentNDISource)
         .def("ListPersistentNDISources", &INDIHelper::ListPersistentNDISources)
         .def("RegisterSink", [](INDIHelper* self, py::object py_sink) {
-            static std::map<INDIHelper*, std::shared_ptr<NDIHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<INDIHelper, NDIHelperSinkTrampoline>();
             auto trampoline = std::make_shared<NDIHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](INDIHelper* self) {
-            static std::map<INDIHelper*, std::shared_ptr<NDIHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<INDIHelper, NDIHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -2837,6 +2850,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("pronouns", &MeetingParticipant::pronouns)
         .def_readwrite("avatarUrl", &MeetingParticipant::avatarUrl)
         .def_readwrite("isMySelf", &MeetingParticipant::isMySelf)
+        .def_readwrite("isMyself", &MeetingParticipant::isMySelf)  // backwards-compat alias
         .def_readwrite("isHost", &MeetingParticipant::isHost)
         .def_readwrite("isCohost", &MeetingParticipant::isCohost)
         .def_readwrite("isGuest", &MeetingParticipant::isGuest)
@@ -2922,13 +2936,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("SetMySelfAsActiveSpeaker", &IParticipantHelper::SetMySelfAsActiveSpeaker)
         .def("SetMyChildAsActiveSpeaker", &IParticipantHelper::SetMyChildAsActiveSpeaker)
         .def("RegisterSink", [](IParticipantHelper* self, py::object py_sink) {
-            static std::map<IParticipantHelper*, std::shared_ptr<ParticipantHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IParticipantHelper, ParticipantHelperSinkTrampoline>();
             auto trampoline = std::make_shared<ParticipantHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IParticipantHelper* self) {
-            static std::map<IParticipantHelper*, std::shared_ptr<ParticipantHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IParticipantHelper, ParticipantHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3019,13 +3033,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return py::make_tuple(result, permissionInfo);
         })
         .def("RegisterSink", [](IRecordingHelper* self, py::object py_sink) {
-            static std::map<IRecordingHelper*, std::shared_ptr<RecordingHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IRecordingHelper, RecordingHelperSinkTrampoline>();
             auto trampoline = std::make_shared<RecordingHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IRecordingHelper* self) {
-            static std::map<IRecordingHelper*, std::shared_ptr<RecordingHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IRecordingHelper, RecordingHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3138,13 +3152,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
     py::class_<IMeetingReminderHelper>(m, "IMeetingReminderHelper")
         .def("RegisterSink", [](IMeetingReminderHelper* self, py::object py_sink) {
             // Create a trampoline and keep it alive in a static map
-            static std::map<IMeetingReminderHelper*, std::shared_ptr<MeetingReminderHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingReminderHelper, MeetingReminderHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingReminderHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IMeetingReminderHelper* self) {
-            static std::map<IMeetingReminderHelper*, std::shared_ptr<MeetingReminderHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IMeetingReminderHelper, MeetingReminderHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3488,13 +3502,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
     // ===== Setting Service =====
     py::class_<ICalibrationHelper>(m, "ICalibrationHelper")
         .def("RegisterSink", [](ICalibrationHelper* self, py::object py_sink) {
-            static std::map<ICalibrationHelper*, std::shared_ptr<CalibrationHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<ICalibrationHelper, CalibrationHelperSinkTrampoline>();
             auto trampoline = std::make_shared<CalibrationHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](ICalibrationHelper* self) {
-            static std::map<ICalibrationHelper*, std::shared_ptr<CalibrationHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<ICalibrationHelper, CalibrationHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3648,13 +3662,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("GetCalibrationHelper", &ISettingService::GetCalibrationHelper, py::return_value_policy::reference)
         .def("EnableMultiCameraOnlyMode", &ISettingService::EnableMultiCameraOnlyMode)
         .def("RegisterSink", [](ISettingService* self, py::object py_sink) {
-            static std::map<ISettingService*, std::shared_ptr<SettingServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<ISettingService, SettingServiceSinkTrampoline>();
             auto trampoline = std::make_shared<SettingServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](ISettingService* self) {
-            static std::map<ISettingService*, std::shared_ptr<SettingServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<ISettingService, SettingServiceSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3801,13 +3815,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return py::make_tuple(result, unholdCall);
         })
         .def("RegisterSink", [](IPhoneCallService* self, py::object py_sink) {
-            static std::map<IPhoneCallService*, std::shared_ptr<PhoneCallServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IPhoneCallService, PhoneCallServiceSinkTrampoline>();
             auto trampoline = std::make_shared<PhoneCallServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IPhoneCallService* self) {
-            static std::map<IPhoneCallService*, std::shared_ptr<PhoneCallServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IPhoneCallService, PhoneCallServiceSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3899,13 +3913,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("identifiable", &LocalNetworkAudioDeviceInfo::identifiable);
     py::class_<IDanteOutputHelper>(m, "IDanteOutputHelper")
         .def("RegisterSink", [](IDanteOutputHelper* self, py::object py_sink) {
-            static std::map<IDanteOutputHelper*, std::shared_ptr<DanteOutputHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IDanteOutputHelper, DanteOutputHelperSinkTrampoline>();
             auto trampoline = std::make_shared<DanteOutputHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IDanteOutputHelper* self) {
-            static std::map<IDanteOutputHelper*, std::shared_ptr<DanteOutputHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IDanteOutputHelper, DanteOutputHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3916,13 +3930,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         });
     py::class_<IHWIOHelper>(m, "IHWIOHelper")
         .def("RegisterSink", [](IHWIOHelper* self, py::object py_sink) {
-            static std::map<IHWIOHelper*, std::shared_ptr<HWIOHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IHWIOHelper, HWIOHelperSinkTrampoline>();
             auto trampoline = std::make_shared<HWIOHelperSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IHWIOHelper* self) {
-            static std::map<IHWIOHelper*, std::shared_ptr<HWIOHelperSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IHWIOHelper, HWIOHelperSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());
@@ -3964,13 +3978,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
             return py::make_tuple(result, behavior);
         })
         .def("RegisterSink", [](IProAVService* self, py::object py_sink) {
-            static std::map<IProAVService*, std::shared_ptr<ProAVServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IProAVService, ProAVServiceSinkTrampoline>();
             auto trampoline = std::make_shared<ProAVServiceSinkTrampoline>(py_sink);
             sinks[self] = trampoline;
             return self->RegisterSink(trampoline.get());
         })
         .def("DeregisterSink", [](IProAVService* self) {
-            static std::map<IProAVService*, std::shared_ptr<ProAVServiceSinkTrampoline>> sinks;
+            auto& sinks = SinkRegistry<IProAVService, ProAVServiceSinkTrampoline>();
             auto it = sinks.find(self);
             if (it != sinks.end()) {
                 auto result = self->DeregisterSink(it->second.get());

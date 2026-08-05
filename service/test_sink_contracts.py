@@ -1,6 +1,6 @@
  #!/usr/bin/env python3
 """
-Tier-1 sink contract test.
+Sink contract test (runs in the built image).
 
 For every callback the C++ trampolines forward to Python, this harness fabricates
 the SDK struct / enum / primitive arguments, invokes the matching Python sink
@@ -45,6 +45,18 @@ class Capture:
     def broadcast_event(self, room_id, payload):
         json.dumps(payload)          # raises if the payload isn't serializable
         self.events.append(payload)
+
+    # Connection-management hooks some sinks also call on the manager
+    # (auto-reconnect). No-ops here so the contract test stays focused on the
+    # emitted payload rather than reconnect side effects.
+    def mark_unpaired(self, *args, **kwargs):
+        pass
+
+    def schedule_reconnect(self, *args, **kwargs):
+        pass
+
+    def cancel_reconnect(self, *args, **kwargs):
+        pass
 
 
 def split_params(params):
