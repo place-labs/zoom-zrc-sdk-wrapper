@@ -1,0 +1,131 @@
+# zoom-zrc on the dedicated self-managed node (stable-MAC deployment).
+#
+# Why this shape: the Zoom SDK derives its credential-encryption key from the
+# machine's real eth0 MAC. With hostNetwork:true on the dedicated node, the SDK
+# sees the node's retained primary ENI (eth0, MAC 02:ff:cb:fe:09:a3), which is
+# stable across pod recreation and node stop/start — so pairings survive
+# deploys. Standard pod networking gives the pod a fresh CNI-assigned MAC on
+# every recreation, which kills the stored credentials (see FINDINGS.md §2–4).
+#
+# Infra (owned by AWS colleague — see FINDINGS.md):
+#   Cluster PlaceOS-NonProd-Cluster-IPv4, us-west-2
+#   Node    avits-services-self-managed-node (ip-10-80-24-89.us-west-2.compute.internal)
+#   ENI     eth0 = 02:ff:cb:fe:09:a3 (retained); VPC CNI also attaches eth1
+#   Storage avits-services-self-managed-ebs
+#
+# BEFORE PAIRING ANY ROOM: verify the SDK sees eth0's MAC (see runbook at
+# bottom). Do not pair if it selects eth1 or another interface.
+apiVersion: v1
+kind: Service
+metadata:
+  name: zoom-zrc
+  namespace: placeos
+spec:
+  type: ClusterIP
+  selector:
+    app: zoom-zrc
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zoom-zrc
+  namespace: placeos
+spec:
+  # One replica, and a StatefulSet never overlaps old and new pods during an
+  # update (delete-then-create) — both required: two live SDK instances would
+  # collide on device identity, and with hostNetwork they'd collide on :8000.
+  replicas: 1
+  serviceName: zoom-zrc
+  selector:
+    matchLabels:
+      app: zoom-zrc
+  template:
+    metadata:
+      labels:
+        app: zoom-zrc
+    spec:
+      nodeSelector:
+        avit.ucla.edu/node-pool: avits-services-self-managed
+        avit.ucla.edu/node-network: eks-standard
+      tolerations:
+        - key: avit.ucla.edu/dedicated
+          operator: Equal
+          value: avits-services-self-managed
+          effect: NoSchedule
+      # hostNetwork is the load-bearing setting: the SDK must see the node's
+      # retained ENI, not a per-pod CNI interface. Do NOT add NET_ADMIN,
+      # privileged mode, or any MAC-modification logic.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: zoom-zrc
+          # Pin the exact CI-published tag; update via the source manifest (or
+          # keep `kubectl set image` in sync with this file — drift here means
+          # the next `apply` rolls the image back).
+          image: placeos/zoom-zrc:REPLACE_WITH_TAG
+          ports:
+            # With hostNetwork this binds node port 8000 — must stay conflict-free
+            # on the node. The app listens on 8000 only.
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: zoom-zrc
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            # SDK init + room restore takes a while on cold start; don't
+            # restart-loop a booting service.
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            # SDK pairing DB (third_zrc_data.db + ZRCSDK.conf). The stable MAC
+            # does not replace this — both are required for pairing persistence.
+            - name: data
+              mountPath: /root/.zoom/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: avits-services-self-managed-ebs
+        resources:
+          requests:
+            storage: 1Gi
+# ---------------------------------------------------------------------------
+# Runbook
+#
+# First deploy / migration from the old pod-network StatefulSet:
+#   1. This uses a FRESH PVC (old credentials were keyed to a dead pod MAC and
+#      are unrecoverable — do not migrate the old volume's ZRCSDK.conf).
+#   2. Apply, wait Ready, then verify the interface BEFORE pairing:
+#        kubectl -n placeos exec zoom-zrc-0 -- ip link show eth0
+#      → must show 02:ff:cb:fe:09:a3. (eth1 exists too; that's expected.)
+#   3. Pair one test room, then run the acceptance test:
+#        kubectl -n placeos delete pod zoom-zrc-0     # pod recreation
+#      → after restart the room must reconnect WITHOUT re-pairing
+#        (RetryToPairRoom SUCCESS, not INTERNAL_ERROR). Only then pair the rest.
+#
+# Upgrades: change the image tag here and `kubectl apply` — the PVC and MAC
+# both persist, so upgrades no longer cost a re-pair. Never delete the PVC.
+# ---------------------------------------------------------------------------

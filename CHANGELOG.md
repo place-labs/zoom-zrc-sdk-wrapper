@@ -41,6 +41,16 @@
 - **`TESTING.md`** _(new)_ — the five suites, what each needs, and what CI runs
 - **`CHANGELOG.md`** — this entry
 
+#### Deployment
+- **`deploy/k8s/zoom-zrc.yaml`** _(new)_ — stable-MAC EKS deployment: `hostNetwork` StatefulSet pinned to the dedicated self-managed node whose retained primary ENI supplies the SDK-visible MAC, with PVC for the pairing DB and a pre-pairing verification runbook. Replaces the pod-network StatefulSet whose per-recreation MAC invalidated stored room credentials (FINDINGS.md §2–4)
+
+#### Claude Code Project Config
+- **`CLAUDE.md`** _(new)_ — repo invariants (template/bindings sync, `os._exit` rule, pinned MAC, amd64-only SDK) and workflow rules, loaded into every session
+- **`.claude/skills/`** _(new)_ — `run-tests` (suite sequence + expected counts), `add-sink` (the five hand-maintained mirrors), `release` (changelog/version/tag ritual), `sdk-upgrade` (pin bump → stub → verify)
+- **`.claude/workflows/sink-audit.js`** _(new)_ — per-surface multi-agent drift audit across bindings, registration, cleanup, and test coverage
+- **`.claude/agents/bindings-auditor.md`** _(new)_ — read-only reviewer for the pybind11 layer (registry sharing, template sync, GIL, exception containment, API stability, static teardown)
+- **`.claude/settings.json`** _(new)_ — shared permission allowlist (docker/pytest/git read-ops); `settings.local.json` gitignored
+
 ## [1.3.0] - 2026-07-23 - Live WebSocket Streaming & Connection Resilience
 
 ### Major Changes

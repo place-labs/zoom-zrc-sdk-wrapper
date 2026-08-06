@@ -55,3 +55,6 @@ logs/
 htmlcov/
 *.gz
 /zrc-data
+
+# Claude Code — personal overrides stay local
+.claude/settings.local.json

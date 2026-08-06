@@ -62,3 +62,25 @@ def test_generator_template_matches_bindings():
             "generator/templates/zrc_bindings.cpp differs from "
             "bindings/zrc_bindings.cpp — regeneration would revert fixes"
         )
+
+
+def _yielded_labels(source, func_name):
+    """Labels from `yield "<label>", ...` lines inside one function body."""
+    body = re.search(rf"def {func_name}\(.*?(?=\n    def |\ndef |\Z)", source, re.S)
+    assert body, f"function {func_name} not found"
+    return set(re.findall(r'yield "([^"]+)",', body.group(0)))
+
+
+def test_lifecycle_test_covers_every_deregistered_surface():
+    """The in-image lifecycle test's surface list is hand-maintained; keep it in
+    lockstep with _deregister_room_sinks (which the unit tests keep in lockstep
+    with registration) so a new sink surface can't be silently untested."""
+    with open(os.path.join(REPO_ROOT, "service", "room_manager.py")) as f:
+        deregistered = _yielded_labels(f.read(), "surfaces")
+    with open(os.path.join(REPO_ROOT, "service", "test_sink_lifecycle.py")) as f:
+        lifecycle = _yielded_labels(f.read(), "surfaces")
+    assert deregistered, "no surfaces found in room_manager surfaces()"
+    missing = deregistered - lifecycle
+    extra = lifecycle - deregistered
+    assert not missing, f"surfaces missing from test_sink_lifecycle.surfaces(): {sorted(missing)}"
+    assert not extra, f"test_sink_lifecycle.surfaces() lists unknown surfaces: {sorted(extra)}"
