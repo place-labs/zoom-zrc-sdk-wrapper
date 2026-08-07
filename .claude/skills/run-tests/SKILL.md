@@ -14,7 +14,7 @@ Expected pass counts are the current baselines — report any deviation.
 pytest -m unit -v
 ```
 
-Expected: **15 passed**. Needs only `pip install -r requirements-dev.txt`.
+Expected: **30 passed**. Needs only `pip install -r requirements-dev.txt`.
 
 ## 2. Build the image
 
@@ -52,7 +52,7 @@ ZRC_BASE_URL=http://localhost:8000 pytest -v -m "not live"
 docker rm -f zrc-ci
 ```
 
-Expected: **21 passed** (15 unit + 6 smoke), 2 deselected (live).
+Expected: **36 passed** (30 unit + 6 smoke), 2 deselected (live).
 
 ## Reporting
 

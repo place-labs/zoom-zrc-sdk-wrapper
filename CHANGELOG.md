@@ -11,6 +11,8 @@
 - **Auto-reconnect survives remote unpair → re-pair** — re-pairing a room whose service was still cached returned early without clearing the unpaired flag, permanently disabling self-healing for that room
 - **Slow WebSocket consumers learn about dropped events** — on queue overflow the subscriber now receives one `{"event": "EventsDropped", "count": N}` marker before the surviving events (the gap precedes everything still queued) instead of silently losing state
 - **`isMyself` restored** — the backwards-compat alias on `MeetingParticipant` had been dropped, an `AttributeError` for external consumers of the compiled module
+- **Reminder/consent handlers accept enum names, not just ints** — the event stream emits SDK enums by name, so a client echoing a captured value back sends the name; the four reminder/consent endpoints (`confirm-reminder`, `confirm-custom-reminder`, `confirm-consent`, `confirm-combined-consent`) now resolve `int | str` against the wrapper's own bound enums via `_resolve_enum`, closing the round-trip so nothing outside the wrapper needs the integer mapping. Consent now passes a real `ConsentType` enum (was a raw int). Ints still accepted — non-breaking
+- **`handle-privacy` no longer 500s** — the handler read `request.notification_type`, a field `PrivacyRequest` never had (dead + crashing line); removed. Its enums resolve `int | str` too, and the duplicated `handle_privacy_alert` function name (continue-on-inactivity route) was renamed `continue_on_inactivity`
 
 #### 🧪 Test Suites (see `TESTING.md`)
 - **Unit** (`pytest -m unit`, `service/tests/`) — hermetic suite against a fake SDK (`_zrc_stub.py`), no compiled module / server / room: connection lifecycle (`remove_room`, re-pair flag, overflow marker), unpair endpoint via in-process FastAPI, lifespan exit codes via subprocess, and bindings source contracts (shared sink registry, `isMyself` alias, generator template byte-identical to bindings)
@@ -28,8 +30,10 @@
 - **`generator/templates/zrc_bindings.cpp`** — mirrored _(source of truth)_
 
 #### Service
-- **`service/room_manager.py`** — `remove_room()` full-cleanup path; `_SubscriberQueue` with `EventsDropped` overflow marker; re-pair clears the unpaired flag
-- **`service/controllers/rooms.py`** — unpair now delegates to `remove_room()`
+- **`service/room_manager.py`** — `remove_room()` full-cleanup path; `_SubscriberQueue` with `EventsDropped` overflow marker; re-pair clears the unpaired flag; `SDKCallMonitor` times loop-thread SDK calls (`RetryToPairRoom`/`HeartBeat`/pairing) and flags any slow enough to stall the fleet, threshold via `ZRC_SDK_SLOW_MS` (default 50 ms)
+- **`service/controllers/rooms.py`** — unpair now delegates to `remove_room()`; pairing call timed via `sdk_monitor`
+- **`service/app.py`** — `/health` now includes `sdk_call_timing` (calls, slow_calls, max_ms, recent slowest) — live SDK-call latency, readable without grepping logs
+- **`service/controllers/meeting_reminder.py`** — `_resolve_enum` (int-or-name); widened request models to `int | str`; consent passes a real `ConsentType`; removed the crashing `handle-privacy` line; renamed the duplicate `handle_privacy_alert`
 - **`service/app.py`** — `os._exit(0)` only on clean shutdown; startup failures propagate
 
 #### Tests & CI
@@ -39,6 +43,7 @@
 
 #### Documentation
 - **`TESTING.md`** _(new)_ — the five suites, what each needs, and what CI runs
+- **`ARCHITECTURE.md`** — reworked the diagram set to favor structure over redundant linear traces: added the **SDK service & sink object graph** (the 23-node domain tree that `register_sinks_for_room`/`remove_room` walk), the **threading model** (SDK callback threads vs the single asyncio loop, and the `call_soon_threadsafe`/GIL boundary where the timing bugs live), and a **bindings source-of-truth** codegen flow; kept the layer stack, deployment topology, lifecycle state machine, and CI/CD pipeline; dropped the command-path and event-path box-chains (folded into a worked JSON example) and the flat event-delivery sequence (subsumed by the threading model). A **consistent, light/dark-safe colour language** (blue = our Python · amber = the C++ seam · grey = external · violet = infra; green/amber/red = healthy/transient/broken states) now encodes ownership and health across every diagram; deployment annotated with the live node/ENI MAC. All diagrams verified by rendering in both light and dark backgrounds.
 - **`CHANGELOG.md`** — this entry
 
 #### Deployment

@@ -120,3 +120,9 @@ the Actions run log, and the pytest results upload as a JUnit artifact
 (`test-results`).
 
 Live e2e coverage is a manual pre-release step against real hardware.
+
+Measured baseline (Apple-Silicon dev box / emulated image, indicative only):
+delivery ceiling ~150k events/s and sub-ms loop lag to 5k events/s; HeartBeat
+~1.8 ms at 500 services (1.2 % of the 150 ms budget). Neither is the bottleneck —
+a single 100 ms blocking SDK call stalling the loop ~100 ms fleet-wide is, which
+is why offloading blocking calls (`asyncio.to_thread`) is the priority fix.
