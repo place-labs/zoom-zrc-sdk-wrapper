@@ -8,6 +8,8 @@ import sqlite3
 import os
 import threading
 from collections import deque
+from contextlib import contextmanager
+from time import perf_counter
 from typing import Deque, Dict, Optional, Tuple
 
 try:
@@ -17,6 +19,64 @@ except ImportError:
     raise
 
 logger = logging.getLogger(__name__)
+
+
+# ===== SDK call latency monitor =====
+
+class SDKCallMonitor:
+    """Times synchronous SDK calls made on the event-loop thread and flags any
+    slow enough to stall the whole service.
+
+    Every SDK method call blocks the single asyncio loop for its duration (the
+    SDK is main-thread-affine and the bindings don't release the GIL — see
+    ARCHITECTURE.md → Threading model). So a call over `slow_ms` freezes every
+    room's REST + WS for that long. This makes that visible in production: it logs a warning per slow call
+    and keeps rolling stats readable via /health, turning "does a real SDK call
+    block?" from a guess into observed data.
+
+    Threshold defaults to 50 ms, overridable with ZRC_SDK_SLOW_MS. Wrap a call:
+
+        with mgr.sdk_monitor.measure(f"RetryToPairRoom[{room_id}]"):
+            result = room_service.RetryToPairRoom()
+    """
+
+    _KEEP_SLOWEST = 20
+
+    def __init__(self, slow_ms: Optional[float] = None):
+        self.slow_ms = float(slow_ms if slow_ms is not None
+                             else os.environ.get("ZRC_SDK_SLOW_MS", "50"))
+        self.calls = 0
+        self.slow_calls = 0
+        self.max_ms = 0.0
+        self.slowest = []   # rolling list of the most recent slow calls
+
+    @contextmanager
+    def measure(self, label: str):
+        start = perf_counter()
+        try:
+            yield
+        finally:
+            ms = (perf_counter() - start) * 1000.0
+            self.calls += 1
+            if ms > self.max_ms:
+                self.max_ms = ms
+            if ms >= self.slow_ms:
+                self.slow_calls += 1
+                self.slowest.append({"call": label, "ms": round(ms, 1)})
+                del self.slowest[:-self._KEEP_SLOWEST]
+                logger.warning(
+                    f"SLOW SDK call: {label} took {ms:.0f}ms (>{self.slow_ms:.0f}ms) "
+                    f"— blocks the event loop, stalling all rooms for that long"
+                )
+
+    def stats(self) -> dict:
+        return {
+            "calls": self.calls,
+            "slow_calls": self.slow_calls,
+            "slow_ms_threshold": self.slow_ms,
+            "max_ms": round(self.max_ms, 1),
+            "slowest": list(self.slowest),
+        }
 
 
 # ===== SDK Sink Implementation =====
@@ -834,6 +894,8 @@ class RoomManager:
         self.calibration_sinks: Dict[str, CalibrationHelperSink] = {}
         self.heartbeat_task = None
         self.sdk_sink = SDKSinkImpl()
+        # Times synchronous SDK calls on the loop thread; flags any that stall it.
+        self.sdk_monitor = SDKCallMonitor()
         # ===== Live event streaming (WebSocket) =====
         self._event_loop: Optional[asyncio.AbstractEventLoop] = None
         # room_id -> {per-subscriber asyncio.Queue: session filter or None}.
@@ -945,7 +1007,11 @@ class RoomManager:
                     return  # room no longer managed
                 attempt += 1
                 try:
-                    result = room_service.RetryToPairRoom()
+                    # The reconnect path is the prime blocking suspect — it runs
+                    # exactly when the network is down. Time it so a real stall
+                    # shows up in the logs / /health instead of staying hidden.
+                    with self.sdk_monitor.measure(f"RetryToPairRoom[{room_id}]"):
+                        result = room_service.RetryToPairRoom()
                     logger.info(f"[{room_id}] auto-reconnect attempt {attempt}: {result}")
                 except Exception as e:
                     logger.error(f"[{room_id}] auto-reconnect attempt {attempt} raised: {e}")
@@ -1042,7 +1108,10 @@ class RoomManager:
             while True:
                 try:
                     if self.sdk:
-                        self.sdk.HeartBeat()
+                        # HeartBeat runs every 150ms on the loop; if it ever spikes
+                        # (e.g. with many connected rooms) the monitor surfaces it.
+                        with self.sdk_monitor.measure("HeartBeat"):
+                            self.sdk.HeartBeat()
                     await asyncio.sleep(0.15)  # 150ms interval
                 except Exception as e:
                     logger.error(f"HeartBeat error: {e}")

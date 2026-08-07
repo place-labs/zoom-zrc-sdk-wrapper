@@ -76,9 +76,10 @@ async def pair_room(room_id: str, request: PairRoomRequest, room_manager = Depen
         room_sink.pair_event.clear()
         premeeting_sink.connected_event.clear()
 
-        # Start pairing
+        # Start pairing (a network round-trip on the loop thread — time it)
         logger.info(f"Pairing room: {room_id}")
-        result = room_service.PairRoomWithActivationCode(request.activation_code)
+        with room_manager.sdk_monitor.measure(f"PairRoomWithActivationCode[{room_id}]"):
+            result = room_service.PairRoomWithActivationCode(request.activation_code)
 
         if result != zrc_sdk.ZRCSDKERR_SUCCESS:
             raise HTTPException(

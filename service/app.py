@@ -80,11 +80,13 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint"""
+    """Health check endpoint. Includes SDK-call latency stats so slow (loop-
+    stalling) calls are visible without grepping logs — see room_manager.SDKCallMonitor."""
     return {
         "status": "healthy",
         "sdk_initialized": room_manager.sdk is not None,
-        "active_rooms": len(room_manager.rooms)
+        "active_rooms": len(room_manager.rooms),
+        "sdk_call_timing": room_manager.sdk_monitor.stats()
     }
 
 
