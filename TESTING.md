@@ -5,7 +5,7 @@ Five suites, named by what they need to run — cheapest/most-portable first.
 | Suite | File | Verifies | Needs | In CI? |
 |-------|------|----------|-------|--------|
 | **Unit** | `service/tests/` (`-m unit`) | service-layer lifecycle logic against a fake SDK: room removal/cleanup, re-pair flag, WS overflow marker, lifespan exit codes, bindings source contracts | nothing | ✅ |
-| **Contract** | `service/test_sink_contracts.py` | every forwarded SDK callback serializes to a valid, once-only WS payload (124 callbacks) | compiled module (in image) | ✅ |
+| **Contract** | `service/test_sink_contracts.py` | every forwarded SDK callback serializes to a valid, once-only WS payload (125 callbacks) | compiled module (in image) | ✅ |
 | **Lifecycle** | `service/test_sink_lifecycle.py` | RegisterSink/DeregisterSink work through the compiled bindings against the real SDK, for every sink surface | compiled module (in image) | ✅ |
 | **Smoke** | `service/tests/test_api.py` (unmarked) | running service is up: health, room-list schema, OpenAPI surface, WS route, error handling | running container | ✅ |
 | **Live e2e** | `service/tests/test_api.py` (`@pytest.mark.live`) | real pair → meeting → WS events → mute → exit | **paired Zoom Room** | ❌ (manual) |

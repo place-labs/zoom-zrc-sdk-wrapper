@@ -1,5 +1,10 @@
  # Changelog
 
+## [Unreleased]
+
+### Added
+- **Wireless sharing key over the WebSocket** — the meeting-share sink now forwards `OnUpdateAirPlayBlackMagicStatus`, giving subscribers asynchronous updates whenever the room's AirPlay / direct-presentation status changes. The event's `status` carries `directPresentationSharingKey` (the code users enter at share.zoom.us / the Zoom app to present to the room) and `directPresentationPairingCode`. The SDK exposes this **push-only** (no getter), and the C++ trampoline previously stubbed the callback as a no-op (`override {}`), so the key never reached the API. Now the template + bindings forward it (GIL-guarded, byte-identical); the `AirplayBlackMagicStatus` struct was already bound. Contract coverage 124 → 125 callbacks; new unit test `test_unit_share_airplay.py`
+
 ## [1.4.0] - 2026-08-05 - Code-Review Hardening, Test Suites & CI Gating
 
 ### Major Changes

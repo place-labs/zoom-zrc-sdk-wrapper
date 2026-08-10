@@ -14,7 +14,7 @@ Expected pass counts are the current baselines — report any deviation.
 pytest -m unit -v
 ```
 
-Expected: **30 passed**. Needs only `pip install -r requirements-dev.txt`.
+Expected: **38 passed**. Needs only `pip install -r requirements-dev.txt`.
 
 ## 2. Build the image
 
@@ -32,7 +32,7 @@ down on macOS: `open -a Docker` and poll `docker info`.
 docker run --rm --entrypoint python zrc-ci:test /app/service/test_sink_contracts.py
 ```
 
-Expected: **124 PASS, 0 FAIL, 0 ERROR**.
+Expected: **125 PASS, 0 FAIL, 0 ERROR**.
 
 ## 4. Lifecycle (in image)
 
@@ -52,7 +52,7 @@ ZRC_BASE_URL=http://localhost:8000 pytest -v -m "not live"
 docker rm -f zrc-ci
 ```
 
-Expected: **36 passed** (30 unit + 6 smoke), 2 deselected (live).
+Expected: **44 passed** (38 unit + 6 smoke), 2 deselected (live).
 
 ## Reporting
 

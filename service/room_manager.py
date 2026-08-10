@@ -20,6 +20,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# ZRCSDKError: the command reached the SDK but the room is unreachable. The SDK's
+# GetConnectionState can still report Connected in this "zombie" state, so a
+# command returning this is the ground truth that the connection is actually dead.
+NOT_CONNECT_TO_ZOOMROOM = 11
+
 
 # ===== SDK call latency monitor =====
 
@@ -595,6 +600,11 @@ class MeetingShareHelperSink(_Broadcaster):
     def OnStartLocalPresentResult(self, is_sharing_meeting: bool, display_state):
         self.emit("OnStartLocalPresentResult", isSharingMeeting=is_sharing_meeting, displayState=_enum_name(display_state))
 
+    def OnUpdateAirPlayBlackMagicStatus(self, status):
+        # Carries the wireless sharing key / direct-presentation pairing code
+        # (status.directPresentationSharingKey) — push-only; the SDK has no getter.
+        self.emit("OnUpdateAirPlayBlackMagicStatus", status=_pybind_to_jsonable(status))
+
 
 class PhoneCallServiceSink(_Broadcaster):
     """Callback sink for SIP / phone-call events (incoming, status, transfer, upgrade-to-meeting)."""
@@ -893,6 +903,7 @@ class RoomManager:
         self.byod_sinks: Dict[str, BYODHelperSink] = {}
         self.calibration_sinks: Dict[str, CalibrationHelperSink] = {}
         self.heartbeat_task = None
+        self.liveness_task = None
         self.sdk_sink = SDKSinkImpl()
         # Times synchronous SDK calls on the loop thread; flags any that stall it.
         self.sdk_monitor = SDKCallMonitor()
@@ -1019,6 +1030,56 @@ class RoomManager:
             logger.info(f"[{room_id}] auto-reconnect stopped (reconnected or shutting down)")
             raise
 
+    # ----- Liveness self-heal (the "zombie" state) -----
+    # A room can report Connected (GetConnectionState) while its command channel is
+    # dead — commands return NOT_CONNECT_TO_ZOOMROOM (11). The SDK never fires
+    # Disconnected in this state, so auto-reconnect never triggers and the room
+    # stays unusable, even while idle. This loop probes each room's REAL
+    # reachability and reconnects the zombies. Interval is a balance: short enough
+    # to recover promptly, long enough that per-room probes are negligible load.
+    _LIVENESS_INTERVAL = 20  # seconds
+
+    def _probe_zombie(self, room_id: str) -> bool:
+        """True iff a command actually reaches the SDK but the room is unreachable
+        (NOT_CONNECT_TO_ZOOMROOM) — the zombie state. Read-only, never raises."""
+        room_service = self.rooms.get(room_id)
+        if room_service is None:
+            return False
+        try:
+            meeting_service = room_service.GetMeetingService()
+            if not meeting_service:
+                return False
+            result, _status = meeting_service.GetMeetingStatus()
+            return int(result) == NOT_CONNECT_TO_ZOOMROOM
+        except Exception:
+            return False  # can't confirm a zombie -> leave it to the next round
+
+    def _liveness_check_once(self) -> None:
+        """One probe pass over managed rooms; reconnect any confirmed zombie."""
+        for room_id in list(self.rooms):
+            if room_id in self._unpaired_rooms:
+                continue
+            task = self._reconnect_tasks.get(room_id)
+            if task and not task.done():
+                continue  # already reconnecting this room
+            if self._probe_zombie(room_id):
+                logger.warning(
+                    f"[{room_id}] liveness: reports Connected but commands return "
+                    f"NOT_CONNECT_TO_ZOOMROOM (11) — scheduling reconnect (zombie self-heal)"
+                )
+                self.schedule_reconnect(room_id)
+
+    async def _liveness_loop(self) -> None:
+        logger.info(f"Starting liveness self-heal loop ({self._LIVENESS_INTERVAL}s interval)...")
+        while True:
+            try:
+                await asyncio.sleep(self._LIVENESS_INTERVAL)
+                self._liveness_check_once()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(f"liveness loop error: {e}")
+
     def initialize(self):
         """Initialize the SDK"""
         logger.info("Initializing Zoom Rooms SDK...")
@@ -1118,15 +1179,17 @@ class RoomManager:
                     break
 
         self.heartbeat_task = asyncio.create_task(heartbeat_loop())
+        self.liveness_task = asyncio.create_task(self._liveness_loop())
 
     async def stop_heartbeat(self):
-        """Stop the HeartBeat timer"""
-        if self.heartbeat_task:
-            self.heartbeat_task.cancel()
-            try:
-                await self.heartbeat_task
-            except asyncio.CancelledError:
-                pass
+        """Stop the HeartBeat + liveness timers"""
+        for task in (self.heartbeat_task, getattr(self, "liveness_task", None)):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     def register_sinks_for_room(self, room_id: str, room_service):
         """Register callback sinks for a room service"""

@@ -772,7 +772,12 @@ public:
     void OnStartLocalPresentNotification(const LocalPresentationInfo& info) override {}
     void OnSwitchToNormalMeetingResult(int result) override {}
     void OnShowSharingInstructionResult(int result, bool show, SharingInstructionDisplayState instructionState) override {}
-    void OnUpdateAirPlayBlackMagicStatus(const AirplayBlackMagicStatus& status) override {}
+    void OnUpdateAirPlayBlackMagicStatus(const AirplayBlackMagicStatus& status) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnUpdateAirPlayBlackMagicStatus")) {
+            py_sink.attr("OnUpdateAirPlayBlackMagicStatus")(status);
+        }
+    }
     void OnUpdateCameraSharingStatus(const CameraSharingStatus& status) override {}
     void OnHDMI60FPSShareInfoNotification(bool isAllow, bool isOn, HDMI60FPSShareDisableReason disableReason) override {}
     void OnHDMIShareResolutionAndFrameRateNotification(const std::vector<HDMIShareResolutionAndFrameRateOption>& selectionList, uint32_t selectedType) override {}
