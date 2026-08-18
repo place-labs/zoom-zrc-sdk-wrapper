@@ -433,8 +433,16 @@ public:
             }
         }
     }
-    // Added in SDK 7.0+ (required override — no-op):
-    void OnConsolidatedCustomizedConsentNotification(const std::vector<DisclaimerPrivacy>& disclaimers, bool isAudioVideoBlocked) override {}
+    void OnConsolidatedCustomizedConsentNotification(const std::vector<DisclaimerPrivacy>& disclaimers, bool isAudioVideoBlocked) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnConsolidatedCustomizedConsentNotification")) {
+            try {
+                py_sink.attr("OnConsolidatedCustomizedConsentNotification")(disclaimers, isAudioVideoBlocked);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnConsolidatedCustomizedConsentNotification");
+            }
+        }
+    }
 };
 
 // Trampoline for IMeetingServiceSink (forwards live-event callbacks to Python; others are no-ops)
@@ -496,8 +504,26 @@ public:
             }
         }
     }
-    void OnMeetingErrorNotification(const MeetingErrorInfo& errorInfo) override {}
-    void OnMeetingEndedNotification(const MeetingErrorInfo& errorInfo) override {}
+    void OnMeetingErrorNotification(const MeetingErrorInfo& errorInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingErrorNotification")) {
+            try {
+                py_sink.attr("OnMeetingErrorNotification")(errorInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingErrorNotification");
+            }
+        }
+    }
+    void OnMeetingEndedNotification(const MeetingErrorInfo& errorInfo) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingEndedNotification")) {
+            try {
+                py_sink.attr("OnMeetingEndedNotification")(errorInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingEndedNotification");
+            }
+        }
+    }
     void OnReceiveMeetingInviteNotification(const MeetingInvitationInfo& invitation) override {}
     void OnAnswerMeetingInviteResponse(int32_t result, const MeetingInvitationInfo& invitation, bool accepted) override {}
     void OnTreatedMeetingInviteNotification(const MeetingInvitationInfo& invitation, bool accepted) override {}
@@ -526,7 +552,16 @@ public:
             }
         }
     }
-    void OnConfDeviceLockStatusNotification(const ConfDeviceLockStatus& status) override {}
+    void OnConfDeviceLockStatusNotification(const ConfDeviceLockStatus& status) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnConfDeviceLockStatusNotification")) {
+            try {
+                py_sink.attr("OnConfDeviceLockStatusNotification")(status);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnConfDeviceLockStatusNotification");
+            }
+        }
+    }
     void OnJBHWaitingHostNotification(bool showWaitForHostDialog, WaitingHostReason reason) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnJBHWaitingHostNotification")) {
@@ -2090,6 +2125,13 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .export_values();
 
     // ===== Meeting Service Structs =====
+    py::class_<MeetingErrorInfo>(m, "MeetingErrorInfo")
+        .def(py::init<>())
+        .def_readwrite("errorCode", &MeetingErrorInfo::errorCode)
+        .def_readwrite("errorInfo", &MeetingErrorInfo::errorInfo)
+        .def_readwrite("errorTitle", &MeetingErrorInfo::errorTitle)
+        .def_readwrite("errorDescLink", &MeetingErrorInfo::errorDescLink);
+
     py::class_<LegacyRoomSystem>(m, "LegacyRoomSystem")
         .def(py::init<>())
         .def_readwrite("name", &LegacyRoomSystem::name)
@@ -2220,6 +2262,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
         .def("UpdateMyAudioStatus", &IMeetingAudioHelper::UpdateMyAudioStatus)
+        .def("AnswerUnmuteAudioByHostRequest", &IMeetingAudioHelper::AnswerUnmuteAudioByHostRequest)
         .def("RegisterSink", [](IMeetingAudioHelper* self, py::object py_sink) {
             auto& sinks = SinkRegistry<IMeetingAudioHelper, MeetingAudioHelperSinkTrampoline>();
             auto trampoline = std::make_shared<MeetingAudioHelperSinkTrampoline>(py_sink);
@@ -3803,6 +3846,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def("ConfirmCustomizedMeetingReminder", &IMeetingReminderHelper::ConfirmCustomizedMeetingReminder)
         .def("ConfirmConsent", &IMeetingReminderHelper::ConfirmConsent)
         .def("ConfirmCombinedConsent", &IMeetingReminderHelper::ConfirmCombinedConsent)
+        .def("AgreeConsolidatedCustomizedConsent", &IMeetingReminderHelper::AgreeConsolidatedCustomizedConsent)
         .def("HandlePrivacyAlert", &IMeetingReminderHelper::HandlePrivacyAlert)
         .def("ContinueMeetingOnInactivity", &IMeetingReminderHelper::ContinueMeetingOnInactivity);
 

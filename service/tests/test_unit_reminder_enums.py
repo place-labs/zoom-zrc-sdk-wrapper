@@ -180,3 +180,58 @@ def test_combined_consent_non_numeric_is_422(monkeypatch):
     r = client.post("/api/rooms/r1/meeting/reminder/confirm-combined-consent",
                     json={"is_agree": True, "notification_type": "SomeName"})
     assert r.status_code == 422, r.text
+
+
+# ----- SDK 7.1 consolidated customized consent -----
+
+@pytest.mark.parametrize("is_agree", [False, True])
+def test_consolidated_customized_consent_calls_sdk(monkeypatch, is_agree):
+    client = _client(monkeypatch)
+    mgr = mr.get_room_manager()
+    helper = (
+        mgr.get_room_service("r1")
+        .GetMeetingService()
+        .GetMeetingReminderHelper()
+    )
+    calls = []
+    helper.AgreeConsolidatedCustomizedConsent = (
+        lambda agree: calls.append(agree) or 0
+    )
+
+    r = client.post(
+        "/api/rooms/r1/meeting/reminder/agree-consolidated-customized-consent",
+        json={"is_agree": is_agree},
+    )
+
+    assert r.status_code == 200, r.text
+    assert r.json() == {
+        "room_id": "r1",
+        "is_agree": is_agree,
+        "result": 0,
+        "success": True,
+    }
+    assert calls == [is_agree]
+
+
+def test_consolidated_customized_consent_preserves_sdk_failure(monkeypatch):
+    client = _client(monkeypatch)
+    mgr = mr.get_room_manager()
+    helper = (
+        mgr.get_room_service("r1")
+        .GetMeetingService()
+        .GetMeetingReminderHelper()
+    )
+    helper.AgreeConsolidatedCustomizedConsent = lambda agree: 705
+
+    r = client.post(
+        "/api/rooms/r1/meeting/reminder/agree-consolidated-customized-consent",
+        json={"is_agree": True},
+    )
+
+    assert r.status_code == 200, r.text
+    assert r.json() == {
+        "room_id": "r1",
+        "is_agree": True,
+        "result": 705,
+        "success": False,
+    }

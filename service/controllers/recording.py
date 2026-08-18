@@ -85,6 +85,18 @@ def permission_info_to_dict(info) -> dict:
     }
 
 
+def raise_recording_sdk_error(message: str, result, status_code: int = 500) -> None:
+    """Expose a stable non-success contract for recording SDK failures."""
+    raise HTTPException(
+        status_code=status_code,
+        detail={
+            "message": message,
+            "error_code": int(result),
+            "error_name": zrcsdk_error_name(result),
+        },
+    )
+
+
 # ===== Endpoints =====
 
 @router.post("/confirm-error")
@@ -177,7 +189,7 @@ async def set_notification_email(
     result = recording_helper.SetMeetingRecordingNotificationEmail(request.email)
 
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-        raise HTTPException(status_code=500, detail=f"Failed to set notification email: {result}")
+        raise_recording_sdk_error("Failed to set notification email", result)
 
     return {"message": f"Notification email set to {request.email}"}
 
@@ -332,7 +344,9 @@ async def respond_to_recording_request(
     result = recording_helper.ResponseToRecordingRequest(request.agree, request.is_persist)
 
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-        raise HTTPException(status_code=500, detail=f"Failed to respond to recording request: {result}")
+        raise_recording_sdk_error(
+            "Failed to respond to recording request", result, status_code=502
+        )
 
     return {
         "message": f"Recording request {'approved' if request.agree else 'denied'}",

@@ -287,6 +287,32 @@ async def unmute_audio(room_id: str, request: Request, room_manager = Depends(la
     return _set_audio_muted(room_id, False, room_manager)
 
 
+@router.post("/audio/answer-unmute-request")
+async def answer_unmute_audio_request(
+    room_id: str,
+    accepted: bool,
+    room_manager = Depends(lambda: get_room_manager()),
+):
+    """Accept or deny a host's request for the room to unmute audio."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        audio_helper = meeting_service.GetMeetingAudioHelper()
+        result = audio_helper.AnswerUnmuteAudioByHostRequest(accepted)
+
+        return {
+            "room_id": room_id,
+            "accepted": accepted,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _set_video_muted(room_id: str, muted: bool, room_manager):
     room_service = room_manager.get_room_service(room_id)
     if not room_service:

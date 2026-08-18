@@ -60,6 +60,10 @@ DRIVER_ROUTES = {
         (),
         ("is_agree", "notification_type"),
     ),
+    (
+        "POST",
+        "/api/rooms/{room_id}/meeting/reminder/agree-consolidated-customized-consent",
+    ): ((), ("is_agree",)),
     ("POST", "/api/rooms/{room_id}/meeting/reminder/handle-privacy"): (
         (),
         ("privacy_alert_action", "privacy_alert_type"),
@@ -104,8 +108,16 @@ DRIVER_ROUTES = {
     ),
     ("POST", "/api/rooms/{room_id}/audio/mute"): ((), ()),
     ("POST", "/api/rooms/{room_id}/audio/unmute"): ((), ()),
+    ("POST", "/api/rooms/{room_id}/audio/answer-unmute-request"): (
+        ("accepted",),
+        (),
+    ),
     ("POST", "/api/rooms/{room_id}/video/mute"): ((), ()),
     ("POST", "/api/rooms/{room_id}/video/unmute"): ((), ()),
+    ("POST", "/api/rooms/{room_id}/video/answer-unmute-request"): (
+        ("accepted",),
+        (),
+    ),
     ("GET", "/api/rooms/{room_id}/settings/volume/speaker"): ((), ()),
     ("POST", "/api/rooms/{room_id}/settings/volume/speaker"): (
         (),

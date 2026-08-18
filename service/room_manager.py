@@ -396,6 +396,19 @@ class MeetingReminderSink(_Broadcaster):
         logger.debug(f"[{self.room_id}] combined consent notification result: {combined_consent}")
         self.emit("OnCombinedConsentNotification", combinedConsent=_pybind_to_jsonable(combined_consent))
 
+    def OnConsolidatedCustomizedConsentNotification(
+        self, disclaimers, is_audio_video_blocked: bool
+    ):
+        logger.debug(
+            f"[{self.room_id}] consolidated customized consent notification: "
+            f"audio/video blocked={is_audio_video_blocked}"
+        )
+        self.emit(
+            "OnConsolidatedCustomizedConsentNotification",
+            disclaimers=_pybind_to_jsonable(disclaimers),
+            isAudioVideoBlocked=bool(is_audio_video_blocked),
+        )
+
     def OnPrivacyAlertNotification(self, action, alert_type, message):
         logger.debug(f"[{self.room_id}] privacy alert notificationt: {action}, {alert_type}")
         self.emit("OnPrivacyAlertNotification", action=_enum_name(action), alertType=_enum_name(alert_type),
@@ -438,6 +451,20 @@ class MeetingServiceSink(_Broadcaster):
         logger.info(f"[{self.room_id}] Exited meeting (result={result}, reason={reason})")
         self.emit("OnExitMeetingNotification", result=int(result), reason=_enum_name(reason))
 
+    def OnMeetingErrorNotification(self, error_info):
+        logger.warning(f"[{self.room_id}] Meeting action failed: {error_info.errorCode}")
+        self.emit(
+            "OnMeetingErrorNotification",
+            errorInfo=_pybind_to_jsonable(error_info),
+        )
+
+    def OnMeetingEndedNotification(self, error_info):
+        logger.info(f"[{self.room_id}] Meeting ended: {error_info.errorCode}")
+        self.emit(
+            "OnMeetingEndedNotification",
+            errorInfo=_pybind_to_jsonable(error_info),
+        )
+
     def OnStartMeetingWithHostKeyResult(self, result: int):
         logger.info(f"[{self.room_id}] Start meeting with host key result: {result}")
         self.emit("OnStartMeetingWithHostKeyResult", result=int(result))
@@ -453,6 +480,12 @@ class MeetingServiceSink(_Broadcaster):
             "OnMeetingNeedsPasswordNotification",
             showPasswordDialog=show_password_dialog,
             wrongAndRetry=wrong_and_retry,
+            lockStatus=_pybind_to_jsonable(lock_status),
+        )
+
+    def OnConfDeviceLockStatusNotification(self, lock_status):
+        self.emit(
+            "OnConfDeviceLockStatusNotification",
             lockStatus=_pybind_to_jsonable(lock_status),
         )
 

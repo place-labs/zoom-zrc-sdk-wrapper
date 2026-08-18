@@ -288,6 +288,14 @@ def test_respond_to_recording_request(live):
 
 
 @pytest.mark.skip(reason="needs the HOST to ask this room to unmute → "
-                         "OnAskUnmuteAudioByHostNotification; then audio/unmute")
+                         "OnAskUnmuteAudioByHostNotification; then "
+                         "audio/answer-unmute-request")
 def test_ask_to_unmute_by_host(live):
-    """ASSISTED: host asks the room to unmute; assert the ask event, then unmute."""
+    """ASSISTED: assert the ask event, then answer accepted=true or false."""
+
+
+@pytest.mark.skip(reason="needs the HOST to ask this room to start video → "
+                         "OnAskStartVideoByHostNotification; then "
+                         "video/answer-unmute-request")
+def test_ask_to_start_video_by_host(live):
+    """ASSISTED: assert the ask event, then answer accepted=true or false."""

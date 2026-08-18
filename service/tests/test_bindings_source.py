@@ -66,6 +66,78 @@ def test_meeting_password_callback_and_lock_status_are_bound():
         assert f'.def_readwrite("{field}", &ConfDeviceLockStatus::{field})' in SRC
 
 
+def test_meeting_failure_diagnostics_are_bound_and_forwarded():
+    assert 'py::class_<MeetingErrorInfo>(m, "MeetingErrorInfo")' in SRC
+    for field in ("errorCode", "errorInfo", "errorTitle", "errorDescLink"):
+        assert f'.def_readwrite("{field}", &MeetingErrorInfo::{field})' in SRC
+    for callback in (
+        "OnMeetingErrorNotification",
+        "OnMeetingEndedNotification",
+        "OnConfDeviceLockStatusNotification",
+    ):
+        assert f'py_sink.attr("{callback}")' in SRC
+
+
+def test_audio_host_unmute_response_is_bound():
+    assert (
+        '.def("AnswerUnmuteAudioByHostRequest", '
+        "&IMeetingAudioHelper::AnswerUnmuteAudioByHostRequest)" in SRC
+    )
+
+
+def test_priority_notification_callbacks_are_forwarded():
+    callbacks = (
+        "OnMeetingWillReleaseAutomatically",
+        "OnMeetingWillStopAutomatically",
+        "OnConsentNotification",
+        "OnCustomizedReminderNotification",
+        "OnCombinedConsentNotification",
+        "OnConsolidatedCustomizedConsentNotification",
+        "OnPrivacyAlertNotification",
+        "OnInactiveDetectionNotification",
+        "OnJBHWaitingHostNotification",
+        "OnAICompanionStatusNeedConfirm",
+        "OnAskUnmuteAudioByHostNotification",
+        "OnAskStartVideoByHostNotification",
+        "OnIncomingMeetingShareNotification",
+    )
+    for callback in callbacks:
+        assert f'py_sink.attr("{callback}")' in SRC, (
+            f"{callback} is required for live notification testing but is not "
+            "forwarded by the C++ trampoline"
+        )
+
+
+def test_consolidated_customized_consent_response_is_bound():
+    assert (
+        '.def("AgreeConsolidatedCustomizedConsent", '
+        "&IMeetingReminderHelper::AgreeConsolidatedCustomizedConsent)" in SRC
+    )
+
+
+def test_priority_notification_response_methods_are_bound():
+    methods = (
+        "ConfirmMeetingReminder",
+        "ConfirmCustomizedMeetingReminder",
+        "ConfirmConsent",
+        "ConfirmCombinedConsent",
+        "AgreeConsolidatedCustomizedConsent",
+        "HandlePrivacyAlert",
+        "ContinueMeetingOnInactivity",
+        "CloseAutoReleaseMeetingAlert",
+        "ExtendMeeting",
+        "CancelWaitingForHost",
+        "ConfirmAICompanionStatusWhenJoin",
+        "AnswerUnmuteAudioByHostRequest",
+        "AnswerHostRequestUnmuteVideo",
+        "PinIncomingMeetingShare",
+    )
+    for method in methods:
+        assert f'.def("{method}"' in SRC, (
+            f"notification response method {method} is not exposed to Python"
+        )
+
+
 def test_generator_template_matches_bindings():
     with open(TEMPLATE) as f:
         assert f.read() == SRC, (

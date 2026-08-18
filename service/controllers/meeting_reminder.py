@@ -87,6 +87,11 @@ class NotificationRequest(BaseModel):
     is_agree: bool = False
     notification_type: int | str
 
+
+class ConsolidatedCustomizedConsentRequest(BaseModel):
+    is_agree: bool = False
+
+
 class PrivacyRequest(BaseModel):
     privacy_alert_action: int | str
     privacy_alert_type: int | str
@@ -209,6 +214,35 @@ async def confirm_combined_consent(room_id: str, request: NotificationRequest, r
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/meeting/reminder/agree-consolidated-customized-consent")
+async def agree_consolidated_customized_consent(
+    room_id: str,
+    request: ConsolidatedCustomizedConsentRequest,
+    room_manager = Depends(lambda: get_room_manager()),
+):
+    """Respond to the SDK 7.1 consolidated customized-consent prompt."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        reminder_helper = meeting_service.GetMeetingReminderHelper()
+        result = reminder_helper.AgreeConsolidatedCustomizedConsent(
+            request.is_agree
+        )
+
+        return {
+            "room_id": room_id,
+            "is_agree": request.is_agree,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/meeting/reminder/handle-privacy")
 async def handle_privacy_alert(room_id: str, request: PrivacyRequest, room_manager = Depends(lambda: get_room_manager())):

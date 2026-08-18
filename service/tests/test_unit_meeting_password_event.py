@@ -45,3 +45,66 @@ def test_meeting_password_notification_serializes_lock_status():
             },
         )
     ]
+
+
+def test_meeting_password_lock_status_notification_is_forwarded():
+    manager = _CaptureManager()
+    sink = rm.MeetingServiceSink("r1")
+    sink.mgr = manager
+    lock_status = SimpleNamespace(
+        isLocked=False,
+        remainTimeSec=0,
+        wrongPwdInputCount=1,
+    )
+
+    sink.OnConfDeviceLockStatusNotification(lock_status)
+
+    assert manager.events == [
+        (
+            "r1",
+            {
+                "event": "OnConfDeviceLockStatusNotification",
+                "lockStatus": {
+                    "isLocked": False,
+                    "remainTimeSec": 0,
+                    "wrongPwdInputCount": 1,
+                },
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("callback", "event_name"),
+    [
+        ("OnMeetingErrorNotification", "OnMeetingErrorNotification"),
+        ("OnMeetingEndedNotification", "OnMeetingEndedNotification"),
+    ],
+)
+def test_meeting_failure_diagnostics_are_forwarded(callback, event_name):
+    manager = _CaptureManager()
+    sink = rm.MeetingServiceSink("r1")
+    sink.mgr = manager
+    error_info = SimpleNamespace(
+        errorCode=300,
+        errorInfo="The meeting passcode is incorrect.",
+        errorTitle="Unable to join",
+        errorDescLink="https://support.zoom.us/example",
+    )
+
+    getattr(sink, callback)(error_info)
+
+    assert manager.events == [
+        (
+            "r1",
+            {
+                "event": event_name,
+                "errorInfo": {
+                    "errorCode": 300,
+                    "errorInfo": "The meeting passcode is incorrect.",
+                    "errorTitle": "Unable to join",
+                    "errorDescLink": "https://support.zoom.us/example",
+                },
+            },
+        )
+    ]
