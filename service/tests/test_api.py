@@ -141,9 +141,9 @@ def test_meeting_flow_emits_ws_events(client, room_id, ws_url):
         assert hit_p, "no participant event over WS"
 
         # 4. exercise in-meeting control endpoints
-        rm_a = client.post(f"/api/rooms/{room_id}/audio/mute", params={"mute": True})
+        rm_a = client.post(f"/api/rooms/{room_id}/audio/mute")
         assert rm_a.status_code == 200, rm_a.text
-        rm_v = client.post(f"/api/rooms/{room_id}/video/mute", params={"mute": True})
+        rm_v = client.post(f"/api/rooms/{room_id}/video/mute")
         assert rm_v.status_code == 200, rm_v.text
 
         # 5. those controls should surface as audio/video status events on the WS

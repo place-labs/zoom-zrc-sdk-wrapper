@@ -196,14 +196,14 @@ def test_audio_mute_roundtrip(live):
     """In-meeting: mute audio → the status change comes back over the WS."""
     with live.in_meeting():
         # Normalize first: muting an already-muted mic changes nothing → no event.
-        live.post("/audio/mute", params={"mute": "false"})
+        live.post("/audio/unmute")
         live.drain(1.0)
         try:
-            ra = live.post("/audio/mute", params={"mute": "true"})
+            ra = live.post("/audio/mute")
             assert ra.status_code == 200, ra.text
             assert live.wait_event("OnUpdateMyAudioStatus", timeout=15), "no audio status after mute"
         finally:
-            live.post("/audio/mute", params={"mute": "false"})   # always restore
+            live.post("/audio/unmute")   # always restore
 
 
 def test_video_mute_roundtrip(live):
@@ -216,15 +216,15 @@ def test_video_mute_roundtrip(live):
     if cams.status_code == 200 and not cams.json().get("cameras"):
         pytest.skip("room has no camera — video mute untestable on this hardware")
     with live.in_meeting():
-        live.post("/video/mute", params={"mute": "false"})   # normalize
+        live.post("/video/unmute")   # normalize
         live.drain(1.0)
         try:
-            rv = live.post("/video/mute", params={"mute": "true"})
+            rv = live.post("/video/mute")
             assert rv.status_code == 200, rv.text
             assert live.wait_event("OnUpdateMyVideoNotification", timeout=15), \
                 f"no video status after mute (response: {rv.text})"
         finally:
-            live.post("/video/mute", params={"mute": "false"})
+            live.post("/video/unmute")
 
 
 # ==================================================== recording (extra opt-in)
@@ -288,6 +288,6 @@ def test_respond_to_recording_request(live):
 
 
 @pytest.mark.skip(reason="needs the HOST to ask this room to unmute → "
-                         "OnAskUnmuteAudioByHostNotification; then audio/mute(false)")
+                         "OnAskUnmuteAudioByHostNotification; then audio/unmute")
 def test_ask_to_unmute_by_host(live):
     """ASSISTED: host asks the room to unmute; assert the ask event, then unmute."""

@@ -50,17 +50,19 @@ class ZoomRoomsClient:
 
     async def mute_audio(self, room_id: str, mute: bool = True):
         """Mute/unmute audio"""
+        action = "mute" if mute else "unmute"
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{self.base_url}/api/rooms/{room_id}/audio/mute?mute={str(mute).lower()}"
+                f"{self.base_url}/api/rooms/{room_id}/audio/{action}"
             ) as resp:
                 return await resp.json()
 
     async def mute_video(self, room_id: str, mute: bool = True):
         """Mute/unmute video"""
+        action = "mute" if mute else "unmute"
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{self.base_url}/api/rooms/{room_id}/video/mute?mute={str(mute).lower()}"
+                f"{self.base_url}/api/rooms/{room_id}/video/{action}"
             ) as resp:
                 return await resp.json()
 

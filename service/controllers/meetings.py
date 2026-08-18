@@ -3,7 +3,7 @@ Meeting endpoints - join, exit, audio/video controls
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Callable, List
 
@@ -101,15 +101,14 @@ async def join_meeting(room_id: str, request: JoinMeetingRequest, room_manager =
 
 
 @router.post("/meeting/join-url")
-async def join_meeting_url(room_id: str, url: str, bring_share: bool = False, room_manager = Depends(lambda: get_room_manager())):
-    """Join a meeting by URL"""
+async def join_meeting_url(room_id: str, url: str, room_manager = Depends(lambda: get_room_manager())):
+    """Join a meeting by URL. Local sharing is not supported by SDK 6.7+."""
     room_service = room_manager.get_room_service(room_id)
     if not room_service:
         raise HTTPException(status_code=404, detail="Room not found")
 
     try:
         meeting_service = room_service.GetMeetingService()
-        # Note: bring_share parameter removed in SDK 6.7+
         result = meeting_service.JoinMeetingWithURL(url)
 
         return {
@@ -235,9 +234,22 @@ async def exit_meeting(room_id: str, room_manager = Depends(lambda: get_room_man
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/audio/mute")
-async def mute_audio(room_id: str, mute: bool = True, room_manager = Depends(lambda: get_room_manager())):
-    """Mute or unmute the room's audio"""
+# Audio/video mute is modeled strictly as verb endpoints (`/mute` + `/unmute`).
+# FastAPI normally ignores unknown query params, which would make a legacy
+# `/mute?mute=false` request silently mute the room. Reject the old state params
+# explicitly so stale clients fail loudly instead of applying the wrong state.
+
+
+def _reject_legacy_mute_query(request: Request):
+    legacy = sorted({"mute", "stop"}.intersection(request.query_params))
+    if legacy:
+        raise HTTPException(
+            status_code=422,
+            detail="state query parameters are unsupported; use /mute or /unmute",
+        )
+
+
+def _set_audio_muted(room_id: str, muted: bool, room_manager):
     room_service = room_manager.get_room_service(room_id)
     if not room_service:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -245,11 +257,50 @@ async def mute_audio(room_id: str, mute: bool = True, room_manager = Depends(lam
     try:
         meeting_service = room_service.GetMeetingService()
         audio_helper = meeting_service.GetMeetingAudioHelper()
-        result = audio_helper.UpdateMyAudioStatus(mute)
+        result = audio_helper.UpdateMyAudioStatus(muted)
 
         return {
             "room_id": room_id,
-            "muted": mute,
+            "muted": muted,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/audio/mute")
+async def mute_audio(
+    room_id: str,
+    request: Request,
+    room_manager = Depends(lambda: get_room_manager()),
+):
+    """Mute the room's audio."""
+    _reject_legacy_mute_query(request)
+    return _set_audio_muted(room_id, True, room_manager)
+
+
+@router.post("/audio/unmute")
+async def unmute_audio(room_id: str, request: Request, room_manager = Depends(lambda: get_room_manager())):
+    """Unmute the room's audio."""
+    _reject_legacy_mute_query(request)
+    return _set_audio_muted(room_id, False, room_manager)
+
+
+def _set_video_muted(room_id: str, muted: bool, room_manager):
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        video_helper = meeting_service.GetMeetingVideoHelper()
+        # UpdateMyVideo's parameter is "stop"; muted == stop the video.
+        result = video_helper.UpdateMyVideo(muted)
+
+        return {
+            "room_id": room_id,
+            "muted": muted,
             "result": int(result),
             "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
         }
@@ -258,30 +309,21 @@ async def mute_audio(room_id: str, mute: bool = True, room_manager = Depends(lam
 
 
 @router.post("/video/mute")
-async def mute_video(room_id: str, mute: bool, room_manager = Depends(lambda: get_room_manager())):
-    """Mute (stop) or unmute (start) the room's video.
+async def mute_video(
+    room_id: str,
+    request: Request,
+    room_manager = Depends(lambda: get_room_manager()),
+):
+    """Stop (mute) the room's video."""
+    _reject_legacy_mute_query(request)
+    return _set_video_muted(room_id, True, room_manager)
 
-    `mute` is required: with the old `= True` default, a caller using a wrong
-    param name (e.g. `stop=false`, the removed shadowed route's spelling) got a
-    200 that silently STOPPED video. Missing/unknown params now 422."""
-    room_service = room_manager.get_room_service(room_id)
-    if not room_service:
-        raise HTTPException(status_code=404, detail="Room not found")
 
-    try:
-        meeting_service = room_service.GetMeetingService()
-        video_helper = meeting_service.GetMeetingVideoHelper()
-        # Note: UpdateMyVideo parameter is "stop", so we pass mute directly
-        result = video_helper.UpdateMyVideo(mute)
-
-        return {
-            "room_id": room_id,
-            "muted": mute,
-            "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.post("/video/unmute")
+async def unmute_video(room_id: str, request: Request, room_manager = Depends(lambda: get_room_manager())):
+    """Start (unmute) the room's video."""
+    _reject_legacy_mute_query(request)
+    return _set_video_muted(room_id, False, room_manager)
 
 
 @router.post("/meeting/password/send")

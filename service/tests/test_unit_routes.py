@@ -45,3 +45,14 @@ def test_no_duplicate_method_path_pairs():
                 seen[key] = name
     assert len(seen) > 200, f"route walk looks broken (only {len(seen)} routes found)"
     assert not dupes, "shadowed duplicate routes:\n  " + "\n  ".join(dupes)
+
+
+def test_join_url_does_not_advertise_removed_bring_share_parameter():
+    route = next(
+        r for r in _leaf_routes(service_app.app.routes)
+        if getattr(r, "path", None) == "/api/rooms/{room_id}/meeting/join-url"
+        and "POST" in (getattr(r, "methods", None) or ())
+    )
+    query_params = {param.name for param in route.dependant.query_params}
+    assert "url" in query_params
+    assert "bring_share" not in query_params

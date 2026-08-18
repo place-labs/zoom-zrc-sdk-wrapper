@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Zoom Rooms SDK Microservice",
     description="REST API for controlling Zoom Rooms via the ZRC SDK",
-    version="1.5.0",
+    version="1.6.0",
     lifespan=lifespan
 )
 
@@ -74,7 +74,7 @@ async def root():
     """Root endpoint"""
     return {
         "service": "Zoom Rooms SDK Microservice",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "status": "running"
     }
 

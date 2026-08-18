@@ -58,3 +58,8 @@ htmlcov/
 
 # Claude Code — personal overrides stay local
 .claude/settings.local.json
+
+# Generated/local agent integrations (canonical project config lives in .claude/)
+.agents/
+.codex/
+AGENTS.md

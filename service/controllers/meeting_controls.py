@@ -221,6 +221,79 @@ async def turn_off_ai_companion(room_id: str, features: int, delete_assets: bool
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/ai-companion/respond-to-turn-on")
+async def respond_to_turn_on_ai_companion(room_id: str, agree: bool = True, room_manager = Depends(lambda: get_room_manager())):
+    """Accept or deny a participant's request to turn on AI Companion."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        control_helper = meeting_service.GetMeetingControlHelper()
+        result = control_helper.RespondToTurnOnAICompanion(agree)
+        if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+            raise RuntimeError(f"failed to respond to AI Companion turn-on request: {result}")
+
+        return {
+            "room_id": room_id,
+            "agree": agree,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ai-companion/respond-to-turn-off")
+async def respond_to_turn_off_ai_companion(room_id: str, agree: bool = True, delete_assets: bool = False, room_manager = Depends(lambda: get_room_manager())):
+    """Accept or deny a participant's request to turn off AI Companion."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        control_helper = meeting_service.GetMeetingControlHelper()
+        result = control_helper.RespondToTurnOffAICompanion(agree, delete_assets)
+        if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+            raise RuntimeError(f"failed to respond to AI Companion turn-off request: {result}")
+
+        return {
+            "room_id": room_id,
+            "agree": agree,
+            "delete_assets": delete_assets,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ai-companion/confirm-status-when-join")
+async def confirm_ai_companion_status_when_join(room_id: str, agree: bool = True, room_manager = Depends(lambda: get_room_manager())):
+    """Confirm AI Companion changes made by a participant before the host joined."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        control_helper = meeting_service.GetMeetingControlHelper()
+        result = control_helper.ConfirmAICompanionStatusWhenJoin(agree)
+        if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+            raise RuntimeError(f"failed to confirm AI Companion status: {result}")
+
+        return {
+            "room_id": room_id,
+            "agree": agree,
+            "result": int(result),
+            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/panel/control")
 async def control_side_panel(room_id: str, panel_type: str = "PList", action: str = "Show", room_manager = Depends(lambda: get_room_manager())):
     """Control side panel (panel_type: None, PList; action: Show, Hide, SwitchTab, ScrollUp, ScrollDown)"""

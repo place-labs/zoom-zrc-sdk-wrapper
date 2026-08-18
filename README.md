@@ -174,16 +174,20 @@ curl -X POST http://localhost:8000/api/rooms/room1/meeting/join \
 
 ```bash
 # Mute
-curl -X POST "http://localhost:8000/api/rooms/room1/audio/mute?mute=true"
+curl -X POST "http://localhost:8000/api/rooms/room1/audio/mute"
 
 # Unmute
-curl -X POST "http://localhost:8000/api/rooms/room1/audio/mute?mute=false"
+curl -X POST "http://localhost:8000/api/rooms/room1/audio/unmute"
 ```
 
 ### Muting Video
 
 ```bash
-curl -X POST "http://localhost:8000/api/rooms/room1/video/mute?mute=true"
+# Stop (mute) video
+curl -X POST "http://localhost:8000/api/rooms/room1/video/mute"
+
+# Start (unmute) video
+curl -X POST "http://localhost:8000/api/rooms/room1/video/unmute"
 ```
 
 ### Exiting a Meeting
@@ -248,9 +252,15 @@ asyncio.run(listen_to_room_events())
 | POST   | `/api/rooms/{room_id}/unpair` | Unpair a room |
 | POST   | `/api/rooms/{room_id}/meeting/start_instant` | Start instant meeting |
 | POST   | `/api/rooms/{room_id}/meeting/join` | Join meeting by number |
+| POST   | `/api/rooms/{room_id}/meeting/join-url` | Join meeting by URL (`url` query parameter) |
 | POST   | `/api/rooms/{room_id}/meeting/exit` | Exit meeting |
-| POST   | `/api/rooms/{room_id}/audio/mute` | Mute/unmute audio |
-| POST   | `/api/rooms/{room_id}/video/mute` | Mute/unmute video |
+| POST   | `/api/rooms/{room_id}/audio/mute` | Mute audio |
+| POST   | `/api/rooms/{room_id}/audio/unmute` | Unmute audio |
+| POST   | `/api/rooms/{room_id}/video/mute` | Stop (mute) video |
+| POST   | `/api/rooms/{room_id}/video/unmute` | Start (unmute) video |
+| POST   | `/api/rooms/{room_id}/ai-companion/respond-to-turn-on` | Answer a participant turn-on request |
+| POST   | `/api/rooms/{room_id}/ai-companion/respond-to-turn-off` | Answer a participant turn-off request |
+| POST   | `/api/rooms/{room_id}/ai-companion/confirm-status-when-join` | Confirm participant changes seen when the host joins |
 | WS     | `/api/rooms/{room_id}/events` | WebSocket event stream |
 
 See full interactive API docs at http://localhost:8000/docs

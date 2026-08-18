@@ -54,11 +54,11 @@ class ShowVideoPreviewRequest(BaseModel):
 
 # ===== Endpoints =====
 
-# NOTE: no "/mute" route here — POST /api/rooms/{room_id}/video/mute lives in
-# meetings.py (param `mute`). A duplicate here (param `stop`) was silently
-# shadowed by registration order and unreachable; callers sending `stop=` got
-# the winner's defaulted behavior instead (PRODUCTION-REVIEW.md addendum;
-# test_unit_routes.py now rejects any (method, path) collision).
+# NOTE: no self-video mute route here — POST /api/rooms/{room_id}/video/mute and
+# /video/unmute live in meetings.py as verb endpoints (state in the path, no
+# query param). A duplicate here (param `stop`) was once silently shadowed by
+# registration order and unreachable; test_unit_routes.py now rejects any
+# (method, path) collision.
 
 
 @router.post("/mute-user")

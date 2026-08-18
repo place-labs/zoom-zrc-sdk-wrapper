@@ -1,5 +1,41 @@
  # Changelog
 
+## [1.6.0] - 2026-08-17 - Room Driver Contract
+
+### Major Changes
+
+#### 🤖 Correct AI Companion prompt responses
+- Added dedicated participant-request endpoints backed by the matching ZRC SDK operations: `respond-to-turn-on`, `respond-to-turn-off`, and `confirm-status-when-join`. Prompt approval/denial no longer has to masquerade as a direct feature toggle.
+- SDK failures on these response paths return HTTP 500, preventing clients from clearing a pending prompt after a rejected SDK operation.
+
+#### 🎛️ Strict audio/video state verbs
+- Added `POST …/audio/unmute` and `POST …/video/unmute`; new clients use `/mute` and `/unmute` as explicit desired-state operations.
+- Legacy `mute=` and `stop=` state queries are not supported. They now fail with 422 instead of being silently ignored by FastAPI and potentially applying the opposite state.
+- This is a coordinated contract change: all callers must use the explicit verb paths when wrapper 1.6 is deployed.
+
+#### 🔌 Driver-facing contract cleanup
+- `meeting/join-url` no longer advertises the SDK-removed `bring_share` argument; the required URL remains an explicit query parameter.
+- Unit coverage now pins the AI response calls, mute/unmute verbs, legacy-query rejection, join-URL schema, and route-table uniqueness.
+
+#### 🧪 Local release verification
+- Hermetic unit suite: **69 passed**, 20 deselected.
+- Compiled amd64 image: **125/125** sink callback contracts and **23/23** SDK sink lifecycle surfaces passed.
+- Running-container smoke gate: **75 passed**, 14 live tests deselected.
+
+#### 📦 Release hygiene
+- Service/OpenAPI version advanced to 1.6.0. The Kubernetes manifest was reset from a stale feature image to `REPLACE_WITH_TAG`; substitute the test-gated branch/SHA image published by CI after committing.
+- Generated local agent integrations (`.agents/`, `.codex/`, and `AGENTS.md`) are ignored; canonical shared project guidance remains under `.claude/` and `CLAUDE.md`.
+- Zoom Rooms SDK remains pinned to 7.1.0.523.
+
+### Modified Files
+
+- **`service/controllers/meeting_controls.py`** — dedicated AI Companion request/confirmation routes.
+- **`service/controllers/meetings.py`**, **`service/controllers/meeting_video.py`** — strict mute/unmute verbs, legacy-query rejection, no duplicate route, and join-URL contract cleanup.
+- **`service/app.py`** — version 1.6.0.
+- **`service/tests/`** — AI, mute rollout, and route-schema regression coverage; hermetic unit baseline is 69.
+- **`README.md`**, **`example_client.py`**, **`TESTING.md`**, **`.claude/skills/run-tests/SKILL.md`** — updated API examples and test baselines.
+- **`deploy/k8s/zoom-zrc.yaml`**, **`.gitignore`** — release-image placeholder and local-tooling hygiene.
+
 ## [1.5.0] - 2026-08-17 - Production Hardening & Wireless Sharing Key
 
 ### Major Changes

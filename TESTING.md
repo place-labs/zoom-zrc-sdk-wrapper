@@ -49,9 +49,14 @@ no server, no room — they run anywhere pytest runs and execute in under a seco
   memoized for real pybind structs.
 - **`test_unit_share_airplay.py`** — the share sink forwards
   `OnUpdateAirPlayBlackMagicStatus` (carries the wireless sharing key).
+- **`test_unit_ai_companion_routes.py`** — each AI Companion prompt response
+  calls its matching SDK operation with the caller's approval/asset choice.
+- **`test_unit_mute_routes.py`** — explicit mute/unmute verbs and loud rejection
+  of unsupported legacy `mute=` / `stop=` state queries.
 - **`test_unit_routes.py`** — no two endpoints share a `(method, path)`: FastAPI
   silently shadows duplicates by registration order (found live: a dead
-  `/video/mute` twin whose callers got default-valued behavior).
+  `/video/mute` twin whose callers got default-valued behavior); join-by-URL
+  also stays free of the SDK-removed `bring_share` parameter.
 - **`test_bindings_source.py`** — source contracts on the C++ bindings: every
   Register/Deregister pair uses the shared `SinkRegistry` (no lambda-local static
   maps), the `isMyself` alias exists, the generator template stays byte-identical
