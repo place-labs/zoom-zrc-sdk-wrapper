@@ -50,7 +50,11 @@ public:
     std::string OnGetDeviceManufacturer() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceManufacturer")) {
-            return py_sink.attr("OnGetDeviceManufacturer")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetDeviceManufacturer")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetDeviceManufacturer");
+            }
         }
         return "ZRC_Wrapper";
     }
@@ -58,7 +62,11 @@ public:
     std::string OnGetDeviceModel() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceModel")) {
-            return py_sink.attr("OnGetDeviceModel")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetDeviceModel")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetDeviceModel");
+            }
         }
         return "v1.0";
     }
@@ -66,7 +74,11 @@ public:
     std::string OnGetDeviceSerialNumber() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceSerialNumber")) {
-            return py_sink.attr("OnGetDeviceSerialNumber")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetDeviceSerialNumber")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetDeviceSerialNumber");
+            }
         }
         return "0000";
     }
@@ -74,7 +86,11 @@ public:
     std::string OnGetDeviceMacAddress() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceMacAddress")) {
-            return py_sink.attr("OnGetDeviceMacAddress")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetDeviceMacAddress")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetDeviceMacAddress");
+            }
         }
         return "00:00:00:00:00:00";
     }
@@ -82,7 +98,11 @@ public:
     std::string OnGetDeviceIP() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetDeviceIP")) {
-            return py_sink.attr("OnGetDeviceIP")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetDeviceIP")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetDeviceIP");
+            }
         }
         return "0.0.0.0";
     }
@@ -90,7 +110,11 @@ public:
     std::string OnGetFirmwareVersion() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetFirmwareVersion")) {
-            return py_sink.attr("OnGetFirmwareVersion")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetFirmwareVersion")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetFirmwareVersion");
+            }
         }
         return "1.0.0";
     }
@@ -98,7 +122,11 @@ public:
     std::string OnGetAppName() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppName")) {
-            return py_sink.attr("OnGetAppName")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetAppName")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetAppName");
+            }
         }
         return "ZRC_Wrapper";
     }
@@ -106,7 +134,11 @@ public:
     std::string OnGetAppVersion() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppVersion")) {
-            return py_sink.attr("OnGetAppVersion")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetAppVersion")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetAppVersion");
+            }
         }
         return "1.0.0";
     }
@@ -114,7 +146,11 @@ public:
     std::string OnGetAppDeveloper() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppDeveloper")) {
-            return py_sink.attr("OnGetAppDeveloper")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetAppDeveloper")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetAppDeveloper");
+            }
         }
         return "Custom";
     }
@@ -122,7 +158,11 @@ public:
     std::string OnGetAppContact() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppContact")) {
-            return py_sink.attr("OnGetAppContact")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetAppContact")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetAppContact");
+            }
         }
         return "support@example.com";
     }
@@ -130,7 +170,11 @@ public:
     std::string OnGetAppContentDirPath() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnGetAppContentDirPath")) {
-            return py_sink.attr("OnGetAppContentDirPath")().cast<std::string>();
+            try {
+                return py_sink.attr("OnGetAppContentDirPath")().cast<std::string>();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnGetAppContentDirPath");
+            }
         }
         // Fallback: use /root/.zoom/data (contains third_zrc_data.db with room credentials)
         return "/root/.zoom/data";
@@ -177,14 +221,22 @@ public:
         // Acquire GIL before calling Python
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnPairRoomResult")) {
-            py_sink.attr("OnPairRoomResult")(result);
+            try {
+                py_sink.attr("OnPairRoomResult")(result);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnPairRoomResult");
+            }
         }
     }
 
     void OnRoomUnpairedReason(RoomUnpairedReason reason) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnRoomUnpairedReason")) {
-            py_sink.attr("OnRoomUnpairedReason")(reason);
+            try {
+                py_sink.attr("OnRoomUnpairedReason")(reason);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnRoomUnpairedReason");
+            }
         }
     }
 };
@@ -200,14 +252,22 @@ public:
     void OnZRConnectionStateChanged(ConnectionState connectionState) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnZRConnectionStateChanged")) {
-            py_sink.attr("OnZRConnectionStateChanged")(connectionState);
+            try {
+                py_sink.attr("OnZRConnectionStateChanged")(connectionState);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnZRConnectionStateChanged");
+            }
         }
     }
 
     void OnShutdownOSNot(bool restartOS) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnShutdownOSNot")) {
-            py_sink.attr("OnShutdownOSNot")(restartOS);
+            try {
+                py_sink.attr("OnShutdownOSNot")(restartOS);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnShutdownOSNot");
+            }
         }
     }
     // Added in SDK 7.0+ (required override — no-op):
@@ -225,42 +285,66 @@ public:
     void OnUpdateMeetingList(ListMeetingResult result, const std::vector<MeetingItem>& meetingList) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMeetingList")) {
-            py_sink.attr("OnUpdateMeetingList")(result, meetingList);
+            try {
+                py_sink.attr("OnUpdateMeetingList")(result, meetingList);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMeetingList");
+            }
         }
     }
 
     void OnUpdatedScheduleCalendarEventNotification(ScheduleCalendarEventResult scheduleResult) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdatedScheduleCalendarEventNotification")) {
-            py_sink.attr("OnUpdatedScheduleCalendarEventNotification")(scheduleResult);
+            try {
+                py_sink.attr("OnUpdatedScheduleCalendarEventNotification")(scheduleResult);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdatedScheduleCalendarEventNotification");
+            }
         }
     }
 
     void OnUpdatedDeleteCalendarEventNotification(DeleteCalendarEventResult deleteResult) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdatedDeleteCalendarEventNotification")) {
-            py_sink.attr("OnUpdatedDeleteCalendarEventNotification")(deleteResult);
+            try {
+                py_sink.attr("OnUpdatedDeleteCalendarEventNotification")(deleteResult);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdatedDeleteCalendarEventNotification");
+            }
         }
     }
 
     void OnShowUpcomingMeetingAlertResult(int32_t result, const MeetingItem& meetingItem) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnShowUpcomingMeetingAlertResult")) {
-            py_sink.attr("OnShowUpcomingMeetingAlertResult")(result, meetingItem);
+            try {
+                py_sink.attr("OnShowUpcomingMeetingAlertResult")(result, meetingItem);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnShowUpcomingMeetingAlertResult");
+            }
         }
     }
 
     void OnCloseUpcomingMeetingAlertResult(int32_t result) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnCloseUpcomingMeetingAlertResult")) {
-            py_sink.attr("OnCloseUpcomingMeetingAlertResult")(result);
+            try {
+                py_sink.attr("OnCloseUpcomingMeetingAlertResult")(result);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCloseUpcomingMeetingAlertResult");
+            }
         }
     }
 
     void OnMeetingWillReleaseAutomatically(const MeetingItem& meetingItem) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMeetingWillReleaseAutomatically")) {
-            py_sink.attr("OnMeetingWillReleaseAutomatically")(meetingItem);
+            try {
+                py_sink.attr("OnMeetingWillReleaseAutomatically")(meetingItem);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingWillReleaseAutomatically");
+            }
         }
     }
 };
@@ -276,49 +360,77 @@ public:
     void OnConsentNotification(const ConsentInfo& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnConsentNotification")) {
-            py_sink.attr("OnConsentNotification")(info);
+            try {
+                py_sink.attr("OnConsentNotification")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnConsentNotification");
+            }
         } 
     }
         
     void OnMeetingReminderNotification(const MeetingReminderContent& reminderContent) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMeetingReminderNotification")) {
-            py_sink.attr("OnMeetingReminderNotification")(reminderContent);
+            try {
+                py_sink.attr("OnMeetingReminderNotification")(reminderContent);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingReminderNotification");
+            }
         }
     }
     
     void OnCustomizedReminderNotification(const CustomizedMeetingReminderContent& customizedContent) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnCustomizedReminderNotification")) {
-            py_sink.attr("OnCustomizedReminderNotification")(customizedContent);
+            try {
+                py_sink.attr("OnCustomizedReminderNotification")(customizedContent);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCustomizedReminderNotification");
+            }
         }
     }
     
     void OnCombinedConsentNotification(const CombinedConsent& combinedConsent) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnCombinedConsentNotification")) {
-            py_sink.attr("OnCombinedConsentNotification")(combinedConsent);
+            try {
+                py_sink.attr("OnCombinedConsentNotification")(combinedConsent);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCombinedConsentNotification");
+            }
         }
     }
     
     void OnPrivacyAlertNotification(PrivacyAlertAction action, PrivacyAlertType type, const DisclaimerPrivacy& message) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnPrivacyAlertNotification")) {
-            py_sink.attr("OnPrivacyAlertNotification")(action, type, message);
+            try {
+                py_sink.attr("OnPrivacyAlertNotification")(action, type, message);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnPrivacyAlertNotification");
+            }
         }
     }
     
     void OnMessageEventNotification(MessageEvent messageEvent) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMessageEventNotification")) {
-            py_sink.attr("OnMessageEventNotification")(messageEvent);
+            try {
+                py_sink.attr("OnMessageEventNotification")(messageEvent);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMessageEventNotification");
+            }
         }
     }
     
     void OnInactiveDetectionNotification(bool isShowPrompt, time_t autoEndTime) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnInactiveDetectionNotification")) {
-            py_sink.attr("OnInactiveDetectionNotification")(isShowPrompt, autoEndTime);
+            try {
+                py_sink.attr("OnInactiveDetectionNotification")(isShowPrompt, autoEndTime);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnInactiveDetectionNotification");
+            }
         }
     }
     // Added in SDK 7.0+ (required override — no-op):
@@ -335,7 +447,11 @@ public:
     void OnStartMeetingResult(int32_t result) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnStartMeetingResult")) {
-            py_sink.attr("OnStartMeetingResult")(result);
+            try {
+                py_sink.attr("OnStartMeetingResult")(result);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnStartMeetingResult");
+            }
         }
     }
     void OnStartPmiResult(int32_t result, const std::string& meetingNumber, MeetingType meetingType) override {}
@@ -343,25 +459,41 @@ public:
     void OnUpdateMeetingStatus(MeetingStatus meetingStatus) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMeetingStatus")) {
-            py_sink.attr("OnUpdateMeetingStatus")(meetingStatus);
+            try {
+                py_sink.attr("OnUpdateMeetingStatus")(meetingStatus);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMeetingStatus");
+            }
         }
     }
     void OnConfReadyNotification() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnConfReadyNotification")) {
-            py_sink.attr("OnConfReadyNotification")();
+            try {
+                py_sink.attr("OnConfReadyNotification")();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnConfReadyNotification");
+            }
         }
     }
     void OnUpdateMeetingInfoNotification(const MeetingInfo& meetingInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMeetingInfoNotification")) {
-            py_sink.attr("OnUpdateMeetingInfoNotification")(meetingInfo);
+            try {
+                py_sink.attr("OnUpdateMeetingInfoNotification")(meetingInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMeetingInfoNotification");
+            }
         }
     }
     void OnExitMeetingNotification(int32_t result, ExitMeetingReason reason) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnExitMeetingNotification")) {
-            py_sink.attr("OnExitMeetingNotification")(result, reason);
+            try {
+                py_sink.attr("OnExitMeetingNotification")(result, reason);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnExitMeetingNotification");
+            }
         }
     }
     void OnMeetingErrorNotification(const MeetingErrorInfo& errorInfo) override {}
@@ -372,7 +504,11 @@ public:
     void OnStartMeetingWithHostKeyResult(int32_t result) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnStartMeetingWithHostKeyResult")) {
-            py_sink.attr("OnStartMeetingWithHostKeyResult")(result);
+            try {
+                py_sink.attr("OnStartMeetingWithHostKeyResult")(result);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnStartMeetingWithHostKeyResult");
+            }
         }
     }
     void OnUpdateDataCenterRegionNotification(const DataCenterRegion& dcRegion) override {}
@@ -385,7 +521,11 @@ public:
     void OnJBHWaitingHostNotification(bool showWaitForHostDialog, WaitingHostReason reason) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnJBHWaitingHostNotification")) {
-            py_sink.attr("OnJBHWaitingHostNotification")(showWaitForHostDialog, reason);
+            try {
+                py_sink.attr("OnJBHWaitingHostNotification")(showWaitForHostDialog, reason);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnJBHWaitingHostNotification");
+            }
         }
     }
     void OnE2eeMeetingStatusNotification(const E2eeMeetingStatus& e2eeMeetingStatus) override {}
@@ -393,13 +533,21 @@ public:
     void OnMeetingWillStopAutomatically() override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMeetingWillStopAutomatically")) {
-            py_sink.attr("OnMeetingWillStopAutomatically")();
+            try {
+                py_sink.attr("OnMeetingWillStopAutomatically")();
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingWillStopAutomatically");
+            }
         }
     }
     void OnExtendMeetingResult(int32_t extendMins) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnExtendMeetingResult")) {
-            py_sink.attr("OnExtendMeetingResult")(extendMins);
+            try {
+                py_sink.attr("OnExtendMeetingResult")(extendMins);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnExtendMeetingResult");
+            }
         }
     }
     void OnConfirmPersonalLink(const std::string& personalLink) override {}
@@ -415,37 +563,61 @@ public:
     void OnInitMeetingParticipants(const std::vector<MeetingParticipant>& participants, int32_t totalParticipantsCount, bool needCleanUpUserList, ConfSessionType session) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnInitMeetingParticipants")) {
-            py_sink.attr("OnInitMeetingParticipants")(participants, totalParticipantsCount, needCleanUpUserList, session);
+            try {
+                py_sink.attr("OnInitMeetingParticipants")(participants, totalParticipantsCount, needCleanUpUserList, session);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnInitMeetingParticipants");
+            }
         }
     }
     void OnUserJoin(const std::vector<MeetingParticipant>& participants, ConfSessionType session) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUserJoin")) {
-            py_sink.attr("OnUserJoin")(participants, session);
+            try {
+                py_sink.attr("OnUserJoin")(participants, session);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUserJoin");
+            }
         }
     }
     void OnUserLeave(const std::vector<MeetingParticipant>& participants, ConfSessionType session) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUserLeave")) {
-            py_sink.attr("OnUserLeave")(participants, session);
+            try {
+                py_sink.attr("OnUserLeave")(participants, session);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUserLeave");
+            }
         }
     }
     void OnUserUpdate(const std::vector<MeetingParticipant>& participants, ConfSessionType session) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUserUpdate")) {
-            py_sink.attr("OnUserUpdate")(participants, session);
+            try {
+                py_sink.attr("OnUserUpdate")(participants, session);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUserUpdate");
+            }
         }
     }
     void OnHostChangedNotification(int32_t hostUserID, bool amIHost, ConfSessionType session) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnHostChangedNotification")) {
-            py_sink.attr("OnHostChangedNotification")(hostUserID, amIHost, session);
+            try {
+                py_sink.attr("OnHostChangedNotification")(hostUserID, amIHost, session);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnHostChangedNotification");
+            }
         }
     }
     void OnMeetingParticipantsChanged(ConfSessionType session) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMeetingParticipantsChanged")) {
-            py_sink.attr("OnMeetingParticipantsChanged")(session);
+            try {
+                py_sink.attr("OnMeetingParticipantsChanged")(session);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingParticipantsChanged");
+            }
         }
     }
     void OnUpdateHideProfilePictures(bool isHideProfilePictures) override {}
@@ -472,19 +644,31 @@ public:
     void OnInSilentModeNotification(const InSilentModeInfo& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnInSilentModeNotification")) {
-            py_sink.attr("OnInSilentModeNotification")(info);
+            try {
+                py_sink.attr("OnInSilentModeNotification")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnInSilentModeNotification");
+            }
         }
     }
     void OnEnableWaitingRoomOnEntryNotification(bool isEnable) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnEnableWaitingRoomOnEntryNotification")) {
-            py_sink.attr("OnEnableWaitingRoomOnEntryNotification")(isEnable);
+            try {
+                py_sink.attr("OnEnableWaitingRoomOnEntryNotification")(isEnable);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnEnableWaitingRoomOnEntryNotification");
+            }
         }
     }
     void OnUpdateAdmitGuestEnableNotification(bool isEnabled) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateAdmitGuestEnableNotification")) {
-            py_sink.attr("OnUpdateAdmitGuestEnableNotification")(isEnabled);
+            try {
+                py_sink.attr("OnUpdateAdmitGuestEnableNotification")(isEnabled);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateAdmitGuestEnableNotification");
+            }
         }
     }
 };
@@ -498,55 +682,91 @@ public:
     void OnUpdateMeetingLockStatus(bool meetingLocked) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMeetingLockStatus")) {
-            py_sink.attr("OnUpdateMeetingLockStatus")(meetingLocked);
+            try {
+                py_sink.attr("OnUpdateMeetingLockStatus")(meetingLocked);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMeetingLockStatus");
+            }
         }
     }
     void OnUpdateFocusModeOptionsNotification(bool enable, FocusModeStatus status) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateFocusModeOptionsNotification")) {
-            py_sink.attr("OnUpdateFocusModeOptionsNotification")(enable, status);
+            try {
+                py_sink.attr("OnUpdateFocusModeOptionsNotification")(enable, status);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateFocusModeOptionsNotification");
+            }
         }
     }
     void OnUpdateLiveStreamStatus(const LiveStreamStatus& status) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateLiveStreamStatus")) {
-            py_sink.attr("OnUpdateLiveStreamStatus")(status);
+            try {
+                py_sink.attr("OnUpdateLiveStreamStatus")(status);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateLiveStreamStatus");
+            }
         }
     }
     void OnArchivingStatusNotification(bool isInProgress) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnArchivingStatusNotification")) {
-            py_sink.attr("OnArchivingStatusNotification")(isInProgress);
+            try {
+                py_sink.attr("OnArchivingStatusNotification")(isInProgress);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnArchivingStatusNotification");
+            }
         }
     }
     void OnShowArchivingStatusFailNotification(bool showArchivingFail) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnShowArchivingStatusFailNotification")) {
-            py_sink.attr("OnShowArchivingStatusFailNotification")(showArchivingFail);
+            try {
+                py_sink.attr("OnShowArchivingStatusFailNotification")(showArchivingFail);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnShowArchivingStatusFailNotification");
+            }
         }
     }
     void OnSmartSummaryOn(bool summaryOn, bool hasSetEmail) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnSmartSummaryOn")) {
-            py_sink.attr("OnSmartSummaryOn")(summaryOn, hasSetEmail);
+            try {
+                py_sink.attr("OnSmartSummaryOn")(summaryOn, hasSetEmail);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnSmartSummaryOn");
+            }
         }
     }
     void OnReceiveAICompanionRequest(const AICompanionRequestInfo& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnReceiveAICompanionRequest")) {
-            py_sink.attr("OnReceiveAICompanionRequest")(info);
+            try {
+                py_sink.attr("OnReceiveAICompanionRequest")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnReceiveAICompanionRequest");
+            }
         }
     }
     void OnAICompanionStatusNeedConfirm(const AICompanionStatusInfo& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnAICompanionStatusNeedConfirm")) {
-            py_sink.attr("OnAICompanionStatusNeedConfirm")(info);
+            try {
+                py_sink.attr("OnAICompanionStatusNeedConfirm")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnAICompanionStatusNeedConfirm");
+            }
         }
     }
     void OnShowSidePanel(bool isShow, PanelType currentPanel) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnShowSidePanel")) {
-            py_sink.attr("OnShowSidePanel")(isShow, currentPanel);
+            try {
+                py_sink.attr("OnShowSidePanel")(isShow, currentPanel);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnShowSidePanel");
+            }
         }
     }
     // Unforwarded callbacks (required overrides — no-ops):
@@ -572,62 +792,102 @@ public:
     void OnUpdateMeetingRecordingInfo(const MeetingRecordingInfo& recordingInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMeetingRecordingInfo")) {
-            py_sink.attr("OnUpdateMeetingRecordingInfo")(recordingInfo);
+            try {
+                py_sink.attr("OnUpdateMeetingRecordingInfo")(recordingInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMeetingRecordingInfo");
+            }
         }
     }
     void OnMeetingCloudRecordingErrorNotification(bool show, MeetingRecordingError errorCode, bool hasCMREdit, uint64_t gracePeriodDate) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMeetingCloudRecordingErrorNotification")) {
-            py_sink.attr("OnMeetingCloudRecordingErrorNotification")(show, errorCode, hasCMREdit, gracePeriodDate);
+            try {
+                py_sink.attr("OnMeetingCloudRecordingErrorNotification")(show, errorCode, hasCMREdit, gracePeriodDate);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingCloudRecordingErrorNotification");
+            }
         }
     }
     // Second (2-arg) overload forwarded under a distinct Python name.
     void OnMeetingCloudRecordingErrorNotification(bool result, const std::string& reason) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMeetingCloudRecordingErrorReason")) {
-            py_sink.attr("OnMeetingCloudRecordingErrorReason")(result, reason);
+            try {
+                py_sink.attr("OnMeetingCloudRecordingErrorReason")(result, reason);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingCloudRecordingErrorReason");
+            }
         }
     }
     void OnNeedPromptStartRecordingDisclaimerUpdate(bool need) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnNeedPromptStartRecordingDisclaimerUpdate")) {
-            py_sink.attr("OnNeedPromptStartRecordingDisclaimerUpdate")(need);
+            try {
+                py_sink.attr("OnNeedPromptStartRecordingDisclaimerUpdate")(need);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnNeedPromptStartRecordingDisclaimerUpdate");
+            }
         }
     }
     void OnQueryMeetingCloudRecordingNotification(MeetingRecordingError errorCode, bool hasCMREdit) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnQueryMeetingCloudRecordingNotification")) {
-            py_sink.attr("OnQueryMeetingCloudRecordingNotification")(errorCode, hasCMREdit);
+            try {
+                py_sink.attr("OnQueryMeetingCloudRecordingNotification")(errorCode, hasCMREdit);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnQueryMeetingCloudRecordingNotification");
+            }
         }
     }
     void OnUpdateMeetingUserRecordingStatus(int32_t userID, bool canRecord, bool isRecording, bool isLocalRecordingDisabled) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMeetingUserRecordingStatus")) {
-            py_sink.attr("OnUpdateMeetingUserRecordingStatus")(userID, canRecord, isRecording, isLocalRecordingDisabled);
+            try {
+                py_sink.attr("OnUpdateMeetingUserRecordingStatus")(userID, canRecord, isRecording, isLocalRecordingDisabled);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMeetingUserRecordingStatus");
+            }
         }
     }
     void OnSetRecordingNotificationEmailNotification(int32_t result) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnSetRecordingNotificationEmailNotification")) {
-            py_sink.attr("OnSetRecordingNotificationEmailNotification")(result);
+            try {
+                py_sink.attr("OnSetRecordingNotificationEmailNotification")(result);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnSetRecordingNotificationEmailNotification");
+            }
         }
     }
     void OnSetMeetingRecordingResult(int32_t result, const std::string& recordingNotificationEmail, RecordingRequestType type) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnSetMeetingRecordingResult")) {
-            py_sink.attr("OnSetMeetingRecordingResult")(result, recordingNotificationEmail, type);
+            try {
+                py_sink.attr("OnSetMeetingRecordingResult")(result, recordingNotificationEmail, type);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnSetMeetingRecordingResult");
+            }
         }
     }
     void OnUpdateRecordingPermission(const std::vector<RecordPermissionInfo>& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateRecordingPermission")) {
-            py_sink.attr("OnUpdateRecordingPermission")(info);
+            try {
+                py_sink.attr("OnUpdateRecordingPermission")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateRecordingPermission");
+            }
         }
     }
     void OnReceiveRecordingRequest(const RecordingRequestInfo& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnReceiveRecordingRequest")) {
-            py_sink.attr("OnReceiveRecordingRequest")(info);
+            try {
+                py_sink.attr("OnReceiveRecordingRequest")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnReceiveRecordingRequest");
+            }
         }
     }
 };
@@ -641,31 +901,51 @@ public:
     void OnUpdateMyAudioStatus(const AudioStatus& audioStatus) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMyAudioStatus")) {
-            py_sink.attr("OnUpdateMyAudioStatus")(audioStatus);
+            try {
+                py_sink.attr("OnUpdateMyAudioStatus")(audioStatus);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMyAudioStatus");
+            }
         }
     }
     void OnMuteUserAudioNotification(int32_t userID, const AudioStatus& audioStatus) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMuteUserAudioNotification")) {
-            py_sink.attr("OnMuteUserAudioNotification")(userID, audioStatus);
+            try {
+                py_sink.attr("OnMuteUserAudioNotification")(userID, audioStatus);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMuteUserAudioNotification");
+            }
         }
     }
     void OnMuteOnEntryNotification(bool isMuteOnEntry) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMuteOnEntryNotification")) {
-            py_sink.attr("OnMuteOnEntryNotification")(isMuteOnEntry);
+            try {
+                py_sink.attr("OnMuteOnEntryNotification")(isMuteOnEntry);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMuteOnEntryNotification");
+            }
         }
     }
     void OnAskUnmuteAudioByHostNotification(bool show, AskUnmuteAudioByHostType type) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnAskUnmuteAudioByHostNotification")) {
-            py_sink.attr("OnAskUnmuteAudioByHostNotification")(show, type);
+            try {
+                py_sink.attr("OnAskUnmuteAudioByHostNotification")(show, type);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnAskUnmuteAudioByHostNotification");
+            }
         }
     }
     void OnAllowAttendeesUnmuteThemselvesNotification(bool canAttendeesUnmuteThemselves) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnAllowAttendeesUnmuteThemselvesNotification")) {
-            py_sink.attr("OnAllowAttendeesUnmuteThemselvesNotification")(canAttendeesUnmuteThemselves);
+            try {
+                py_sink.attr("OnAllowAttendeesUnmuteThemselvesNotification")(canAttendeesUnmuteThemselves);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnAllowAttendeesUnmuteThemselvesNotification");
+            }
         }
     }
     // Unforwarded (required overrides — no-ops):
@@ -693,31 +973,51 @@ public:
     void OnUpdateMyVideoNotification(const VideoStatus& videoStatus) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateMyVideoNotification")) {
-            py_sink.attr("OnUpdateMyVideoNotification")(videoStatus);
+            try {
+                py_sink.attr("OnUpdateMyVideoNotification")(videoStatus);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateMyVideoNotification");
+            }
         }
     }
     void OnMuteUserVideoNotification(int32_t userID, const VideoStatus& videoStatus) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnMuteUserVideoNotification")) {
-            py_sink.attr("OnMuteUserVideoNotification")(userID, videoStatus);
+            try {
+                py_sink.attr("OnMuteUserVideoNotification")(userID, videoStatus);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMuteUserVideoNotification");
+            }
         }
     }
     void OnAskStartVideoByHostNotification(int32_t userID) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnAskStartVideoByHostNotification")) {
-            py_sink.attr("OnAskStartVideoByHostNotification")(userID);
+            try {
+                py_sink.attr("OnAskStartVideoByHostNotification")(userID);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnAskStartVideoByHostNotification");
+            }
         }
     }
     void OnSpotlightStatusNotification(const SpotlightStatus& spotlightStatus) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnSpotlightStatusNotification")) {
-            py_sink.attr("OnSpotlightStatusNotification")(spotlightStatus);
+            try {
+                py_sink.attr("OnSpotlightStatusNotification")(spotlightStatus);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnSpotlightStatusNotification");
+            }
         }
     }
     void OnUpdateAllowAttendeesStartVideo(bool allow) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateAllowAttendeesStartVideo")) {
-            py_sink.attr("OnUpdateAllowAttendeesStartVideo")(allow);
+            try {
+                py_sink.attr("OnUpdateAllowAttendeesStartVideo")(allow);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateAllowAttendeesStartVideo");
+            }
         }
     }
     // Unforwarded (deep-nested settings structs — required overrides, no-ops):
@@ -735,37 +1035,61 @@ public:
     void OnSharingStatusNotification(const SharingStatus& status) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnSharingStatusNotification")) {
-            py_sink.attr("OnSharingStatusNotification")(status);
+            try {
+                py_sink.attr("OnSharingStatusNotification")(status);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnSharingStatusNotification");
+            }
         }
     }
     void OnShareSettingNotification(const ShareSetting& setting) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnShareSettingNotification")) {
-            py_sink.attr("OnShareSettingNotification")(setting);
+            try {
+                py_sink.attr("OnShareSettingNotification")(setting);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnShareSettingNotification");
+            }
         }
     }
     void OnSharingSourceNotification(const std::vector<ShareSource>& zrShareSources, const std::vector<ShareSource>& zrwShareSources) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnSharingSourceNotification")) {
-            py_sink.attr("OnSharingSourceNotification")(zrShareSources, zrwShareSources);
+            try {
+                py_sink.attr("OnSharingSourceNotification")(zrShareSources, zrwShareSources);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnSharingSourceNotification");
+            }
         }
     }
     void OnIncomingMeetingShareNotification(const IncomingMeetingShareNot& noti) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnIncomingMeetingShareNotification")) {
-            py_sink.attr("OnIncomingMeetingShareNotification")(noti);
+            try {
+                py_sink.attr("OnIncomingMeetingShareNotification")(noti);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnIncomingMeetingShareNotification");
+            }
         }
     }
     void OnUpdateLocalViewStatus(bool isOn) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateLocalViewStatus")) {
-            py_sink.attr("OnUpdateLocalViewStatus")(isOn);
+            try {
+                py_sink.attr("OnUpdateLocalViewStatus")(isOn);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateLocalViewStatus");
+            }
         }
     }
     void OnStartLocalPresentResult(bool isSharingMeeting, SharingInstructionDisplayState displayState) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnStartLocalPresentResult")) {
-            py_sink.attr("OnStartLocalPresentResult")(isSharingMeeting, displayState);
+            try {
+                py_sink.attr("OnStartLocalPresentResult")(isSharingMeeting, displayState);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnStartLocalPresentResult");
+            }
         }
     }
     // Unforwarded (required overrides — no-ops):
@@ -775,7 +1099,11 @@ public:
     void OnUpdateAirPlayBlackMagicStatus(const AirplayBlackMagicStatus& status) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateAirPlayBlackMagicStatus")) {
-            py_sink.attr("OnUpdateAirPlayBlackMagicStatus")(status);
+            try {
+                py_sink.attr("OnUpdateAirPlayBlackMagicStatus")(status);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateAirPlayBlackMagicStatus");
+            }
         }
     }
     void OnUpdateCameraSharingStatus(const CameraSharingStatus& status) override {}
@@ -797,61 +1125,101 @@ public:
     void OnReceiveIncomingSIPCallNotification(const SIPCallInfo& sipCallInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnReceiveIncomingSIPCallNotification")) {
-            py_sink.attr("OnReceiveIncomingSIPCallNotification")(sipCallInfo);
+            try {
+                py_sink.attr("OnReceiveIncomingSIPCallNotification")(sipCallInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnReceiveIncomingSIPCallNotification");
+            }
         }
     }
     void OnUpdateSIPCallStatusNotification(const SIPCallInfo& sipCallInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateSIPCallStatusNotification")) {
-            py_sink.attr("OnUpdateSIPCallStatusNotification")(sipCallInfo);
+            try {
+                py_sink.attr("OnUpdateSIPCallStatusNotification")(sipCallInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateSIPCallStatusNotification");
+            }
         }
     }
     void OnUpdateSIPServiceStatusNotification(const SIPService& sipService) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateSIPServiceStatusNotification")) {
-            py_sink.attr("OnUpdateSIPServiceStatusNotification")(sipService);
+            try {
+                py_sink.attr("OnUpdateSIPServiceStatusNotification")(sipService);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateSIPServiceStatusNotification");
+            }
         }
     }
     void OnTerminateSIPCallNotification(SIPCallTerminateReason reason, const SIPCallInfo& sipCallInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnTerminateSIPCallNotification")) {
-            py_sink.attr("OnTerminateSIPCallNotification")(reason, sipCallInfo);
+            try {
+                py_sink.attr("OnTerminateSIPCallNotification")(reason, sipCallInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnTerminateSIPCallNotification");
+            }
         }
     }
     void OnUpdateSIPCallAudioStatusNotification(bool muted) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateSIPCallAudioStatusNotification")) {
-            py_sink.attr("OnUpdateSIPCallAudioStatusNotification")(muted);
+            try {
+                py_sink.attr("OnUpdateSIPCallAudioStatusNotification")(muted);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateSIPCallAudioStatusNotification");
+            }
         }
     }
     void OnAnswerSIPCallResult(bool succeeded, const SIPCallInfo& sipCallInfo, bool accepted) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnAnswerSIPCallResult")) {
-            py_sink.attr("OnAnswerSIPCallResult")(succeeded, sipCallInfo, accepted);
+            try {
+                py_sink.attr("OnAnswerSIPCallResult")(succeeded, sipCallInfo, accepted);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnAnswerSIPCallResult");
+            }
         }
     }
     void OnUpgradeSIPCallToMeetingResult(bool succeeded, const SIPCallInfo& sipCallInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpgradeSIPCallToMeetingResult")) {
-            py_sink.attr("OnUpgradeSIPCallToMeetingResult")(succeeded, sipCallInfo);
+            try {
+                py_sink.attr("OnUpgradeSIPCallToMeetingResult")(succeeded, sipCallInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpgradeSIPCallToMeetingResult");
+            }
         }
     }
     void OnUpgradeSIPCallToMeetingNotification(bool succeeded, const SIPCallInfo& sipCallInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpgradeSIPCallToMeetingNotification")) {
-            py_sink.attr("OnUpgradeSIPCallToMeetingNotification")(succeeded, sipCallInfo);
+            try {
+                py_sink.attr("OnUpgradeSIPCallToMeetingNotification")(succeeded, sipCallInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpgradeSIPCallToMeetingNotification");
+            }
         }
     }
     void OnTransferSIPCallResult(bool succeeded, const SIPCallInfo& sipCallInfo, const SIPCallTransferInfo& transferInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnTransferSIPCallResult")) {
-            py_sink.attr("OnTransferSIPCallResult")(succeeded, sipCallInfo, transferInfo);
+            try {
+                py_sink.attr("OnTransferSIPCallResult")(succeeded, sipCallInfo, transferInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnTransferSIPCallResult");
+            }
         }
     }
     void OnTransferSIPCallNotification(bool succeeded, const SIPCallInfo& sipCallInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnTransferSIPCallNotification")) {
-            py_sink.attr("OnTransferSIPCallNotification")(succeeded, sipCallInfo);
+            try {
+                py_sink.attr("OnTransferSIPCallNotification")(succeeded, sipCallInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnTransferSIPCallNotification");
+            }
         }
     }
     // Unforwarded (required overrides — no-ops):
@@ -871,61 +1239,101 @@ public:
     void OnUpdateWallviewStyleNotification(const WallViewStyleStatus& status) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateWallviewStyleNotification")) {
-            py_sink.attr("OnUpdateWallviewStyleNotification")(status);
+            try {
+                py_sink.attr("OnUpdateWallviewStyleNotification")(status);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateWallviewStyleNotification");
+            }
         }
     }
     void OnUpdateVideoThumbInfo(const VideoThumbInfo& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateVideoThumbInfo")) {
-            py_sink.attr("OnUpdateVideoThumbInfo")(info);
+            try {
+                py_sink.attr("OnUpdateVideoThumbInfo")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateVideoThumbInfo");
+            }
         }
     }
     void OnUpdateVideoPageStatusNotification(const VideoPageStatus& noti) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateVideoPageStatusNotification")) {
-            py_sink.attr("OnUpdateVideoPageStatusNotification")(noti);
+            try {
+                py_sink.attr("OnUpdateVideoPageStatusNotification")(noti);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateVideoPageStatusNotification");
+            }
         }
     }
     void OnUpdateIsNonVideoParticipantsShowedNotification(bool isShowNonVideoParticipants) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateIsNonVideoParticipantsShowedNotification")) {
-            py_sink.attr("OnUpdateIsNonVideoParticipantsShowedNotification")(isShowNonVideoParticipants);
+            try {
+                py_sink.attr("OnUpdateIsNonVideoParticipantsShowedNotification")(isShowNonVideoParticipants);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateIsNonVideoParticipantsShowedNotification");
+            }
         }
     }
     void OnUpdateScreenLayoutStatus(const ScreenLayoutStatus& status) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnUpdateScreenLayoutStatus")) {
-            py_sink.attr("OnUpdateScreenLayoutStatus")(status);
+            try {
+                py_sink.attr("OnUpdateScreenLayoutStatus")(status);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateScreenLayoutStatus");
+            }
         }
     }
     void OnConfidenceMonitorNotification(const ConfidenceMonitorInfo& info) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnConfidenceMonitorNotification")) {
-            py_sink.attr("OnConfidenceMonitorNotification")(info);
+            try {
+                py_sink.attr("OnConfidenceMonitorNotification")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnConfidenceMonitorNotification");
+            }
         }
     }
     void OnDynamicLayoutOptionNotification(DynamicLayoutType layout) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnDynamicLayoutOptionNotification")) {
-            py_sink.attr("OnDynamicLayoutOptionNotification")(layout);
+            try {
+                py_sink.attr("OnDynamicLayoutOptionNotification")(layout);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnDynamicLayoutOptionNotification");
+            }
         }
     }
     void OnThumbnailsPositionNotification(ThumbnailsPositionType type) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnThumbnailsPositionNotification")) {
-            py_sink.attr("OnThumbnailsPositionNotification")(type);
+            try {
+                py_sink.attr("OnThumbnailsPositionNotification")(type);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnThumbnailsPositionNotification");
+            }
         }
     }
     void OnChangeAttendeeViewNotification(AttendeeViewLayoutType layout) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnChangeAttendeeViewNotification")) {
-            py_sink.attr("OnChangeAttendeeViewNotification")(layout);
+            try {
+                py_sink.attr("OnChangeAttendeeViewNotification")(layout);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnChangeAttendeeViewNotification");
+            }
         }
     }
     void OnVideoOrderNotification(const VideoOrderInfo& videoOrderInfo) override {
         py::gil_scoped_acquire acquire;
         if (py::hasattr(py_sink, "OnVideoOrderNotification")) {
-            py_sink.attr("OnVideoOrderNotification")(videoOrderInfo);
+            try {
+                py_sink.attr("OnVideoOrderNotification")(videoOrderInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnVideoOrderNotification");
+            }
         }
     }
     // Unforwarded (required overrides — no-ops):
@@ -943,47 +1351,113 @@ public:
 
     void OnMicrophoneListChanged(const std::vector<Device>& microphones) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnMicrophoneListChanged")) py_sink.attr("OnMicrophoneListChanged")(microphones);
+        if (py::hasattr(py_sink, "OnMicrophoneListChanged")) {
+            try {
+                py_sink.attr("OnMicrophoneListChanged")(microphones);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMicrophoneListChanged");
+            }
+        }
     }
     void OnSpeakerListChanged(const std::vector<Device>& speakers) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnSpeakerListChanged")) py_sink.attr("OnSpeakerListChanged")(speakers);
+        if (py::hasattr(py_sink, "OnSpeakerListChanged")) {
+            try {
+                py_sink.attr("OnSpeakerListChanged")(speakers);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnSpeakerListChanged");
+            }
+        }
     }
     void OnCameraListChanged(const std::vector<Device>& cameras) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCameraListChanged")) py_sink.attr("OnCameraListChanged")(cameras);
+        if (py::hasattr(py_sink, "OnCameraListChanged")) {
+            try {
+                py_sink.attr("OnCameraListChanged")(cameras);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCameraListChanged");
+            }
+        }
     }
     void OnUpdateCOMList(const std::vector<Device>& comList) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnUpdateCOMList")) py_sink.attr("OnUpdateCOMList")(comList);
+        if (py::hasattr(py_sink, "OnUpdateCOMList")) {
+            try {
+                py_sink.attr("OnUpdateCOMList")(comList);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateCOMList");
+            }
+        }
     }
     void OnCurrentMicrophoneChanged(bool exist, const Device& microphone) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCurrentMicrophoneChanged")) py_sink.attr("OnCurrentMicrophoneChanged")(exist, microphone);
+        if (py::hasattr(py_sink, "OnCurrentMicrophoneChanged")) {
+            try {
+                py_sink.attr("OnCurrentMicrophoneChanged")(exist, microphone);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCurrentMicrophoneChanged");
+            }
+        }
     }
     void OnCurrentSpeakerChanged(bool exist, const Device& speaker) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCurrentSpeakerChanged")) py_sink.attr("OnCurrentSpeakerChanged")(exist, speaker);
+        if (py::hasattr(py_sink, "OnCurrentSpeakerChanged")) {
+            try {
+                py_sink.attr("OnCurrentSpeakerChanged")(exist, speaker);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCurrentSpeakerChanged");
+            }
+        }
     }
     void OnCurrentCameraChanged(bool exist, const Device& camera) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCurrentCameraChanged")) py_sink.attr("OnCurrentCameraChanged")(exist, camera);
+        if (py::hasattr(py_sink, "OnCurrentCameraChanged")) {
+            try {
+                py_sink.attr("OnCurrentCameraChanged")(exist, camera);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCurrentCameraChanged");
+            }
+        }
     }
     void OnCurrentMicrophoneVolumeChanged(float volume) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCurrentMicrophoneVolumeChanged")) py_sink.attr("OnCurrentMicrophoneVolumeChanged")(volume);
+        if (py::hasattr(py_sink, "OnCurrentMicrophoneVolumeChanged")) {
+            try {
+                py_sink.attr("OnCurrentMicrophoneVolumeChanged")(volume);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCurrentMicrophoneVolumeChanged");
+            }
+        }
     }
     void OnCurrentSpeakerVolumeChanged(float volume) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCurrentSpeakerVolumeChanged")) py_sink.attr("OnCurrentSpeakerVolumeChanged")(volume);
+        if (py::hasattr(py_sink, "OnCurrentSpeakerVolumeChanged")) {
+            try {
+                py_sink.attr("OnCurrentSpeakerVolumeChanged")(volume);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCurrentSpeakerVolumeChanged");
+            }
+        }
     }
     void OnCurrentSelectedMicrophoneMuted(bool muted) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCurrentSelectedMicrophoneMuted")) py_sink.attr("OnCurrentSelectedMicrophoneMuted")(muted);
+        if (py::hasattr(py_sink, "OnCurrentSelectedMicrophoneMuted")) {
+            try {
+                py_sink.attr("OnCurrentSelectedMicrophoneMuted")(muted);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCurrentSelectedMicrophoneMuted");
+            }
+        }
     }
     void OnNetworkAdapterUpdateInfo(const std::vector<NetworkAdapterInfo>& networkAdapterInfos) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnNetworkAdapterUpdateInfo")) py_sink.attr("OnNetworkAdapterUpdateInfo")(networkAdapterInfos);
+        if (py::hasattr(py_sink, "OnNetworkAdapterUpdateInfo")) {
+            try {
+                py_sink.attr("OnNetworkAdapterUpdateInfo")(networkAdapterInfos);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnNetworkAdapterUpdateInfo");
+            }
+        }
     }
     // Unforwarded (required overrides — no-ops; deep/niche settings state):
     void OnCompanionZRDeviceUpdateNotification(const CompanionZRDeviceUpdateNot& noti) override {}
@@ -1025,27 +1499,63 @@ public:
 
     void OnUpdateClosedCaptionNotification(const ClosedCaptionInfo& closedCaptionInfo) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnUpdateClosedCaptionNotification")) py_sink.attr("OnUpdateClosedCaptionNotification")(closedCaptionInfo);
+        if (py::hasattr(py_sink, "OnUpdateClosedCaptionNotification")) {
+            try {
+                py_sink.attr("OnUpdateClosedCaptionNotification")(closedCaptionInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateClosedCaptionNotification");
+            }
+        }
     }
     void OnNewLTTLanguageNotification(const NewLTTCaptionInfo& newLttCaptionInfo) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnNewLTTLanguageNotification")) py_sink.attr("OnNewLTTLanguageNotification")(newLttCaptionInfo);
+        if (py::hasattr(py_sink, "OnNewLTTLanguageNotification")) {
+            try {
+                py_sink.attr("OnNewLTTLanguageNotification")(newLttCaptionInfo);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnNewLTTLanguageNotification");
+            }
+        }
     }
     void OnNewLTTCaptionNotification(NewLTTCaptionNotificationType type) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnNewLTTCaptionNotification")) py_sink.attr("OnNewLTTCaptionNotification")(type);
+        if (py::hasattr(py_sink, "OnNewLTTCaptionNotification")) {
+            try {
+                py_sink.attr("OnNewLTTCaptionNotification")(type);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnNewLTTCaptionNotification");
+            }
+        }
     }
     void OnMessageAdd(const LTTCaptionMessage& message) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnMessageAdd")) py_sink.attr("OnMessageAdd")(message);
+        if (py::hasattr(py_sink, "OnMessageAdd")) {
+            try {
+                py_sink.attr("OnMessageAdd")(message);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMessageAdd");
+            }
+        }
     }
     void OnMessageUpdate(const LTTCaptionMessage& message) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnMessageUpdate")) py_sink.attr("OnMessageUpdate")(message);
+        if (py::hasattr(py_sink, "OnMessageUpdate")) {
+            try {
+                py_sink.attr("OnMessageUpdate")(message);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMessageUpdate");
+            }
+        }
     }
     void OnMessageLoad(const std::vector<LTTCaptionMessage>& messages, bool hasMoreHistory) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnMessageLoad")) py_sink.attr("OnMessageLoad")(messages, hasMoreHistory);
+        if (py::hasattr(py_sink, "OnMessageLoad")) {
+            try {
+                py_sink.attr("OnMessageLoad")(messages, hasMoreHistory);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMessageLoad");
+            }
+        }
     }
     // Unforwarded (required overrides — no-ops):
     void OnClosedCaptionResponse(int32_t result, ClosedCaptionFontSize fontSize) override {}
@@ -1062,31 +1572,73 @@ public:
 
     void OnProAVVideoOverlaySettingsNotification(const ProAVVideoOverlaySettings& settings) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnProAVVideoOverlaySettingsNotification")) py_sink.attr("OnProAVVideoOverlaySettingsNotification")(settings);
+        if (py::hasattr(py_sink, "OnProAVVideoOverlaySettingsNotification")) {
+            try {
+                py_sink.attr("OnProAVVideoOverlaySettingsNotification")(settings);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnProAVVideoOverlaySettingsNotification");
+            }
+        }
     }
     void OnProAVUnassignedBehaviorNotification(const ProAVUnassignedBehavior& behavior) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnProAVUnassignedBehaviorNotification")) py_sink.attr("OnProAVUnassignedBehaviorNotification")(behavior);
+        if (py::hasattr(py_sink, "OnProAVUnassignedBehaviorNotification")) {
+            try {
+                py_sink.attr("OnProAVUnassignedBehaviorNotification")(behavior);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnProAVUnassignedBehaviorNotification");
+            }
+        }
     }
     void OnProAVVideoLossBehaviorNotification(const ProAVVideoLossBehavior& behavior) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnProAVVideoLossBehaviorNotification")) py_sink.attr("OnProAVVideoLossBehaviorNotification")(behavior);
+        if (py::hasattr(py_sink, "OnProAVVideoLossBehaviorNotification")) {
+            try {
+                py_sink.attr("OnProAVVideoLossBehaviorNotification")(behavior);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnProAVVideoLossBehaviorNotification");
+            }
+        }
     }
     void OnProAVNonPersistentAssignedGalleryUpdate(const ProAVAssignedGalleryInfo& info) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnProAVNonPersistentAssignedGalleryUpdate")) py_sink.attr("OnProAVNonPersistentAssignedGalleryUpdate")(info);
+        if (py::hasattr(py_sink, "OnProAVNonPersistentAssignedGalleryUpdate")) {
+            try {
+                py_sink.attr("OnProAVNonPersistentAssignedGalleryUpdate")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnProAVNonPersistentAssignedGalleryUpdate");
+            }
+        }
     }
     void OnProAVPersistentAssignedGalleryUpdate(const std::vector<ProAVAssignedGalleryInfo>& infos) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnProAVPersistentAssignedGalleryUpdate")) py_sink.attr("OnProAVPersistentAssignedGalleryUpdate")(infos);
+        if (py::hasattr(py_sink, "OnProAVPersistentAssignedGalleryUpdate")) {
+            try {
+                py_sink.attr("OnProAVPersistentAssignedGalleryUpdate")(infos);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnProAVPersistentAssignedGalleryUpdate");
+            }
+        }
     }
     void OnProAVAssignedGalleryStatusUpdate(const ProAVAssignedGalleryStatus& status, const std::vector<uint32_t>& deleteIndices) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnProAVAssignedGalleryStatusUpdate")) py_sink.attr("OnProAVAssignedGalleryStatusUpdate")(status, deleteIndices);
+        if (py::hasattr(py_sink, "OnProAVAssignedGalleryStatusUpdate")) {
+            try {
+                py_sink.attr("OnProAVAssignedGalleryStatusUpdate")(status, deleteIndices);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnProAVAssignedGalleryStatusUpdate");
+            }
+        }
     }
     void OnProAVAssignedGalleryHideOptionsUpdate(const ProAVAssignedGalleryHideOptions& options) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnProAVAssignedGalleryHideOptionsUpdate")) py_sink.attr("OnProAVAssignedGalleryHideOptionsUpdate")(options);
+        if (py::hasattr(py_sink, "OnProAVAssignedGalleryHideOptionsUpdate")) {
+            try {
+                py_sink.attr("OnProAVAssignedGalleryHideOptionsUpdate")(options);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnProAVAssignedGalleryHideOptionsUpdate");
+            }
+        }
     }
     void OnProAVDeleteAssignedGallerySeatFailed(const std::vector<uint32_t>& deleteIndices) override {}
 };
@@ -1099,7 +1651,13 @@ public:
 
     void OnHWIOServiceStatusUpdated(bool isServiceAvailable, bool isFeatureAllowed, const std::string& companionZRID) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnHWIOServiceStatusUpdated")) py_sink.attr("OnHWIOServiceStatusUpdated")(isServiceAvailable, isFeatureAllowed, companionZRID);
+        if (py::hasattr(py_sink, "OnHWIOServiceStatusUpdated")) {
+            try {
+                py_sink.attr("OnHWIOServiceStatusUpdated")(isServiceAvailable, isFeatureAllowed, companionZRID);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnHWIOServiceStatusUpdated");
+            }
+        }
     }
     // Unforwarded (heavy device-tree structs — required overrides, no-ops):
     void OnHWIOListDevicesResult(int32_t result, const HWIOInfo& info, const std::string& companionZRID) override {}
@@ -1118,19 +1676,43 @@ public:
 
     void OnCreateLocalNetworkAudioDevice(int32_t result, const LocalNetworkAudioDeviceInfo& info) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnCreateLocalNetworkAudioDevice")) py_sink.attr("OnCreateLocalNetworkAudioDevice")(result, info);
+        if (py::hasattr(py_sink, "OnCreateLocalNetworkAudioDevice")) {
+            try {
+                py_sink.attr("OnCreateLocalNetworkAudioDevice")(result, info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnCreateLocalNetworkAudioDevice");
+            }
+        }
     }
     void OnDestroyLocalNetworkAudioDevice(int32_t result) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnDestroyLocalNetworkAudioDevice")) py_sink.attr("OnDestroyLocalNetworkAudioDevice")(result);
+        if (py::hasattr(py_sink, "OnDestroyLocalNetworkAudioDevice")) {
+            try {
+                py_sink.attr("OnDestroyLocalNetworkAudioDevice")(result);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnDestroyLocalNetworkAudioDevice");
+            }
+        }
     }
     void OnLocalNetworkAudioDeviceError(const NetworkAudioError& error) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnLocalNetworkAudioDeviceError")) py_sink.attr("OnLocalNetworkAudioDeviceError")(error);
+        if (py::hasattr(py_sink, "OnLocalNetworkAudioDeviceError")) {
+            try {
+                py_sink.attr("OnLocalNetworkAudioDeviceError")(error);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnLocalNetworkAudioDeviceError");
+            }
+        }
     }
     void OnLocalNetworkAudioDeviceInfoNotification(const LocalNetworkAudioDeviceInfo& info) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnLocalNetworkAudioDeviceInfoNotification")) py_sink.attr("OnLocalNetworkAudioDeviceInfoNotification")(info);
+        if (py::hasattr(py_sink, "OnLocalNetworkAudioDeviceInfoNotification")) {
+            try {
+                py_sink.attr("OnLocalNetworkAudioDeviceInfoNotification")(info);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnLocalNetworkAudioDeviceInfoNotification");
+            }
+        }
     }
     // Unforwarded (heavy connection-graph structs — required overrides, no-ops):
     void OnBindUserAudioConnectionSuccess(const std::vector<NetworkAudioBroadcastConnectionInfo>& connections) override {}
@@ -1174,11 +1756,23 @@ public:
 
     void OnNDIUsageSettingsNotification(const NDIUsageSettings& settings) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnNDIUsageSettingsNotification")) py_sink.attr("OnNDIUsageSettingsNotification")(settings);
+        if (py::hasattr(py_sink, "OnNDIUsageSettingsNotification")) {
+            try {
+                py_sink.attr("OnNDIUsageSettingsNotification")(settings);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnNDIUsageSettingsNotification");
+            }
+        }
     }
     void OnNDIDeviceListNotification(const std::vector<Device>& devices) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnNDIDeviceListNotification")) py_sink.attr("OnNDIDeviceListNotification")(devices);
+        if (py::hasattr(py_sink, "OnNDIDeviceListNotification")) {
+            try {
+                py_sink.attr("OnNDIDeviceListNotification")(devices);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnNDIDeviceListNotification");
+            }
+        }
     }
     // Unforwarded (NDISource-deep — required overrides, no-ops):
     void OnNDIUsageNotification(const NDIUsageInfo& ndiUsageInfo) override {}
@@ -1194,11 +1788,23 @@ public:
 
     void OnEnableZRCSNotification(bool enable) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnEnableZRCSNotification")) py_sink.attr("OnEnableZRCSNotification")(enable);
+        if (py::hasattr(py_sink, "OnEnableZRCSNotification")) {
+            try {
+                py_sink.attr("OnEnableZRCSNotification")(enable);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnEnableZRCSNotification");
+            }
+        }
     }
     void OnUpdateZRCSSceneList(const std::vector<ControlSystemSceneInfo>& scenes) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnUpdateZRCSSceneList")) py_sink.attr("OnUpdateZRCSSceneList")(scenes);
+        if (py::hasattr(py_sink, "OnUpdateZRCSSceneList")) {
+            try {
+                py_sink.attr("OnUpdateZRCSSceneList")(scenes);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnUpdateZRCSSceneList");
+            }
+        }
     }
     // Unforwarded (device-list tree — required override, no-op):
     void OnUpdateZRCSDeviceList(ControlSystemUpdateDeviceType type, const ControlSystemDeviceList& list) override {}
@@ -1212,7 +1818,13 @@ public:
 
     void OnMakeEmergencyCallInBYODModeNotification(bool succeed) override {
         py::gil_scoped_acquire acquire;
-        if (py::hasattr(py_sink, "OnMakeEmergencyCallInBYODModeNotification")) py_sink.attr("OnMakeEmergencyCallInBYODModeNotification")(succeed);
+        if (py::hasattr(py_sink, "OnMakeEmergencyCallInBYODModeNotification")) {
+            try {
+                py_sink.attr("OnMakeEmergencyCallInBYODModeNotification")(succeed);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMakeEmergencyCallInBYODModeNotification");
+            }
+        }
     }
     // Unforwarded (BYOD mode structs — required overrides, no-ops):
     void OnBYODModeInfoNotification(const BYODModeInfo& info) override {}

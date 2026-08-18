@@ -54,26 +54,11 @@ class ShowVideoPreviewRequest(BaseModel):
 
 # ===== Endpoints =====
 
-@router.post("/mute")
-async def update_my_video(room_id: str, stop: bool, room_manager = Depends(lambda: get_room_manager())):
-    """Mute or unmute self video"""
-    room_service = room_manager.get_room_service(room_id)
-    if not room_service:
-        raise HTTPException(status_code=404, detail="Room not found")
-
-    try:
-        meeting_service = room_service.GetMeetingService()
-        video_helper = meeting_service.GetMeetingVideoHelper()
-        result = video_helper.UpdateMyVideo(stop)
-
-        return {
-            "room_id": room_id,
-            "stop": stop,
-            "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# NOTE: no "/mute" route here — POST /api/rooms/{room_id}/video/mute lives in
+# meetings.py (param `mute`). A duplicate here (param `stop`) was silently
+# shadowed by registration order and unreachable; callers sending `stop=` got
+# the winner's defaulted behavior instead (PRODUCTION-REVIEW.md addendum;
+# test_unit_routes.py now rejects any (method, path) collision).
 
 
 @router.post("/mute-user")

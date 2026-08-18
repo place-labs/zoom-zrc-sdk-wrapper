@@ -64,6 +64,9 @@ async def pair_room(room_id: str, request: PairRoomRequest, room_manager = Depen
     try:
         # Create room service
         room_service = room_manager.create_room_service(room_id)
+        if room_service is None:
+            raise HTTPException(status_code=502,
+                                detail=f"SDK could not create a room service for '{room_id}'")
 
         # Get the sink for this room
         room_sink = room_manager.room_sinks.get(room_id)

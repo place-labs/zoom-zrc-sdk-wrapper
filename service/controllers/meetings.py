@@ -258,8 +258,12 @@ async def mute_audio(room_id: str, mute: bool = True, room_manager = Depends(lam
 
 
 @router.post("/video/mute")
-async def mute_video(room_id: str, mute: bool = True, room_manager = Depends(lambda: get_room_manager())):
-    """Mute (stop) or unmute (start) the room's video"""
+async def mute_video(room_id: str, mute: bool, room_manager = Depends(lambda: get_room_manager())):
+    """Mute (stop) or unmute (start) the room's video.
+
+    `mute` is required: with the old `= True` default, a caller using a wrong
+    param name (e.g. `stop=false`, the removed shadowed route's spelling) got a
+    200 that silently STOPPED video. Missing/unknown params now 422."""
     room_service = room_manager.get_room_service(room_id)
     if not room_service:
         raise HTTPException(status_code=404, detail="Room not found")

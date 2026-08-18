@@ -192,20 +192,39 @@ def test_meeting_lifecycle_and_participants(live):
     # (meeting exited by the context manager; room stays paired)
 
 
-def test_audio_video_mute_roundtrip(live):
-    """In-meeting: mute audio/video → the status changes come back over the WS."""
+def test_audio_mute_roundtrip(live):
+    """In-meeting: mute audio → the status change comes back over the WS."""
     with live.in_meeting():
-        live.drain()
-        ra = live.post("/audio/mute", params={"mute": "true"})
-        assert ra.status_code == 200, ra.text
-        assert live.wait_event("OnUpdateMyAudioStatus", timeout=15), "no audio status after mute"
+        # Normalize first: muting an already-muted mic changes nothing → no event.
+        live.post("/audio/mute", params={"mute": "false"})
+        live.drain(1.0)
+        try:
+            ra = live.post("/audio/mute", params={"mute": "true"})
+            assert ra.status_code == 200, ra.text
+            assert live.wait_event("OnUpdateMyAudioStatus", timeout=15), "no audio status after mute"
+        finally:
+            live.post("/audio/mute", params={"mute": "false"})   # always restore
 
-        rv = live.post("/video/mute", params={"stop": "true"})
-        assert rv.status_code == 200, rv.text
-        assert live.wait_event("OnUpdateMyVideoNotification", timeout=15), "no video status after stop"
 
-        live.post("/audio/mute", params={"mute": "false"})   # unmute for cleanliness
-        live.post("/video/mute", params={"stop": "false"})
+def test_video_mute_roundtrip(live):
+    """In-meeting: stop video → the status change comes back over the WS.
+
+    Skips on rooms without a camera: UpdateMyVideo returns
+    ZRCSDKERR_CAMERA_DISABLED (102) there, on every code version — an
+    environmental limit, not a wrapper defect."""
+    cams = live.get("/settings/devices/cameras")
+    if cams.status_code == 200 and not cams.json().get("cameras"):
+        pytest.skip("room has no camera — video mute untestable on this hardware")
+    with live.in_meeting():
+        live.post("/video/mute", params={"mute": "false"})   # normalize
+        live.drain(1.0)
+        try:
+            rv = live.post("/video/mute", params={"mute": "true"})
+            assert rv.status_code == 200, rv.text
+            assert live.wait_event("OnUpdateMyVideoNotification", timeout=15), \
+                f"no video status after mute (response: {rv.text})"
+        finally:
+            live.post("/video/mute", params={"mute": "false"})
 
 
 # ==================================================== recording (extra opt-in)

@@ -43,14 +43,28 @@ def test_resolve_enum_by_name():
     assert mr._resolve_enum(_Reminder, "MeetingReminderTypeArchiving") is _Reminder.MeetingReminderTypeArchiving
 
 
-def test_resolve_enum_bad_name_raises():
-    with pytest.raises((AttributeError, ValueError, KeyError)):
+def test_resolve_enum_numeric_string_coerces():
+    """Pydantic v2 smart-union keeps a JSON '"3"' as str on int|str fields; on
+    plain-int fields (pre-widening) it was coerced and worked. Restore that:
+    digit strings resolve like their int (PRODUCTION-REVIEW.md 3.6)."""
+    assert mr._resolve_enum(_Reminder, "3") is _Reminder.MeetingReminderTypeArchiving
+
+
+def test_resolve_enum_bad_name_is_422():
+    """Bad input is the CLIENT's error: 422 listing the allowed members, not an
+    AttributeError that the blanket handler turns into an opaque 500."""
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as ei:
         mr._resolve_enum(_Reminder, "NoSuchMember")
+    assert ei.value.status_code == 422
+    assert "MeetingReminderTypeArchiving" in str(ei.value.detail)
 
 
-def test_resolve_enum_bad_int_raises():
-    with pytest.raises(ValueError):
+def test_resolve_enum_bad_int_is_422():
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as ei:
         mr._resolve_enum(_Reminder, 999)
+    assert ei.value.status_code == 422
 
 
 # ----- request models accept both int and name -----
@@ -94,6 +108,22 @@ def test_confirm_reminder_still_accepts_int(monkeypatch):
     assert r.status_code == 200, r.text
 
 
+def test_confirm_reminder_accepts_numeric_string(monkeypatch):
+    """'"3"' (the enum's int as a JSON string) worked pre-widening via pydantic
+    coercion — it must keep working, not 500."""
+    client = _client(monkeypatch)
+    r = client.post("/api/rooms/r1/meeting/reminder/confirm-reminder",
+                    json={"is_agree": True, "notification_type": "3"})
+    assert r.status_code == 200, r.text
+
+
+def test_confirm_reminder_unknown_name_is_422_not_500(monkeypatch):
+    client = _client(monkeypatch)
+    r = client.post("/api/rooms/r1/meeting/reminder/confirm-reminder",
+                    json={"is_agree": True, "notification_type": "BogusName"})
+    assert r.status_code == 422, f"expected 422 for bad input, got {r.status_code}: {r.text}"
+
+
 def test_confirm_consent_accepts_enum_name(monkeypatch):
     client = _client(monkeypatch)
     r = client.post("/api/rooms/r1/meeting/reminder/confirm-consent",
@@ -109,3 +139,24 @@ def test_handle_privacy_alert_does_not_crash(monkeypatch):
                     json={"privacy_alert_action": "MeetingReminderTypeArchiving",
                           "privacy_alert_type": 3})
     assert r.status_code == 200, r.text
+
+
+# ----- combined consent: an OPEN int64, not an enum (PRODUCTION-REVIEW.md 3.7) -----
+
+def test_combined_consent_echoes_int_and_digit_string(monkeypatch):
+    """The SDK signature is ConfirmCombinedConsent(bool, int64_t) and the event
+    carries CombinedConsent.type as a plain int — any echoed int must pass
+    through, NOT be validated against MeetingReminderType (the wrong surface's
+    table, which rejected legitimate values like 7)."""
+    client = _client(monkeypatch)
+    for val in (7, "7"):
+        r = client.post("/api/rooms/r1/meeting/reminder/confirm-combined-consent",
+                        json={"is_agree": True, "notification_type": val})
+        assert r.status_code == 200, f"echoed open-int {val!r} rejected: {r.text}"
+
+
+def test_combined_consent_non_numeric_is_422(monkeypatch):
+    client = _client(monkeypatch)
+    r = client.post("/api/rooms/r1/meeting/reminder/confirm-combined-consent",
+                    json={"is_agree": True, "notification_type": "SomeName"})
+    assert r.status_code == 422, r.text

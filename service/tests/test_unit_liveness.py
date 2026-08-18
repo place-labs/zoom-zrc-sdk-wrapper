@@ -7,6 +7,8 @@ Auto-reconnect can't catch this on its own: the SDK never fires Disconnected
 room stays unusable — even while idle, with no command to reveal it. The loop
 periodically probes each room's real reachability and reconnects the zombies.
 """
+import asyncio
+
 import pytest
 
 import _zrc_stub  # noqa: F401  (installs the fake zrc_sdk before room_manager import)
@@ -93,3 +95,62 @@ def test_probe_survives_sdk_exception():
             raise RuntimeError("boom")
     mgr.rooms["b"] = _Boom()
     assert mgr._probe_zombie("b") is False
+
+
+# ===== reconnect loop self-exit after a healed zombie (PRODUCTION-REVIEW.md 2.11)
+
+class _Reconnectable(_FakeRoomService):
+    def __init__(self, status_result):
+        super().__init__(status_result)
+        self.retries = 0
+
+    def RetryToPairRoom(self):
+        self.retries += 1
+        return 0
+
+
+def _mgr_for_reconnect(status_result, connection_state):
+    """Manager with one room, its meeting-status result, and a premeeting sink
+    carrying the cached connection state the SDK last reported."""
+    mgr = rm.RoomManager()
+    mgr._RECONNECT_BACKOFF = (0.01,)
+    mgr.rooms["r"] = _Reconnectable(status_result)
+    sink = rm.PreMeetingServiceSink("r")
+    sink.connection_state = connection_state
+    mgr.premeeting_sinks["r"] = sink
+    return mgr
+
+
+def test_reconnect_loop_self_exits_after_zombie_heals():
+    """Zombie heal produces no fresh Connected callback (the SDK already thought
+    it was Connected), so cancel_reconnect never fires — the loop must notice
+    'state says Connected and commands work again' and stop on its own."""
+    import _zrc_stub
+    healed = _mgr_for_reconnect(0, _zrc_stub.zrc_sdk.ConnectionStateConnected)
+
+    async def run():
+        task = asyncio.get_running_loop().create_task(healed._reconnect_loop("r"))
+        await asyncio.wait_for(task, timeout=1.0)   # must finish by itself
+
+    asyncio.run(run())
+
+
+def test_reconnect_loop_keeps_retrying_while_disconnected():
+    """A genuinely disconnected room (state=Disconnected, commands failing) must
+    keep the retry loop alive — only the Connected callback stops it."""
+    import _zrc_stub
+    down = _mgr_for_reconnect(
+        rm.NOT_CONNECT_TO_ZOOMROOM, _zrc_stub.zrc_sdk.ConnectionStateDisconnected)
+
+    async def run():
+        task = asyncio.get_running_loop().create_task(down._reconnect_loop("r"))
+        await asyncio.sleep(0.2)
+        assert not task.done(), "loop must keep retrying a disconnected room"
+        assert down.rooms["r"].retries >= 2
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())

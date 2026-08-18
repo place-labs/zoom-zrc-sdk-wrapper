@@ -7,6 +7,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Annotated
 from fastapi import FastAPI, Depends
+from fastapi.responses import JSONResponse
 
 from room_manager import RoomManager
 from controllers import rooms, meetings, meeting_controls, meeting_list, meeting_share, meeting_reminder, meeting_video, meeting_view_layout, ndi, participant, phone_call, pre_meeting, pro_av, recording, settings, third_party_meeting, events
@@ -61,7 +62,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Zoom Rooms SDK Microservice",
     description="REST API for controlling Zoom Rooms via the ZRC SDK",
-    version="1.4.0",
+    version="1.5.0",
     lifespan=lifespan
 )
 
@@ -73,21 +74,38 @@ async def root():
     """Root endpoint"""
     return {
         "service": "Zoom Rooms SDK Microservice",
-        "version": "1.4.0",
+        "version": "1.5.0",
         "status": "running"
     }
 
 
 @app.get("/health")
 async def health():
-    """Health check endpoint. Includes SDK-call latency stats so slow (loop-
-    stalling) calls are visible without grepping logs — see room_manager.SDKCallMonitor."""
-    return {
-        "status": "healthy",
+    """Health check endpoint — the k8s liveness/readiness probe target.
+
+    Returns 503 when a pod restart is the correct remediation (heartbeat pump
+    crashed, or the SDK is gone): the probes can only self-heal what this handler
+    is willing to report (PRODUCTION-REVIEW.md 1.2). Includes SDK-call latency
+    stats so slow (loop-stalling) calls are visible without grepping logs — see
+    room_manager.SDKCallMonitor."""
+    hb = room_manager.heartbeat_task
+    reason = None
+    if room_manager.sdk is None:
+        reason = "sdk not initialized"
+    elif hb is not None and hb.done():
+        # The heartbeat loop runs forever; a *finished* task means it crashed.
+        # Without the pump the SDK services nothing — restart is the remedy.
+        reason = "heartbeat loop has stopped"
+    body = {
+        "status": "unhealthy" if reason else "healthy",
         "sdk_initialized": room_manager.sdk is not None,
         "active_rooms": len(room_manager.rooms),
         "sdk_call_timing": room_manager.sdk_monitor.stats()
     }
+    if reason:
+        body["reason"] = reason
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 # ===== Include Controllers =====

@@ -3,14 +3,15 @@ Room Manager - Manages multiple Zoom Room connections
 """
 
 import asyncio
+import functools
 import logging
 import sqlite3
 import os
 import threading
 from collections import deque
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from time import perf_counter
-from typing import Deque, Dict, Optional, Tuple
+from typing import Deque, Dict, Optional, Set, Tuple
 
 try:
     import zrc_sdk
@@ -48,8 +49,14 @@ class SDKCallMonitor:
     _KEEP_SLOWEST = 20
 
     def __init__(self, slow_ms: Optional[float] = None):
-        self.slow_ms = float(slow_ms if slow_ms is not None
-                             else os.environ.get("ZRC_SDK_SLOW_MS", "50"))
+        raw = slow_ms if slow_ms is not None else os.environ.get("ZRC_SDK_SLOW_MS", "50")
+        try:
+            self.slow_ms = float(raw)
+        except (TypeError, ValueError):
+            # RoomManager() is built at module import — a raise here crash-loops
+            # the container on a malformed env var (PRODUCTION-REVIEW.md 2.5a).
+            logger.warning(f"ZRC_SDK_SLOW_MS={raw!r} is not a number — using 50")
+            self.slow_ms = 50.0
         self.calls = 0
         self.slow_calls = 0
         self.max_ms = 0.0
@@ -142,6 +149,13 @@ def _enum_name(value):
     return getattr(value, "name", None) or str(value)
 
 
+# Per-type field list for real pybind structs (module 'zrc_sdk'): their fields are
+# type-level properties, so one dir() per type suffices — dir() is the expensive
+# part of serialization and runs on SDK threads holding the GIL
+# (PRODUCTION-REVIEW.md 4a). Other objects keep exact per-instance semantics.
+_FIELD_NAMES_CACHE: Dict[type, Tuple[str, ...]] = {}
+
+
 def _pybind_to_jsonable(v, _depth=0):
     """Recursively convert a pybind11 value (struct / enum / primitive) to a JSON-able form.
 
@@ -159,10 +173,16 @@ def _pybind_to_jsonable(v, _depth=0):
     if isinstance(v, (list, tuple)):
         return [_pybind_to_jsonable(x, _depth + 1) for x in v]
     # Nested pybind struct: dict of its readable, non-callable fields.
+    t = type(v)
+    if getattr(t, "__module__", None) == "zrc_sdk":
+        names = _FIELD_NAMES_CACHE.get(t)
+        if names is None:
+            names = tuple(a for a in dir(v) if not a.startswith("_"))
+            _FIELD_NAMES_CACHE[t] = names
+    else:
+        names = tuple(a for a in dir(v) if not a.startswith("_"))
     out = {}
-    for attr in dir(v):
-        if attr.startswith("_"):
-            continue
+    for attr in names:
         try:
             val = getattr(v, attr)
             if callable(val):
@@ -176,6 +196,27 @@ def _pybind_to_jsonable(v, _depth=0):
 def _participant_json(p):
     """Serialize a bound MeetingParticipant to JSON, passing through all fields."""
     return _pybind_to_jsonable(p)
+
+
+def _hot(fn):
+    """Gate a HIGH-FREQUENCY, PURE-EMIT sink callback on having WS listeners.
+
+    emit()'s kwargs are evaluated in the callback's frame before emit() runs, so
+    without this the full payload is serialized (recursive reflection, on the SDK
+    thread, holding the GIL) and then dropped when nobody is subscribed — the
+    REST-only common case (PRODUCTION-REVIEW.md 4a). Only for callbacks with no
+    side effects beyond emit. Managers without has_listeners (e.g. the contract
+    test's capture manager) always run the callback.
+    """
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        mgr = getattr(self, "mgr", None)
+        if mgr is not None:
+            has = getattr(mgr, "has_listeners", None)
+            if has is not None and not has(self.room_id):
+                return
+        return fn(self, *args, **kwargs)
+    return wrapper
 
 
 class _Broadcaster:
@@ -195,6 +236,21 @@ class _Broadcaster:
         except Exception as e:
             logger.error(f"[{self.room_id}] broadcast {event} failed: {e}")
 
+    def _set_threadsafe(self, event):
+        """Set an asyncio.Event from an SDK callback thread.
+
+        asyncio objects are single-thread; the only safe crossing is the loop's
+        call_soon_threadsafe (locks + wakes the selector). A direct set() only
+        appears to work because the heartbeat happens to pump the loop — and
+        raises outright under PYTHONASYNCIODEBUG=1. Falls back to a direct set
+        when no loop is bound (tests, pre-startup)."""
+        mgr = getattr(self, "mgr", None)
+        loop = getattr(mgr, "_event_loop", None) if mgr is not None else None
+        if loop is not None:
+            loop.call_soon_threadsafe(event.set)
+        else:
+            event.set()
+
 
 # ===== Callback Sinks for Events =====
 
@@ -210,7 +266,7 @@ class ZoomRoomsServiceSink(_Broadcaster):
         """Called when pairing completes (success or failure)"""
         logger.info(f"[{self.room_id}] OnPairRoomResult: {result}")
         self.pair_result = result
-        self.pair_event.set()
+        self._set_threadsafe(self.pair_event)
         self.emit("OnPairRoomResult", result=int(result))
 
     def OnRoomUnpairedReason(self, reason: int):
@@ -236,7 +292,7 @@ class PreMeetingServiceSink(_Broadcaster):
         logger.info(f"[{self.room_id}] Connection state changed: {state}")
         self.connection_state = state
         if state == zrc_sdk.ConnectionStateConnected:
-            self.connected_event.set()
+            self._set_threadsafe(self.connected_event)
         self.emit("OnZRConnectionStateChanged", state=_enum_name(state))
         # Self-healing: keep a paired room connected without any consumer involvement.
         mgr = getattr(self, "mgr", None)
@@ -422,6 +478,7 @@ class ParticipantHelperSink(_Broadcaster):
         logger.info(f"[{self.room_id}] User(s) left: {names} (session={session})")
         self.emit("OnUserLeave", participants=[_participant_json(p) for p in participants], session=_enum_name(session))
 
+    @_hot
     def OnUserUpdate(self, participants, session):
         logger.debug(f"[{self.room_id}] {len(participants)} participant(s) updated (session={session})")
         self.emit("OnUserUpdate", participants=[_participant_json(p) for p in participants], session=_enum_name(session))
@@ -536,9 +593,11 @@ class MeetingAudioHelperSink(_Broadcaster):
     def __init__(self, room_id: str):
         self.room_id = room_id
 
+    @_hot
     def OnUpdateMyAudioStatus(self, audio_status):
         self.emit("OnUpdateMyAudioStatus", audioStatus=_pybind_to_jsonable(audio_status))
 
+    @_hot
     def OnMuteUserAudioNotification(self, user_id: int, audio_status):
         self.emit("OnMuteUserAudioNotification", userID=int(user_id), audioStatus=_pybind_to_jsonable(audio_status))
 
@@ -558,9 +617,11 @@ class MeetingVideoHelperSink(_Broadcaster):
     def __init__(self, room_id: str):
         self.room_id = room_id
 
+    @_hot
     def OnUpdateMyVideoNotification(self, video_status):
         self.emit("OnUpdateMyVideoNotification", videoStatus=_pybind_to_jsonable(video_status))
 
+    @_hot
     def OnMuteUserVideoNotification(self, user_id: int, video_status):
         self.emit("OnMuteUserVideoNotification", userID=int(user_id), videoStatus=_pybind_to_jsonable(video_status))
 
@@ -678,6 +739,7 @@ class MeetingViewLayoutHelperSink(_Broadcaster):
     def OnChangeAttendeeViewNotification(self, layout):
         self.emit("OnChangeAttendeeViewNotification", layout=_enum_name(layout))
 
+    @_hot
     def OnVideoOrderNotification(self, video_order_info):
         self.emit("OnVideoOrderNotification", videoOrderInfo=_pybind_to_jsonable(video_order_info))
 
@@ -738,9 +800,11 @@ class ClosedCaptionHelperSink(_Broadcaster):
     def OnNewLTTCaptionNotification(self, type):
         self.emit("OnNewLTTCaptionNotification", type=_enum_name(type))
 
+    @_hot
     def OnMessageAdd(self, message):
         self.emit("OnMessageAdd", message=_pybind_to_jsonable(message))
 
+    @_hot
     def OnMessageUpdate(self, message):
         self.emit("OnMessageUpdate", message=_pybind_to_jsonable(message))
 
@@ -909,10 +973,9 @@ class RoomManager:
         self.sdk_monitor = SDKCallMonitor()
         # ===== Live event streaming (WebSocket) =====
         self._event_loop: Optional[asyncio.AbstractEventLoop] = None
-        # room_id -> {per-subscriber asyncio.Queue: session filter or None}.
-        # The filter is a ConfSessionType enum name (e.g. "CurrentSession"); when set,
-        # the subscriber only receives session-tagged events for that session.
-        self._ws_subscribers: Dict[str, Dict[asyncio.Queue, Optional[str]]] = {}
+        # room_id -> set of per-subscriber queues; every subscriber receives every
+        # event for its room (no per-session filtering exists).
+        self._ws_subscribers: Dict[str, Set[asyncio.Queue]] = {}
         # ===== Auto-reconnect (self-healing paired rooms) =====
         # room_id -> asyncio.Task running the backoff retry loop while a room is offline.
         self._reconnect_tasks: Dict[str, asyncio.Task] = {}
@@ -924,6 +987,12 @@ class RoomManager:
     def bind_event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Capture the running loop so sink callbacks (on SDK threads) can schedule delivery."""
         self._event_loop = loop
+
+    def has_listeners(self, room_id: str) -> bool:
+        """True when at least one WebSocket subscriber is attached to the room —
+        the @_hot fast-path check that lets pure-emit callbacks skip payload
+        serialization entirely (PRODUCTION-REVIEW.md 4a)."""
+        return bool(self._ws_subscribers.get(room_id))
 
     def subscribe_events(self, room_id: str) -> asyncio.Queue:
         """Register a WebSocket subscriber for a room; returns its event queue."""
@@ -966,6 +1035,7 @@ class RoomManager:
     # ----- Auto-reconnect (self-healing) -----
     # Backoff schedule (seconds) between reconnect attempts; holds at the final value.
     _RECONNECT_BACKOFF = (5, 10, 20, 30)
+    _HEARTBEAT_ERROR_BACKOFF = 1.0  # pause after a HeartBeat raise before pumping again
 
     def schedule_reconnect(self, room_id: str) -> None:
         """Room went offline -> start a backoff retry loop. Safe to call from any thread."""
@@ -1016,6 +1086,17 @@ class RoomManager:
                 room_service = self.rooms.get(room_id)
                 if room_service is None:
                     return  # room no longer managed
+                # Self-exit after a healed zombie: the SDK already believed the room
+                # was Connected, so recovery may produce no fresh Connected callback
+                # and cancel_reconnect never fires. If the cached state says
+                # Connected AND commands work again, the room healed — stop retrying
+                # (PRODUCTION-REVIEW.md 2.11). A real disconnect keeps looping:
+                # its state is Disconnected until the callback flips it.
+                sink = self.premeeting_sinks.get(room_id)
+                state = getattr(sink, "connection_state", None)
+                if state == zrc_sdk.ConnectionStateConnected and not self._probe_zombie(room_id):
+                    logger.info(f"[{room_id}] auto-reconnect stopped (room healed while state stayed Connected)")
+                    return
                 attempt += 1
                 try:
                     # The reconnect path is the prime blocking suspect — it runs
@@ -1080,6 +1161,25 @@ class RoomManager:
             except Exception as e:
                 logger.error(f"liveness loop error: {e}")
 
+    def _restore_room(self, room_id: str, worker, can_retry: bool = True) -> bool:
+        """Restore one previously-paired room at startup.
+
+        A single room's failure must log and skip, never abort initialize() for
+        the rest of the fleet (PRODUCTION-REVIEW.md 2.5b)."""
+        try:
+            self.rooms[room_id] = worker
+            self.register_sinks_for_room(room_id, worker)
+            if can_retry:
+                logger.info(f"  Attempting to reconnect {room_id}...")
+                retry_result = worker.RetryToPairRoom()
+                logger.info(f"  RetryToPairRoom result: {retry_result}")
+            logger.info(f"✓ Restored room service for: {room_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[{room_id}] restore failed — skipping this room: {e}")
+            self.rooms.pop(room_id, None)
+            return False
+
     def initialize(self):
         """Initialize the SDK"""
         logger.info("Initializing Zoom Rooms SDK...")
@@ -1110,15 +1210,8 @@ class RoomManager:
                 logger.info(f"    Can retry: {room_info.canRetryToPair}")
 
                 if room_info.worker:
-                    self.rooms[room_info.roomID] = room_info.worker
-                    self.register_sinks_for_room(room_info.roomID, room_info.worker)
-
-                    if room_info.canRetryToPair:
-                        logger.info(f"  Attempting to reconnect {room_info.roomID}...")
-                        retry_result = room_info.worker.RetryToPairRoom()
-                        logger.info(f"  RetryToPairRoom result: {retry_result}")
-
-                    logger.info(f"✓ Restored room service for: {room_info.roomID}")
+                    self._restore_room(room_info.roomID, room_info.worker,
+                                       can_retry=room_info.canRetryToPair)
         else:
             # QueryAllZoomRoomsServices returned empty - fallback to database query
             # This happens when rooms are paired but never fully connected
@@ -1128,11 +1221,12 @@ class RoomManager:
 
             if os.path.exists(db_path):
                 try:
-                    conn = sqlite3.connect(db_path)
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT pk_id FROM ThirdRoomList")
-                    room_ids = [row[0] for row in cursor.fetchall()]
-                    conn.close()
+                    # closing() so a raise mid-query (locked/corrupt db) can't
+                    # leak the handle (PRODUCTION-REVIEW.md 4b)
+                    with closing(sqlite3.connect(db_path)) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT pk_id FROM ThirdRoomList")
+                        room_ids = [row[0] for row in cursor.fetchall()]
 
                     if room_ids:
                         logger.info(f"Found {len(room_ids)} previously paired room(s) in database")
@@ -1141,14 +1235,7 @@ class RoomManager:
                             # Create service for this room ID
                             room_service = self.sdk.CreateZoomRoomsService(room_id)
                             if room_service:
-                                self.rooms[room_id] = room_service
-                                self.register_sinks_for_room(room_id, room_service)
-
-                                # Try to reconnect using stored credentials
-                                logger.info(f"  Attempting to reconnect {room_id}...")
-                                retry_result = room_service.RetryToPairRoom()
-                                logger.info(f"  RetryToPairRoom result: {retry_result}")
-                                logger.info(f"✓ Restored room service for: {room_id}")
+                                self._restore_room(room_id, room_service)
                     else:
                         logger.info("No previously paired rooms found in database")
                 except Exception as e:
@@ -1175,8 +1262,13 @@ class RoomManager:
                             self.sdk.HeartBeat()
                     await asyncio.sleep(0.15)  # 150ms interval
                 except Exception as e:
-                    logger.error(f"HeartBeat error: {e}")
-                    break
+                    # Never stop the pump on a transient error: the SDK services its
+                    # queues/network/state machine from this call, so a permanent stop
+                    # is a silent full outage that /health can't distinguish from
+                    # healthy (PRODUCTION-REVIEW.md 1.1). CancelledError is a
+                    # BaseException and still cancels the loop cleanly.
+                    logger.error(f"HeartBeat error: {e} — continuing after backoff")
+                    await asyncio.sleep(self._HEARTBEAT_ERROR_BACKOFF)
 
         self.heartbeat_task = asyncio.create_task(heartbeat_loop())
         self.liveness_task = asyncio.create_task(self._liveness_loop())
@@ -1191,223 +1283,65 @@ class RoomManager:
                 except asyncio.CancelledError:
                     pass
 
+    # One row per sink surface: (label, getter path from the room service, sink
+    # class, per-room store attribute). register_sinks_for_room AND
+    # _deregister_room_sinks both walk THIS table, so the two directions can no
+    # longer drift (PRODUCTION-REVIEW.md 4d — the disjoint-static-map
+    # deregistration bug hid in exactly that hand-mirrored drift).
+    _SINK_SURFACES = (
+        ("room service",     (),                                                  ZoomRoomsServiceSink,        "room_sinks"),
+        ("pre-meeting",      ("GetPreMeetingService",),                           PreMeetingServiceSink,       "premeeting_sinks"),
+        ("control system",   ("GetPreMeetingService", "GetControlSystemHelper"),  ControlSystemHelperSink,     "control_system_sinks"),
+        ("BYOD",             ("GetPreMeetingService", "GetBYODHelper"),           BYODHelperSink,              "byod_sinks"),
+        ("phone call",       ("GetPhoneCallService",),                            PhoneCallServiceSink,        "phone_call_sinks"),
+        ("setting",          ("GetSettingService",),                              SettingServiceSink,          "setting_sinks"),
+        ("calibration",      ("GetSettingService", "GetCalibrationHelper"),       CalibrationHelperSink,       "calibration_sinks"),
+        ("pro AV",           ("GetProAVService",),                                ProAVServiceSink,            "proav_sinks"),
+        ("HWIO",             ("GetProAVService", "GetHWIOHelper"),                HWIOHelperSink,              "hwio_sinks"),
+        ("Dante output",     ("GetProAVService", "GetDanteOutputHelper"),         DanteOutputHelperSink,       "dante_sinks"),
+        ("meeting service",  ("GetMeetingService",),                              MeetingServiceSink,          "meeting_service_sinks"),
+        ("meeting list",     ("GetMeetingService", "GetMeetingListHelper"),       MeetingListHelperSink,       "meeting_list_sinks"),
+        ("meeting reminder", ("GetMeetingService", "GetMeetingReminderHelper"),   MeetingReminderSink,         "meeting_reminder_sinks"),
+        ("participant",      ("GetMeetingService", "GetParticipantHelper"),       ParticipantHelperSink,       "participant_sinks"),
+        ("meeting control",  ("GetMeetingService", "GetMeetingControlHelper"),    MeetingControlHelperSink,    "meeting_control_sinks"),
+        ("waiting room",     ("GetMeetingService", "GetWaitingRoomHelper"),       WaitingRoomHelperSink,       "waiting_room_sinks"),
+        ("recording",        ("GetMeetingService", "GetRecordingHelper"),         RecordingHelperSink,         "recording_sinks"),
+        ("meeting audio",    ("GetMeetingService", "GetMeetingAudioHelper"),      MeetingAudioHelperSink,      "meeting_audio_sinks"),
+        ("meeting video",    ("GetMeetingService", "GetMeetingVideoHelper"),      MeetingVideoHelperSink,      "meeting_video_sinks"),
+        ("meeting share",    ("GetMeetingService", "GetMeetingShareHelper"),      MeetingShareHelperSink,      "meeting_share_sinks"),
+        ("view layout",      ("GetMeetingService", "GetMeetingViewLayoutHelper"), MeetingViewLayoutHelperSink, "meeting_viewlayout_sinks"),
+        ("closed caption",   ("GetMeetingService", "GetClosedCaptionHelper"),     ClosedCaptionHelperSink,     "closed_caption_sinks"),
+        ("NDI",              ("GetMeetingService", "GetNDIHelper"),               NDIHelperSink,               "ndi_sinks"),
+    )
+
+    def _resolve_surface(self, room_service, path, room_id, label):
+        """Walk a _SINK_SURFACES getter path from the room service; None (with a
+        log) if any hop is missing — a missing surface skips, never raises."""
+        obj = room_service
+        for getter in path:
+            obj = getattr(obj, getter)()
+            if not obj:
+                logger.error(f"Failed to get {label} surface for room: {room_id}")
+                return None
+        return obj
+
     def register_sinks_for_room(self, room_id: str, room_service):
-        """Register callback sinks for a room service"""
+        """Register a sink on every surface in _SINK_SURFACES (the deregister
+        mirror walks the same table)."""
         # (Re)pairing/restoring a room clears any prior unpaired flag so it can auto-reconnect again.
         self._unpaired_rooms.discard(room_id)
-        # Register room service callback sink
-        room_sink = ZoomRoomsServiceSink(room_id)
-        room_sink.mgr = self
-        result = room_service.RegisterSink(room_sink)
-        if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-            self.room_sinks[room_id] = room_sink
-            logger.info(f"✓ Registered room service sink for: {room_id}")
-        else:
-            logger.error(f"Failed to register room service sink: {result}")
-
-        # Register pre-meeting service callback sink
-        premeeting = room_service.GetPreMeetingService()
-        premeeting_sink = PreMeetingServiceSink(room_id)
-        premeeting_sink.mgr = self
-        result = premeeting.RegisterSink(premeeting_sink)
-        if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-            self.premeeting_sinks[room_id] = premeeting_sink
-            logger.info(f"✓ Registered pre-meeting sink for: {room_id}")
-        else:
-            logger.error(f"Failed to register pre-meeting sink: {result}")
-
-        # Pre-meeting helper sinks (control system, BYOD)
-        for helper_getter, sink_cls, store, label in (
-            (premeeting.GetControlSystemHelper, ControlSystemHelperSink, self.control_system_sinks, "control system"),
-            (premeeting.GetBYODHelper, BYODHelperSink, self.byod_sinks, "BYOD"),
-        ):
-            helper = helper_getter()
-            if not helper:
-                logger.error(f"Failed to get {label} helper for room: {room_id}")
+        for label, path, sink_cls, store_name in self._SINK_SURFACES:
+            surface = self._resolve_surface(room_service, path, room_id, label)
+            if surface is None:
                 continue
             sink = sink_cls(room_id)
             sink.mgr = self
-            result = helper.RegisterSink(sink)
+            result = surface.RegisterSink(sink)
             if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                store[room_id] = sink
+                getattr(self, store_name)[room_id] = sink
                 logger.info(f"✓ Registered {label} sink for: {room_id}")
             else:
                 logger.error(f"Failed to register {label} sink: {result}")
-
-        # Register phone-call service sink (SIP calls — service-level, independent of meetings)
-        phone_call_service = room_service.GetPhoneCallService()
-        if phone_call_service:
-            phone_call_sink = PhoneCallServiceSink(room_id)
-            phone_call_sink.mgr = self
-            result = phone_call_service.RegisterSink(phone_call_sink)
-            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                self.phone_call_sinks[room_id] = phone_call_sink
-                logger.info(f"✓ Registered phone call sink for: {room_id}")
-            else:
-                logger.error(f"Failed to register phone call sink: {result}")
-        else:
-            logger.error(f"Failed to get phone call service for room: {room_id}")
-
-        # Register setting service sink (device lists, volume, mute, network — service-level)
-        setting_service = room_service.GetSettingService()
-        if setting_service:
-            setting_sink = SettingServiceSink(room_id)
-            setting_sink.mgr = self
-            result = setting_service.RegisterSink(setting_sink)
-            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                self.setting_sinks[room_id] = setting_sink
-                logger.info(f"✓ Registered setting service sink for: {room_id}")
-            else:
-                logger.error(f"Failed to register setting service sink: {result}")
-
-            # Calibration helper sink (camera calibration — hangs off setting service)
-            calibration_helper = setting_service.GetCalibrationHelper()
-            if calibration_helper:
-                calibration_sink = CalibrationHelperSink(room_id)
-                calibration_sink.mgr = self
-                result = calibration_helper.RegisterSink(calibration_sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    self.calibration_sinks[room_id] = calibration_sink
-                    logger.info(f"✓ Registered calibration sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register calibration sink: {result}")
-        else:
-            logger.error(f"Failed to get setting service for room: {room_id}")
-
-        # Register Pro AV service sink + its HWIO / Dante helper sinks (service-level)
-        proav_service = room_service.GetProAVService()
-        if proav_service:
-            proav_sink = ProAVServiceSink(room_id)
-            proav_sink.mgr = self
-            result = proav_service.RegisterSink(proav_sink)
-            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                self.proav_sinks[room_id] = proav_sink
-                logger.info(f"✓ Registered pro AV sink for: {room_id}")
-            else:
-                logger.error(f"Failed to register pro AV sink: {result}")
-
-            for helper_getter, sink_cls, store, label in (
-                (proav_service.GetHWIOHelper, HWIOHelperSink, self.hwio_sinks, "HWIO"),
-                (proav_service.GetDanteOutputHelper, DanteOutputHelperSink, self.dante_sinks, "Dante output"),
-            ):
-                helper = helper_getter()
-                if not helper:
-                    logger.error(f"Failed to get {label} helper for room: {room_id}")
-                    continue
-                sink = sink_cls(room_id)
-                sink.mgr = self
-                result = helper.RegisterSink(sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    store[room_id] = sink
-                    logger.info(f"✓ Registered {label} sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register {label} sink: {result}")
-        else:
-            logger.error(f"Failed to get pro AV service for room: {room_id}")
-
-        meeting_service = room_service.GetMeetingService()
-        if meeting_service:
-            list_helper = meeting_service.GetMeetingListHelper()
-            if list_helper:
-                meeting_list_sink = MeetingListHelperSink(room_id)
-                meeting_list_sink.mgr = self
-                result = list_helper.RegisterSink(meeting_list_sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    self.meeting_list_sinks[room_id] = meeting_list_sink
-                    logger.info(f"✓ Registered meeting list sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register meeting list sink: {result}")
-            else:
-                logger.error(f"Failed to get meeting list helper for room: {room_id}")
-            reminder_helper = meeting_service.GetMeetingReminderHelper()
-            if reminder_helper:
-                reminder_sink = MeetingReminderSink(room_id)
-                reminder_sink.mgr = self
-                result = reminder_helper.RegisterSink(reminder_sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    self.meeting_reminder_sinks[room_id] = reminder_sink
-                    logger.info(f"✓ Registered meeting reminder sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register meeting reminder sink: {result}")
-            else:
-                logger.error(f"Failed to get meeting reminder helper for room: {room_id}")
-
-            # Register meeting service sink (meeting status, start/exit, waiting for host)
-            meeting_service_sink = MeetingServiceSink(room_id)
-            meeting_service_sink.mgr = self
-            result = meeting_service.RegisterSink(meeting_service_sink)
-            if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                self.meeting_service_sinks[room_id] = meeting_service_sink
-                logger.info(f"✓ Registered meeting service sink for: {room_id}")
-            else:
-                logger.error(f"Failed to register meeting service sink: {result}")
-
-            # Register participant helper sink (join/leave/update, host change)
-            participant_helper = meeting_service.GetParticipantHelper()
-            if participant_helper:
-                participant_sink = ParticipantHelperSink(room_id)
-                participant_sink.mgr = self
-                result = participant_helper.RegisterSink(participant_sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    self.participant_sinks[room_id] = participant_sink
-                    logger.info(f"✓ Registered participant helper sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register participant helper sink: {result}")
-            else:
-                logger.error(f"Failed to get participant helper for room: {room_id}")
-
-            # Register meeting control helper sink (AI Companion, lock, focus, archiving, live stream)
-            control_helper = meeting_service.GetMeetingControlHelper()
-            if control_helper:
-                control_sink = MeetingControlHelperSink(room_id)
-                control_sink.mgr = self
-                result = control_helper.RegisterSink(control_sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    self.meeting_control_sinks[room_id] = control_sink
-                    logger.info(f"✓ Registered meeting control sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register meeting control sink: {result}")
-            else:
-                logger.error(f"Failed to get meeting control helper for room: {room_id}")
-
-            # Register waiting room helper sink (meeting admission / silent mode)
-            waiting_room_helper = meeting_service.GetWaitingRoomHelper()
-            if waiting_room_helper:
-                waiting_room_sink = WaitingRoomHelperSink(room_id)
-                waiting_room_sink.mgr = self
-                result = waiting_room_helper.RegisterSink(waiting_room_sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    self.waiting_room_sinks[room_id] = waiting_room_sink
-                    logger.info(f"✓ Registered waiting room sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register waiting room sink: {result}")
-            else:
-                logger.error(f"Failed to get waiting room helper for room: {room_id}")
-
-            # Register remaining in-meeting helper sinks (recording, audio, video, share)
-            for helper_getter, sink_cls, store, label in (
-                (meeting_service.GetRecordingHelper, RecordingHelperSink, self.recording_sinks, "recording"),
-                (meeting_service.GetMeetingAudioHelper, MeetingAudioHelperSink, self.meeting_audio_sinks, "meeting audio"),
-                (meeting_service.GetMeetingVideoHelper, MeetingVideoHelperSink, self.meeting_video_sinks, "meeting video"),
-                (meeting_service.GetMeetingShareHelper, MeetingShareHelperSink, self.meeting_share_sinks, "meeting share"),
-                (meeting_service.GetMeetingViewLayoutHelper, MeetingViewLayoutHelperSink, self.meeting_viewlayout_sinks, "view layout"),
-                (meeting_service.GetClosedCaptionHelper, ClosedCaptionHelperSink, self.closed_caption_sinks, "closed caption"),
-                (meeting_service.GetNDIHelper, NDIHelperSink, self.ndi_sinks, "NDI"),
-            ):
-                helper = helper_getter()
-                if not helper:
-                    logger.error(f"Failed to get {label} helper for room: {room_id}")
-                    continue
-                sink = sink_cls(room_id)
-                sink.mgr = self
-                result = helper.RegisterSink(sink)
-                if result == zrc_sdk.ZRCSDKERR_SUCCESS:
-                    store[room_id] = sink
-                    logger.info(f"✓ Registered {label} sink for: {room_id}")
-                else:
-                    logger.error(f"Failed to register {label} sink: {result}")
-        else:
-            logger.error(f"Failed to get meeting service for room: {room_id}")
 
     def create_room_service(self, room_id: str):
         """Create a new room service instance with callbacks"""
@@ -1419,6 +1353,12 @@ class RoomManager:
 
         logger.info(f"Creating service for room: {room_id}")
         room_service = self.sdk.CreateZoomRoomsService(room_id)
+        if not room_service:
+            # Same guard the DB-restore path applies to this exact call — without
+            # it the pair endpoint 500s with an opaque 'NoneType' AttributeError
+            # (PRODUCTION-REVIEW.md 2.5c).
+            logger.error(f"CreateZoomRoomsService returned no service for: {room_id}")
+            return None
 
         # Register callback sinks
         self.register_sinks_for_room(room_id, room_service)
@@ -1457,50 +1397,15 @@ class RoomManager:
         return [v for k, v in vars(self).items() if k.endswith("_sinks") and isinstance(v, dict)]
 
     def _deregister_room_sinks(self, room_id: str, room_service):
-        """Deregister every sink surface that register_sinks_for_room registers."""
-        def surfaces():
-            yield "room service", room_service
-            premeeting = room_service.GetPreMeetingService()
-            if premeeting:
-                yield "pre-meeting", premeeting
-                yield "control system", premeeting.GetControlSystemHelper()
-                yield "BYOD", premeeting.GetBYODHelper()
-            yield "phone call", room_service.GetPhoneCallService()
-            setting_service = room_service.GetSettingService()
-            if setting_service:
-                yield "setting", setting_service
-                yield "calibration", setting_service.GetCalibrationHelper()
-            proav_service = room_service.GetProAVService()
-            if proav_service:
-                yield "pro AV", proav_service
-                yield "HWIO", proav_service.GetHWIOHelper()
-                yield "Dante output", proav_service.GetDanteOutputHelper()
-            meeting_service = room_service.GetMeetingService()
-            if meeting_service:
-                yield "meeting service", meeting_service
-                yield "meeting list", meeting_service.GetMeetingListHelper()
-                yield "meeting reminder", meeting_service.GetMeetingReminderHelper()
-                yield "participant", meeting_service.GetParticipantHelper()
-                yield "meeting control", meeting_service.GetMeetingControlHelper()
-                yield "waiting room", meeting_service.GetWaitingRoomHelper()
-                yield "recording", meeting_service.GetRecordingHelper()
-                yield "meeting audio", meeting_service.GetMeetingAudioHelper()
-                yield "meeting video", meeting_service.GetMeetingVideoHelper()
-                yield "meeting share", meeting_service.GetMeetingShareHelper()
-                yield "view layout", meeting_service.GetMeetingViewLayoutHelper()
-                yield "closed caption", meeting_service.GetClosedCaptionHelper()
-                yield "NDI", meeting_service.GetNDIHelper()
-
-        try:
-            for label, surface in surfaces():
-                if not surface:
-                    continue
-                try:
+        """Deregister every surface in _SINK_SURFACES — the same table
+        registration walks, so the mirror cannot drift."""
+        for label, path, _sink_cls, _store_name in self._SINK_SURFACES:
+            try:
+                surface = self._resolve_surface(room_service, path, room_id, label)
+                if surface:
                     surface.DeregisterSink()
-                except Exception as e:
-                    logger.debug(f"[{room_id}] Failed to deregister {label} sink: {e}")
-        except Exception as e:
-            logger.debug(f"[{room_id}] Sink deregistration aborted: {e}")
+            except Exception as e:
+                logger.debug(f"[{room_id}] Failed to deregister {label} sink: {e}")
 
     def remove_room(self, room_id: str) -> None:
         """Fully forget a room: stop reconnecting, deregister every sink surface,

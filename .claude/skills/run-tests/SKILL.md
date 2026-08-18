@@ -14,7 +14,7 @@ Expected pass counts are the current baselines — report any deviation.
 pytest -m unit -v
 ```
 
-Expected: **38 passed**. Needs only `pip install -r requirements-dev.txt`.
+Expected: **64 passed**. Needs only `pip install -r requirements-dev.txt`.
 
 ## 2. Build the image
 
@@ -52,7 +52,7 @@ ZRC_BASE_URL=http://localhost:8000 pytest -v -m "not live"
 docker rm -f zrc-ci
 ```
 
-Expected: **44 passed** (38 unit + 6 smoke), 2 deselected (live).
+Expected: **70 passed** (64 unit + 6 smoke), 14 deselected (live).
 
 ## Reporting
 
@@ -60,7 +60,7 @@ Give the actual pass counts for every suite — never summarize as "tests pass"
 without the numbers. This mirrors CI (`dockerhub-build-push.yml`), so a clean
 local run predicts a green pipeline.
 
-The expected counts above are the baselines as of 1.4.0. If a change
+The expected counts above are the baselines as of 1.5.0. If a change
 legitimately alters them (new sink, new test), update the numbers **in this
 file** in the same commit.
 

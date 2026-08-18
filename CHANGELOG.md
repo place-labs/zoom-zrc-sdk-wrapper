@@ -1,9 +1,46 @@
  # Changelog
 
-## [Unreleased]
+## [1.5.0] - 2026-08-17 - Production Hardening & Wireless Sharing Key
 
-### Added
-- **Wireless sharing key over the WebSocket** — the meeting-share sink now forwards `OnUpdateAirPlayBlackMagicStatus`, giving subscribers asynchronous updates whenever the room's AirPlay / direct-presentation status changes. The event's `status` carries `directPresentationSharingKey` (the code users enter at share.zoom.us / the Zoom app to present to the room) and `directPresentationPairingCode`. The SDK exposes this **push-only** (no getter), and the C++ trampoline previously stubbed the callback as a no-op (`override {}`), so the key never reached the API. Now the template + bindings forward it (GIL-guarded, byte-identical); the `AirplayBlackMagicStatus` struct was already bound. Contract coverage 124 → 125 callbacks; new unit test `test_unit_share_airplay.py`
+### Major Changes
+
+#### ✨ Wireless Sharing Key over the WebSocket
+- The meeting-share sink now forwards `OnUpdateAirPlayBlackMagicStatus`, giving subscribers asynchronous updates whenever the room's AirPlay / direct-presentation status changes. The event's `status` carries `directPresentationSharingKey` (the code users enter at share.zoom.us / the Zoom app to present to the room) and `directPresentationPairingCode`. The SDK exposes this **push-only** (no getter), and the C++ trampoline previously stubbed the callback as a no-op (`override {}`), so the key never reached the API. Now the template + bindings forward it (GIL-guarded, byte-identical); the `AirplayBlackMagicStatus` struct was already bound
+
+#### 🐞 Bug Fixes
+From a max-effort multi-agent production-readiness review of the branch — 15 verified issues, all resolved (one accepted as monitored risk); mechanisms, failure stories, and per-issue status in `PRODUCTION-REVIEW.md`:
+- **Heartbeat pump survives transient errors** — `heartbeat_loop` `break`-ed forever on any exception, silently killing the SDK's required 150 ms pump (every room drops, no reconnect, `/health` still 200). Now continues with a 1 s backoff
+- **`/health` can report unhealthy** — returns **503** when the heartbeat task has died or the SDK is gone, so the k8s liveness/readiness probes actually restart a wedged pod (they previously could only ever see 200)
+- **All 136 C++ trampolines exception-guarded** — a raising Python sink callback used to unwind `py::error_already_set` through the SDK's C++ dispatcher (realistic outcome: process abort, all rooms). Every forward is now wrapped in `try/catch → discard_as_unraisable` (logged via `sys.unraisablehook`); value-returning sink methods fall through to safe defaults
+- **Thread-safe SDK→asyncio signaling** — `OnPairRoomResult`/`OnZRConnectionStateChanged` called `asyncio.Event.set()` directly from SDK threads (raises under `PYTHONASYNCIODEBUG=1`; hangs if the heartbeat isn't pumping). Now routed through `call_soon_threadsafe` like the meeting-list sink always did
+- **Startup guards** — malformed `ZRC_SDK_SLOW_MS` falls back to 50 ms instead of crash-looping the container at import; a missing pre-meeting service no longer aborts startup (guarded like its siblings); one bad restored room logs and skips instead of failing `initialize()` for the fleet; a falsy `CreateZoomRoomsService` yields a clean 502 from the pair endpoint instead of an opaque `NoneType` 500
+- **Reconnect loop self-exits after a healed zombie** — recovery from the Connected-but-commands-fail state produces no fresh `Connected` callback, so the loop retried every 30 s forever; it now probes and stops once the room is genuinely reachable again
+- **Reminder/consent endpoints: 422s, not 500s** — digit-strings (`"3"`) coerce again (pydantic v2 stopped coercing them on `int | str` fields), and unknown enum names/values return **422 listing the allowed members**; combined consent now passes the SDK's documented **open int64** through instead of validating against the unrelated `MeetingReminderType` table
+- **No-listener serialization skipped** — high-frequency pure-emit callbacks check `has_listeners()` before building payloads (they used to fully serialize every event on the SDK thread, holding the GIL, then drop it when no WS client was connected); per-type field lists are memoized for pybind structs
+- **Single `_SINK_SURFACES` table** — registration and deregistration both walk one 23-surface table (was ~220 lines of hand-inlined copy-paste mirrored by hand — the exact drift terrain where the 1.4.0 disjoint-static-map bug hid); net −95 lines
+- **Hygiene** — startup sqlite query wrapped in `contextlib.closing`; `_ws_subscribers` annotation/comment now tell the truth (`Dict[str, Set[Queue]]`, no phantom session filter)
+- **Shadowed duplicate route removed** *(found by the live e2e suite)* — `POST /api/rooms/{room_id}/video/mute` was defined twice: `meetings.py` (param `mute`, registered first, wins) and `meeting_video.py` (param `stop`, silently unreachable). Callers using `stop=` hit the winner, which dropped the unknown param and **defaulted `mute=True`** — so `stop=false` (start video) silently *stopped* it with a 200. The dead route is removed, `mute` is now **required** (missing/wrong params 422 loudly), and a new route-table unit test rejects any `(method, path)` collision across all routers
+
+#### 🧪 Tests
+- Unit suite 38 → **64** (heartbeat resilience, health truthfulness, thread crossings, startup guards, reconnect self-exit, enum contract, emit gating, sharing-key forward, `_SINK_SURFACES` pinning, route-table collision check); contract coverage 124 → **125** callbacks; the bindings source contract now pins the lifecycle test's surface list to the `_SINK_SURFACES` table
+- Live e2e run against the lab room pre-release: **9 passed, 5 documented skips, 0 failed** — the audio/video scenario split so the video half skips cleanly on camera-less rooms (`ZRCSDKERR_CAMERA_DISABLED`), with state normalization and always-restore cleanup
+
+### Modified Files
+
+#### Bindings
+- **`bindings/zrc_bindings.cpp`** — exception guards on all 136 trampoline forwards; `OnUpdateAirPlayBlackMagicStatus` forwarded (was a no-op stub)
+- **`generator/templates/zrc_bindings.cpp`** — mirrored _(source of truth)_
+
+#### Service
+- **`service/room_manager.py`** — heartbeat continue-with-backoff; thread-safe event signaling; per-room restore isolation + premeeting/`CreateZoomRoomsService` guards; reconnect self-exit; `@_hot` emit gating + memoized reflection; `_SINK_SURFACES` table driving register **and** deregister; sharing-key sink method
+- **`service/app.py`** — `/health` returns 503 on dead heartbeat / missing SDK; version 1.5.0
+- **`service/controllers/rooms.py`** — clean 502 when the SDK can't create a room service
+- **`service/controllers/meeting_reminder.py`** — `_resolve_enum` digit coercion + 422 contract; combined consent as open int64; routes re-raise `HTTPException`
+- **`service/controllers/meetings.py`** — `/video/mute` `mute` param now required (was silently defaulting `True` for wrong-param callers)
+- **`service/controllers/meeting_video.py`** — shadowed, unreachable duplicate `/mute` route removed
+
+#### Tests & Docs
+- **`service/tests/`** — 8 new unit test files _(new)_; **`PRODUCTION-REVIEW.md`** _(new)_ — findings reference with per-issue status; **`TESTING.md`**, **`.claude/skills/run-tests/SKILL.md`** — baselines 63 / 125 / 23 / 69
 
 ## [1.4.0] - 2026-08-05 - Code-Review Hardening, Test Suites & CI Gating
 

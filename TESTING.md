@@ -19,15 +19,44 @@ no server, no room — they run anywhere pytest runs and execute in under a seco
 - **`test_unit_room_manager.py`** — `remove_room()` purges every sink store and
   deregisters every surface; re-pairing a remotely-unpaired room re-enables
   auto-reconnect; a slow WebSocket subscriber receives an `EventsDropped` marker
-  after queue overflow.
+  after queue overflow; the `_SINK_SURFACES` table drives registration AND
+  deregistration (23 surfaces, no drift).
 - **`test_unit_rooms_endpoint.py`** — the unpair endpoint performs full cleanup
   (exercised in-process via FastAPI's TestClient).
 - **`test_unit_lifespan.py`** — clean shutdown exits 0; a failed startup exits
   non-zero (run in a subprocess because the lifespan hard-exits).
+- **`test_unit_heartbeat.py`** — the SDK pump survives a transient `HeartBeat()`
+  exception (continue-with-backoff, not permanent stop); shutdown cancellation
+  stays clean.
+- **`test_unit_health.py`** — `/health` returns 503 when the heartbeat task has
+  died or the SDK is missing (the k8s probes can only heal what it reports).
+- **`test_unit_thread_crossing.py`** — SDK-thread callbacks signal asyncio
+  events via `call_soon_threadsafe`, with a direct-set fallback when no loop is
+  bound.
+- **`test_unit_liveness.py`** — zombie detection (`Connected` but commands
+  return 11), the liveness self-heal loop, and the reconnect loop's self-exit
+  after a zombie heals without a fresh `Connected` callback.
+- **`test_unit_startup_guards.py`** — a missing pre-meeting service or a falsy
+  `CreateZoomRoomsService` skips/errors cleanly; one bad restored room can't
+  abort startup for the fleet.
+- **`test_unit_reminder_enums.py`** — reminder/consent endpoints accept enum
+  names, ints, and digit-strings; unknown values 422 (never 500); combined
+  consent passes the SDK's open int64 through.
+- **`test_unit_sdk_monitor.py`** — SDK-call timing stats; malformed
+  `ZRC_SDK_SLOW_MS` falls back to the default instead of crashing startup.
+- **`test_unit_emit_gating.py`** — hot pure-emit callbacks skip payload
+  serialization when a room has no WS listeners; per-type field lists are
+  memoized for real pybind structs.
+- **`test_unit_share_airplay.py`** — the share sink forwards
+  `OnUpdateAirPlayBlackMagicStatus` (carries the wireless sharing key).
+- **`test_unit_routes.py`** — no two endpoints share a `(method, path)`: FastAPI
+  silently shadows duplicates by registration order (found live: a dead
+  `/video/mute` twin whose callers got default-valued behavior).
 - **`test_bindings_source.py`** — source contracts on the C++ bindings: every
   Register/Deregister pair uses the shared `SinkRegistry` (no lambda-local static
-  maps), the `isMyself` alias exists, and the generator template stays
-  byte-identical to `bindings/zrc_bindings.cpp`.
+  maps), the `isMyself` alias exists, the generator template stays byte-identical
+  to `bindings/zrc_bindings.cpp`, and the in-image lifecycle test's surface list
+  matches the `_SINK_SURFACES` table.
 
 ```bash
 pip install -r requirements-dev.txt

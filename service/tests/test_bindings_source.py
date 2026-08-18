@@ -71,16 +71,24 @@ def _yielded_labels(source, func_name):
     return set(re.findall(r'yield "([^"]+)",', body.group(0)))
 
 
+def _surface_table_labels(source):
+    """Labels from the _SINK_SURFACES table — the single source both
+    register_sinks_for_room and _deregister_room_sinks walk."""
+    body = re.search(r"_SINK_SURFACES = \((.*?)\n    \)", source, re.S)
+    assert body, "_SINK_SURFACES table not found in room_manager.py"
+    return set(re.findall(r'\(\s*"([^"]+)",\s+\(', body.group(1)))
+
+
 def test_lifecycle_test_covers_every_deregistered_surface():
     """The in-image lifecycle test's surface list is hand-maintained; keep it in
-    lockstep with _deregister_room_sinks (which the unit tests keep in lockstep
-    with registration) so a new sink surface can't be silently untested."""
+    lockstep with the _SINK_SURFACES table (the single source registration AND
+    deregistration walk) so a new sink surface can't be silently untested."""
     with open(os.path.join(REPO_ROOT, "service", "room_manager.py")) as f:
-        deregistered = _yielded_labels(f.read(), "surfaces")
+        table = _surface_table_labels(f.read())
     with open(os.path.join(REPO_ROOT, "service", "test_sink_lifecycle.py")) as f:
         lifecycle = _yielded_labels(f.read(), "surfaces")
-    assert deregistered, "no surfaces found in room_manager surfaces()"
-    missing = deregistered - lifecycle
-    extra = lifecycle - deregistered
+    assert table, "no surfaces found in the _SINK_SURFACES table"
+    missing = table - lifecycle
+    extra = lifecycle - table
     assert not missing, f"surfaces missing from test_sink_lifecycle.surfaces(): {sorted(missing)}"
     assert not extra, f"test_sink_lifecycle.surfaces() lists unknown surfaces: {sorted(extra)}"

@@ -126,3 +126,24 @@ def test_no_marker_without_overflow():
         return await queue.get()
 
     assert asyncio.run(get_one()) == {"event": "E", "i": 0}
+
+
+def test_sink_surfaces_table_drives_both_directions():
+    """PRODUCTION-REVIEW.md 4d: registration and deregistration walk ONE table
+    (_SINK_SURFACES) — pin the invariant: 23 surfaces, every store attr exists,
+    register populates each store, remove_room deregisters each surface."""
+    mgr = rm.RoomManager()
+    svc = FakeService("root")
+
+    mgr.register_sinks_for_room("r1", svc)
+    populated = [k for k, v in vars(mgr).items()
+                 if k.endswith("_sinks") and isinstance(v, dict) and "r1" in v]
+    assert len(populated) == 23, f"expected 23 populated stores, got {len(populated)}: {sorted(populated)}"
+
+    registered_nodes = [n for n in svc.walk() if n.registered]
+    assert len(registered_nodes) == 23, f"expected 23 registered surfaces, got {len(registered_nodes)}"
+
+    mgr.rooms["r1"] = svc
+    mgr.remove_room("r1")
+    missed = [n._name for n in registered_nodes if n.deregistered == 0]
+    assert not missed, f"surfaces registered but never deregistered: {missed}"

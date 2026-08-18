@@ -74,3 +74,12 @@ def test_manager_exposes_a_monitor():
     mgr = rm.RoomManager()
     assert isinstance(mgr.sdk_monitor, rm.SDKCallMonitor)
     assert mgr.sdk_monitor.stats()["calls"] == 0
+
+
+def test_bad_env_threshold_falls_back_to_default(monkeypatch):
+    """A malformed ZRC_SDK_SLOW_MS must NOT crash the service: RoomManager() is
+    constructed at module import, so a raise here is a container crash-loop
+    before any useful log (PRODUCTION-REVIEW.md 2.5a)."""
+    for bad in ("", "50ms", "fast", " "):
+        monkeypatch.setenv("ZRC_SDK_SLOW_MS", bad)
+        assert rm.SDKCallMonitor().slow_ms == 50.0, f"env {bad!r} should fall back"
