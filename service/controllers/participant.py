@@ -195,7 +195,9 @@ async def get_participants_left_meeting(room_id: str, room_manager = Depends(lam
 async def assign_host(room_id: str, user_id: int, room_manager = Depends(lambda: get_room_manager())):
     """Assign host to a user"""
     participant_helper = get_participant_helper(room_id, room_manager)
-    result = participant_helper.AssignHost(user_id)
+    # SDK 7.1 added an optional assetsPrivilege argument. pybind11 does not
+    # apply the C++ default argument, so pass None to preserve the existing API.
+    result = participant_helper.AssignHost(user_id, None)
 
     return {
         "room_id": room_id,
@@ -209,7 +211,8 @@ async def assign_host(room_id: str, user_id: int, room_manager = Depends(lambda:
 async def assign_cohost(room_id: str, request: AssignCohostRequest, room_manager = Depends(lambda: get_room_manager())):
     """Assign/unassign cohost to a user"""
     participant_helper = get_participant_helper(room_id, room_manager)
-    result = participant_helper.AssignCohost(request.user_id, request.assign)
+    # See assign_host: None maps to std::nullopt for the SDK 7.1 parameter.
+    result = participant_helper.AssignCohost(request.user_id, request.assign, None)
 
     return {
         "room_id": room_id,

@@ -56,6 +56,16 @@ def test_meeting_participant_keeps_isMyself_alias():
     )
 
 
+def test_meeting_password_callback_and_lock_status_are_bound():
+    assert (
+        'py_sink.attr("OnMeetingNeedsPasswordNotification")('
+        "showPasswordDialog, wrongAndRetry, lockStatus)" in SRC
+    )
+    assert 'py::class_<ConfDeviceLockStatus>(m, "ConfDeviceLockStatus")' in SRC
+    for field in ("isLocked", "remainTimeSec", "wrongPwdInputCount"):
+        assert f'.def_readwrite("{field}", &ConfDeviceLockStatus::{field})' in SRC
+
+
 def test_generator_template_matches_bindings():
     with open(TEMPLATE) as f:
         assert f.read() == SRC, (

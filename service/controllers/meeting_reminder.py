@@ -47,6 +47,35 @@ def _resolve_enum(enum_cls, value):
             detail=f"invalid {getattr(enum_cls, '__name__', 'enum')} value {value!r}; "
                    f"expected an integer value or one of {members}")
 
+
+def _resolve_open_int(enum_cls, value, field_name: str) -> int:
+    """Resolve an SDK open-integer field while preserving known enum names.
+
+    Some reminder callback fields are deliberately plain integers for forward
+    compatibility. Their bound enum lists known values but must not be used to
+    reject new integer values sent by a newer Zoom Room.
+    """
+    if isinstance(value, str):
+        raw = value.strip()
+        if raw.lstrip("+-").isdigit():
+            return int(raw)
+        try:
+            return int(getattr(enum_cls, raw))
+        except (AttributeError, TypeError, ValueError):
+            members = list(getattr(enum_cls, "__members__", {}))
+            raise HTTPException(
+                status_code=422,
+                detail=f"invalid {field_name} value {value!r}; expected an "
+                       f"integer value or one of {members}",
+            )
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=422,
+            detail=f"invalid {field_name} value {value!r}; expected an integer",
+        )
+
 # ===== Pydantic Models =====
 
 class ConfirmConsentRequest(BaseModel):
@@ -98,8 +127,17 @@ async def confirm_custom_reminder(room_id: str, request: NotificationRequest, ro
         meeting_service = room_service.GetMeetingService()
         reminder_helper = meeting_service.GetMeetingReminderHelper()
 
-        custom_type_enum = _resolve_enum(zrc_sdk.CustomizedMeetingReminderType, request.notification_type)
-        result = reminder_helper.ConfirmCustomizedMeetingReminder(request.is_agree, custom_type_enum)
+        # The SDK struct and operation both use a plain int32 for forward
+        # compatibility. Accept any echoed integer while retaining enum names
+        # for callers using the currently documented values.
+        custom_type = _resolve_open_int(
+            zrc_sdk.CustomizedMeetingReminderType,
+            request.notification_type,
+            "notification_type",
+        )
+        result = reminder_helper.ConfirmCustomizedMeetingReminder(
+            request.is_agree, custom_type
+        )
 
         return {
             "room_id": room_id,

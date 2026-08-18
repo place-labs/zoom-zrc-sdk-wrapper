@@ -516,7 +516,16 @@ public:
     void OnBandwidthLimitNotification(const BandwidthLimitInfo& info) override {}
     void OnSendMeetingInviteEmailNotification(int32_t result) override {}
     void OnSetRoomTempDisplayNameNotification(bool isShow) override {}
-    void OnMeetingNeedsPasswordNotification(bool showPasswordDialog, bool wrongAndRetry, const ConfDeviceLockStatus& lockStatus) override {}
+    void OnMeetingNeedsPasswordNotification(bool showPasswordDialog, bool wrongAndRetry, const ConfDeviceLockStatus& lockStatus) override {
+        py::gil_scoped_acquire acquire;
+        if (py::hasattr(py_sink, "OnMeetingNeedsPasswordNotification")) {
+            try {
+                py_sink.attr("OnMeetingNeedsPasswordNotification")(showPasswordDialog, wrongAndRetry, lockStatus);
+            } catch (py::error_already_set& e) {
+                e.discard_as_unraisable("OnMeetingNeedsPasswordNotification");
+            }
+        }
+    }
     void OnConfDeviceLockStatusNotification(const ConfDeviceLockStatus& status) override {}
     void OnJBHWaitingHostNotification(bool showWaitForHostDialog, WaitingHostReason reason) override {
         py::gil_scoped_acquire acquire;
@@ -2128,6 +2137,12 @@ PYBIND11_MODULE(zrc_sdk, m) {
         .def_readwrite("meetingOptions", &MeetingInvitationInfo::meetingOptions)
         .def_readwrite("meetingNumber", &MeetingInvitationInfo::meetingNumber)
         .def_readwrite("expireTime", &MeetingInvitationInfo::expireTime);
+
+    py::class_<ConfDeviceLockStatus>(m, "ConfDeviceLockStatus")
+        .def(py::init<>())
+        .def_readwrite("isLocked", &ConfDeviceLockStatus::isLocked)
+        .def_readwrite("remainTimeSec", &ConfDeviceLockStatus::remainTimeSec)
+        .def_readwrite("wrongPwdInputCount", &ConfDeviceLockStatus::wrongPwdInputCount);
 
     // ===== Meeting Service =====
     py::class_<IMeetingService>(m, "IMeetingService")

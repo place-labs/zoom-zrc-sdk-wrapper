@@ -124,6 +124,26 @@ def test_confirm_reminder_unknown_name_is_422_not_500(monkeypatch):
     assert r.status_code == 422, f"expected 422 for bad input, got {r.status_code}: {r.text}"
 
 
+def test_customized_reminder_accepts_open_integer_and_known_name(monkeypatch):
+    """customizedDisclaimerType is an open int32 compatibility field."""
+    client = _client(monkeypatch)
+    for val in (7, "7", "MeetingReminderTypeArchiving"):
+        r = client.post(
+            "/api/rooms/r1/meeting/reminder/confirm-custom-reminder",
+            json={"is_agree": True, "notification_type": val},
+        )
+        assert r.status_code == 200, f"customized type {val!r} rejected: {r.text}"
+
+
+def test_customized_reminder_rejects_unknown_non_numeric_name(monkeypatch):
+    client = _client(monkeypatch)
+    r = client.post(
+        "/api/rooms/r1/meeting/reminder/confirm-custom-reminder",
+        json={"is_agree": True, "notification_type": "NoSuchType"},
+    )
+    assert r.status_code == 422, r.text
+
+
 def test_confirm_consent_accepts_enum_name(monkeypatch):
     client = _client(monkeypatch)
     r = client.post("/api/rooms/r1/meeting/reminder/confirm-consent",

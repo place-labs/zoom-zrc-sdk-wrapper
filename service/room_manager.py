@@ -442,6 +442,20 @@ class MeetingServiceSink(_Broadcaster):
         logger.info(f"[{self.room_id}] Start meeting with host key result: {result}")
         self.emit("OnStartMeetingWithHostKeyResult", result=int(result))
 
+    def OnMeetingNeedsPasswordNotification(
+        self, show_password_dialog: bool, wrong_and_retry: bool, lock_status
+    ):
+        logger.info(
+            f"[{self.room_id}] Meeting password requested: "
+            f"show={show_password_dialog}, retry={wrong_and_retry}"
+        )
+        self.emit(
+            "OnMeetingNeedsPasswordNotification",
+            showPasswordDialog=show_password_dialog,
+            wrongAndRetry=wrong_and_retry,
+            lockStatus=_pybind_to_jsonable(lock_status),
+        )
+
     def OnJBHWaitingHostNotification(self, show_wait_for_host_dialog: bool, reason: int):
         logger.info(f"[{self.room_id}] Waiting for host: show={show_wait_for_host_dialog}, reason={reason}")
         self.emit("OnJBHWaitingHostNotification", showWaitForHostDialog=show_wait_for_host_dialog, reason=_enum_name(reason))
