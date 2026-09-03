@@ -88,13 +88,19 @@ def participant_to_dict(p):
 
     is_myself = getattr(p, "isMyself", getattr(p, "isMySelf", False))
 
+    # The SDK has no isInWaitingRoom; silent mode covers waiting room and
+    # put-on-hold (IWaitingRoomHelper.h), so the contract field maps to it.
+    is_in_silent_mode = getattr(p, "isInSilentMode", None)
+
     return {
         "user_id": getattr(p, "userID", 0),
         "user_name": getattr(p, "userName", ""),
         "is_host": getattr(p, "isHost", False),
         "is_cohost": getattr(p, "isCohost", False),
         "is_myself": is_myself,
-        "is_in_waiting_room": getattr(p, "isInWaitingRoom", None),
+        "is_in_waiting_room": is_in_silent_mode,
+        "is_in_silent_mode": is_in_silent_mode,
+        "is_leaving_silent_mode": getattr(p, "isLeavingSilentMode", None),
         "is_raising_hand": is_raising_hand,
         "is_talking": getattr(p, "isTalking", None),
         "audio_status": audio_status_to_dict(getattr(p, "audioStatus", None)),
