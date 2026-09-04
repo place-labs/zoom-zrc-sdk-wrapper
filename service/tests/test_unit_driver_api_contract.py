@@ -141,6 +141,11 @@ DRIVER_ROUTES = {
         (),
         ("user_ids",),
     ),
+    ("POST", "/api/rooms/{room_id}/participants/waiting-room/admit"): (
+        (),
+        ("user_ids",),
+    ),
+    ("POST", "/api/rooms/{room_id}/participants/waiting-room/admit-all"): ((), ()),
 }
 
 
@@ -232,6 +237,45 @@ def test_waiting_room_deny_maps_to_sdk_expel():
     assert calls == [
         ("expel", 16778240),
         ("expel_multiple", (16778240, 16779264)),
+    ]
+
+
+def test_waiting_room_admit_maps_to_sdk_put_users_into_meeting():
+    """Admit routes drive IWaitingRoomHelper's admit-direction operations."""
+    helper, client = _participant_test_client()
+    del helper  # admit uses the waiting-room helper, not the participant helper
+    mgr = participant.get_room_manager()
+    wr_helper = mgr.get_room_service("r1").GetMeetingService().GetWaitingRoomHelper()
+    calls = []
+    wr_helper.PutUsersIntoMeeting = (
+        lambda user_ids: calls.append(("admit", tuple(user_ids))) or 0
+    )
+    wr_helper.PutAllUsersIntoMeeting = lambda: calls.append(("admit_all",)) or 0
+
+    with client:
+        admit = client.post(
+            "/api/rooms/r1/participants/waiting-room/admit",
+            json={"user_ids": [16778240, 16779264]},
+        )
+        admit_all = client.post("/api/rooms/r1/participants/waiting-room/admit-all")
+
+    assert admit.status_code == 200, admit.text
+    assert admit.json() == {
+        "room_id": "r1",
+        "user_ids": [16778240, 16779264],
+        "count": 2,
+        "result": 0,
+        "success": True,
+    }
+    assert admit_all.status_code == 200, admit_all.text
+    assert admit_all.json() == {
+        "room_id": "r1",
+        "result": 0,
+        "success": True,
+    }
+    assert calls == [
+        ("admit", (16778240, 16779264)),
+        ("admit_all",),
     ]
 
 

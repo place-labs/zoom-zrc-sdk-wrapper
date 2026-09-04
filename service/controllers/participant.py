@@ -30,6 +30,10 @@ class ExpelUsersRequest(BaseModel):
     user_ids: List[int]
 
 
+class AdmitUsersRequest(BaseModel):
+    user_ids: List[int]
+
+
 class ReportIssueRequest(BaseModel):
     user_ids: List[int]
     issue_type: int  # Bitset of ReportIssueType values
@@ -53,6 +57,23 @@ def get_participant_helper(room_id: str, room_manager):
         raise HTTPException(status_code=500, detail="Participant helper not available")
 
     return participant_helper
+
+
+def get_waiting_room_helper(room_id: str, room_manager):
+    """Get waiting room helper for a room"""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail=f"Room {room_id} not found")
+
+    meeting_service = room_service.GetMeetingService()
+    if not meeting_service:
+        raise HTTPException(status_code=500, detail="Meeting service not available")
+
+    waiting_room_helper = meeting_service.GetWaitingRoomHelper()
+    if not waiting_room_helper:
+        raise HTTPException(status_code=500, detail="Waiting room helper not available")
+
+    return waiting_room_helper
 
 
 def audio_status_to_dict(status):
@@ -417,6 +438,34 @@ async def expel_users(room_id: str, request: ExpelUsersRequest, room_manager = D
         "room_id": room_id,
         "user_ids": request.user_ids,
         "count": len(request.user_ids),
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/admit")
+async def admit_from_waiting_room(room_id: str, request: AdmitUsersRequest, room_manager = Depends(lambda: get_room_manager())):
+    """Admit users from the waiting room into the meeting"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutUsersIntoMeeting(request.user_ids)
+
+    return {
+        "room_id": room_id,
+        "user_ids": request.user_ids,
+        "count": len(request.user_ids),
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/admit-all")
+async def admit_all_from_waiting_room(room_id: str, room_manager = Depends(lambda: get_room_manager())):
+    """Admit all waiting room users into the meeting"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutAllUsersIntoMeeting()
+
+    return {
+        "room_id": room_id,
         "result": int(result),
         "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
     }

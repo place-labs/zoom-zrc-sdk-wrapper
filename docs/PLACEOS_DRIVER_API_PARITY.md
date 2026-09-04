@@ -61,6 +61,8 @@ or SDK invocation exception returns HTTP 500 as `{"detail":"..."}`.
 | list waiting-room guests | `GET /api/rooms/{room_id}/participants/silent-mode` | None | `{room_id, result, success, participants, count}` | SDK nonzero is HTTP 200 with `success:false` | Exact; each participant carries `user_id` and `is_in_waiting_room:true` |
 | deny waiting-room guest | `DELETE /api/rooms/{room_id}/participants/{user_id}` | None (`user_id` in path) | `{room_id, user_id, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; deny = SDK `ExpelUser` — see waiting-room deny semantics below |
 | deny multiple waiting-room guests | `POST /api/rooms/{room_id}/participants/expel-multiple` | JSON `{user_ids:[int]}` | `{room_id, user_ids, count, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; deny = SDK `ExpelUsers` |
+| `admit_from_waiting_room` | `POST /api/rooms/{room_id}/participants/waiting-room/admit` | JSON `{user_ids:[int]}` | `{room_id, user_ids, count, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; admit = SDK `PutUsersIntoMeeting` |
+| `admit_all_from_waiting_room` | `POST /api/rooms/{room_id}/participants/waiting-room/admit-all` | None | `{room_id, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; admit-all = SDK `PutAllUsersIntoMeeting` |
 | `wake_up` | `POST /api/rooms/{room_id}/pre-meeting/wake-up` | None | `{message}` | SDK nonzero HTTP 500 string detail | Exact |
 | `get_health` | `GET /health` | None | HTTP 200 `{status:"healthy", sdk_initialized, active_rooms, sdk_call_timing}` | HTTP 503 same body plus `reason` when SDK/heartbeat is unhealthy | Exact |
 
@@ -140,10 +142,11 @@ sitting in the waiting room is therefore done with the participant expel APIs:
   participants to rejoin" setting, same as an in-meeting expel. Waiting-room
   population changes arrive on the WS stream (`OnInSilentModeNotification` and
   participant updates).
-- Admit currently has **no REST route** in the wrapper:
-  `IWaitingRoomHelper::PutUsersIntoMeeting`/`PutAllUsersIntoMeeting` are bound
-  in `zrc_bindings.cpp` but not exposed by any controller. If the driver needs
-  admit, that is a wrapper follow-up.
+- Admit is the mirror-image flow through `IWaitingRoomHelper`:
+  `POST .../participants/waiting-room/admit` (`PutUsersIntoMeeting`) and
+  `POST .../participants/waiting-room/admit-all` (`PutAllUsersIntoMeeting`),
+  matching the driver's `admit_from_waiting_room`/`admit_all_from_waiting_room`
+  operations.
 
 ## Semantic follow-ups outside wrapper route parity
 
