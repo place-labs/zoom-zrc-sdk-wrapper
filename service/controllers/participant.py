@@ -36,6 +36,10 @@ class ReportIssueRequest(BaseModel):
     email: str
 
 
+class WaitingRoomUsersRequest(BaseModel):
+    user_ids: List[int]
+
+
 # ===== Helper Functions =====
 
 def get_participant_helper(room_id: str, room_manager):
@@ -53,6 +57,23 @@ def get_participant_helper(room_id: str, room_manager):
         raise HTTPException(status_code=500, detail="Participant helper not available")
 
     return participant_helper
+
+
+def get_waiting_room_helper(room_id: str, room_manager):
+    """Get waiting room helper for a room"""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail=f"Room {room_id} not found")
+
+    meeting_service = room_service.GetMeetingService()
+    if not meeting_service:
+        raise HTTPException(status_code=500, detail="Meeting service not available")
+
+    waiting_room_helper = meeting_service.GetWaitingRoomHelper()
+    if not waiting_room_helper:
+        raise HTTPException(status_code=500, detail="Waiting room helper not available")
+
+    return waiting_room_helper
 
 
 def audio_status_to_dict(status):
@@ -88,13 +109,19 @@ def participant_to_dict(p):
 
     is_myself = getattr(p, "isMyself", getattr(p, "isMySelf", False))
 
+    # The SDK has no isInWaitingRoom; silent mode covers waiting room and
+    # put-on-hold (IWaitingRoomHelper.h), so the contract field maps to it.
+    is_in_silent_mode = getattr(p, "isInSilentMode", None)
+
     return {
         "user_id": getattr(p, "userID", 0),
         "user_name": getattr(p, "userName", ""),
         "is_host": getattr(p, "isHost", False),
         "is_cohost": getattr(p, "isCohost", False),
         "is_myself": is_myself,
-        "is_in_waiting_room": getattr(p, "isInWaitingRoom", None),
+        "is_in_waiting_room": is_in_silent_mode,
+        "is_in_silent_mode": is_in_silent_mode,
+        "is_leaving_silent_mode": getattr(p, "isLeavingSilentMode", None),
         "is_raising_hand": is_raising_hand,
         "is_talking": getattr(p, "isTalking", None),
         "audio_status": audio_status_to_dict(getattr(p, "audioStatus", None)),
@@ -195,7 +222,9 @@ async def get_participants_left_meeting(room_id: str, room_manager = Depends(lam
 async def assign_host(room_id: str, user_id: int, room_manager = Depends(lambda: get_room_manager())):
     """Assign host to a user"""
     participant_helper = get_participant_helper(room_id, room_manager)
-    result = participant_helper.AssignHost(user_id)
+    # SDK 7.1 added an optional assetsPrivilege argument. pybind11 does not
+    # apply the C++ default argument, so pass None to preserve the existing API.
+    result = participant_helper.AssignHost(user_id, None)
 
     return {
         "room_id": room_id,
@@ -209,7 +238,8 @@ async def assign_host(room_id: str, user_id: int, room_manager = Depends(lambda:
 async def assign_cohost(room_id: str, request: AssignCohostRequest, room_manager = Depends(lambda: get_room_manager())):
     """Assign/unassign cohost to a user"""
     participant_helper = get_participant_helper(room_id, room_manager)
-    result = participant_helper.AssignCohost(request.user_id, request.assign)
+    # See assign_host: None maps to std::nullopt for the SDK 7.1 parameter.
+    result = participant_helper.AssignCohost(request.user_id, request.assign, None)
 
     return {
         "room_id": room_id,
@@ -513,6 +543,49 @@ async def report_issue(room_id: str, request: ReportIssueRequest, room_manager =
         "user_ids": request.user_ids,
         "issue_type": request.issue_type,
         "email": request.email,
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/admit")
+async def admit_users_from_waiting_room(room_id: str, request: WaitingRoomUsersRequest, room_manager = Depends(lambda: get_room_manager())):
+    """Admit users from waiting room into the meeting"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutUsersIntoMeeting(request.user_ids)
+
+    return {
+        "room_id": room_id,
+        "user_ids": request.user_ids,
+        "count": len(request.user_ids),
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/admit-all")
+async def admit_all_users_from_waiting_room(room_id: str, room_manager = Depends(lambda: get_room_manager())):
+    """Admit all waiting room users into the meeting"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutAllUsersIntoMeeting()
+
+    return {
+        "room_id": room_id,
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/hold")
+async def put_users_into_waiting_room(room_id: str, request: WaitingRoomUsersRequest, room_manager = Depends(lambda: get_room_manager())):
+    """Send users back to the waiting room"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutUsersIntoWaitingRoom(request.user_ids)
+
+    return {
+        "room_id": room_id,
+        "user_ids": request.user_ids,
+        "count": len(request.user_ids),
         "result": int(result),
         "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
     }

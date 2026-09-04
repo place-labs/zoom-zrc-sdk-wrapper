@@ -6,6 +6,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Callable
 
+from sdk_errors import zrcsdk_error_name
+
 try:
     import zrc_sdk
 except ImportError:
@@ -18,6 +20,18 @@ router = APIRouter(prefix="/api/rooms/{room_id}", tags=["meeting-controls"])
 
 # This will be set by app.py
 get_room_manager: Callable = None
+
+
+def _raise_ai_companion_sdk_error(message: str, result) -> None:
+    """Expose a stable non-success contract for AI Companion SDK failures."""
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "message": message,
+            "error_code": int(result),
+            "error_name": zrcsdk_error_name(result),
+        },
+    )
 
 
 # ===== Endpoints =====
@@ -219,6 +233,88 @@ async def turn_off_ai_companion(room_id: str, features: int, delete_assets: bool
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ai-companion/respond-to-turn-on")
+async def respond_to_turn_on_ai_companion(room_id: str, agree: bool = True, room_manager = Depends(lambda: get_room_manager())):
+    """Accept or deny a participant's request to turn on AI Companion."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        control_helper = meeting_service.GetMeetingControlHelper()
+        result = control_helper.RespondToTurnOnAICompanion(agree)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+        _raise_ai_companion_sdk_error(
+            "Failed to respond to AI Companion turn-on request", result
+        )
+
+    return {
+        "room_id": room_id,
+        "agree": agree,
+        "result": int(result),
+        "success": True,
+    }
+
+
+@router.post("/ai-companion/respond-to-turn-off")
+async def respond_to_turn_off_ai_companion(room_id: str, agree: bool = True, delete_assets: bool = False, room_manager = Depends(lambda: get_room_manager())):
+    """Accept or deny a participant's request to turn off AI Companion."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        control_helper = meeting_service.GetMeetingControlHelper()
+        result = control_helper.RespondToTurnOffAICompanion(agree, delete_assets)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+        _raise_ai_companion_sdk_error(
+            "Failed to respond to AI Companion turn-off request", result
+        )
+
+    return {
+        "room_id": room_id,
+        "agree": agree,
+        "delete_assets": delete_assets,
+        "result": int(result),
+        "success": True,
+    }
+
+
+@router.post("/ai-companion/confirm-status-when-join")
+async def confirm_ai_companion_status_when_join(room_id: str, agree: bool = True, room_manager = Depends(lambda: get_room_manager())):
+    """Confirm AI Companion changes made by a participant before the host joined."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        control_helper = meeting_service.GetMeetingControlHelper()
+        result = control_helper.ConfirmAICompanionStatusWhenJoin(agree)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+        _raise_ai_companion_sdk_error(
+            "Failed to confirm AI Companion status", result
+        )
+
+    return {
+        "room_id": room_id,
+        "agree": agree,
+        "result": int(result),
+        "success": True,
+    }
 
 
 @router.post("/panel/control")

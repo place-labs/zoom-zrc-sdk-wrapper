@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.12)
 project(zrc_wrapper)
 
-set(CMAKE_CXX_STANDARD 14)
+# C++17 required: SDK 7.1.0+ uses std::optional in helper APIs (e.g. AssignHost/AssignCohost).
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Find Python

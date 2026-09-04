@@ -64,6 +64,9 @@ async def pair_room(room_id: str, request: PairRoomRequest, room_manager = Depen
     try:
         # Create room service
         room_service = room_manager.create_room_service(room_id)
+        if room_service is None:
+            raise HTTPException(status_code=502,
+                                detail=f"SDK could not create a room service for '{room_id}'")
 
         # Get the sink for this room
         room_sink = room_manager.room_sinks.get(room_id)
@@ -76,9 +79,10 @@ async def pair_room(room_id: str, request: PairRoomRequest, room_manager = Depen
         room_sink.pair_event.clear()
         premeeting_sink.connected_event.clear()
 
-        # Start pairing
+        # Start pairing (a network round-trip on the loop thread — time it)
         logger.info(f"Pairing room: {room_id}")
-        result = room_service.PairRoomWithActivationCode(request.activation_code)
+        with room_manager.sdk_monitor.measure(f"PairRoomWithActivationCode[{room_id}]"):
+            result = room_service.PairRoomWithActivationCode(request.activation_code)
 
         if result != zrc_sdk.ZRCSDKERR_SUCCESS:
             raise HTTPException(
@@ -133,15 +137,9 @@ async def unpair_room(room_id: str, room_manager = Depends(lambda: get_room_mana
     try:
         result = room_service.UnpairRoom()
 
-        # Remove from manager
-        if room_id in room_manager.rooms:
-            del room_manager.rooms[room_id]
-        if room_id in room_manager.room_sinks:
-            del room_manager.room_sinks[room_id]
-        if room_id in room_manager.premeeting_sinks:
-            del room_manager.premeeting_sinks[room_id]
-        if room_id in room_manager.meeting_list_sinks:
-            del room_manager.meeting_list_sinks[room_id]
+        # Fully forget the room: stop reconnect attempts, deregister every sink
+        # surface, and purge all per-room sink registries.
+        room_manager.remove_room(room_id)
 
         return {
             "room_id": room_id,

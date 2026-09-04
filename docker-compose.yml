@@ -5,8 +5,19 @@ services:
       dockerfile: Dockerfile
     image: zrc-microservice:latest
     container_name: zrc-microservice
+    # SDK ships x86_64 only (libZRCSdk.so). On Apple Silicon this forces emulation so
+    # the bindings link against the x86_64 SDK instead of building native arm64.
+    platform: linux/amd64
     ports:
       - "8000:8000"
+    # CRITICAL: pin the container MAC. Docker assigns a random MAC on every start,
+    # and the SDK derives its key material (ZRCSDK.conf) from the NIC address — a
+    # changing MAC regenerates that key and makes stored room credentials
+    # undecryptable, so pairing never survives a restart (RetryToPairRoom ->
+    # ZRCSDKERR_INTERNAL_ERROR). 
+    # Note: this is separate from the device identity reported to Zoom, which comes
+    # from the sink in service/room_manager.py (ZRC_DEVICE_SERIAL / ZRC_DEVICE_MAC).
+    mac_address: ca:fe:d0:0d:fa:ce
     environment:
       - PYTHONUNBUFFERED=1
       - LD_LIBRARY_PATH=/app/libs

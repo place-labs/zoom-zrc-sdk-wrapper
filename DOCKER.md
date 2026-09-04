@@ -70,6 +70,32 @@ volumes:
 
 This ensures SDK logs are preserved across container restarts.
 
+### Pinned MAC Address (required for pairing persistence)
+
+`docker-compose.yml` pins a fixed `mac_address` on the container:
+
+```yaml
+services:
+  zrc-microservice:
+    mac_address: c0:ff:ee:11:00:99
+```
+
+The SDK derives its credential-encryption key material (`ZRCSDK.conf`) from the container's **NIC MAC**. Docker assigns a **random** MAC on every start, which regenerates that key and makes the stored room credentials undecryptable — the SDK logs `sqlcipher … hmac check failed`, `RetryToPairRoom` returns `ZRCSDKERR_INTERNAL_ERROR`, and paired rooms fail to restore. Pinning the MAC keeps the key stable so pairings survive restarts and rebuilds.
+
+> ⚠️ **Pick a MAC once and never change it.** Changing it orphans the encrypted credentials (same symptom as above) and every room must be re-paired. Use a valid unicast, locally-administered address (first octet even — e.g. `DE`/`CA`/`FE`/`C0`).
+
+### Platform (Apple Silicon / non-x86 hosts)
+
+The ZRC SDK ships **x86_64 only** (`libZRCSdk.so`). `docker-compose.yml` pins the build/run platform so it works on ARM hosts (e.g. Apple Silicon) via emulation:
+
+```yaml
+services:
+  zrc-microservice:
+    platform: linux/amd64
+```
+
+Without this, Docker builds natively for `arm64` and the bindings fail to link against the x86_64 SDK. On native x86_64 hosts (prod) it's a no-op.
+
 ### Development Mode
 
 To mount the service code for live development, uncomment this line in `docker-compose.yml`:
@@ -136,6 +162,52 @@ The container runs as root by default. Logs directory needs proper permissions:
 ```bash
 chmod 755 ./logs
 ```
+
+### Pairing fails with error code 100 ("fail to connect to room")
+
+`POST /api/rooms/{id}/pair` returns `Pairing failed with error code: 100`, and the
+logs show `OnPairRoomResult: 100`.
+
+**What 100 means here:** In the `OnPairRoomResult` callback, `100` is **"fail to
+connect to room"** — *not* `ZRCSDKERR_DEVICE_NOT_EXIST` (that is the value `100` in
+the *global* `ZRCSDKError` enum, a different code space). The pairing callback has
+its own codes: `0` success, `30055016` invalid/used activation code, and
+`100`/`101`/`102` for connect / verify failures. So a `100` means the activation
+code was **accepted** and the SDK then failed to open its direct connection to the
+Zoom Room compute. A bad or already-used code returns `30055016` instead.
+
+**Root cause (Docker):** After the cloud validates the code, the SDK connects
+directly to the ZR compute over the local/routed network. Pairing therefore
+requires **IP reachability from this container to the ZR compute** (observed on
+ports 80/443). The common failure is a **subnet collision**: Docker's default
+bridge is `172.17.0.0/16`, and if the ZR lives in that range (e.g.
+`172.17.193.172`), the container — and the Docker Desktop VM itself — treat the ZR
+as on-link, ARP into the void, and never route the packet out to the host/VPN. The
+result is `EHOSTUNREACH`/timeout surfaced as pair code `100`.
+
+**Diagnose** — from inside the container, check you can actually reach the ZR:
+```bash
+docker exec <container> python -c \
+'import socket;s=socket.socket();s.settimeout(6);s.connect(("<ZR_IP>",443));print("REACHABLE")'
+```
+If this fails while the host succeeds, it is a routing/collision problem, not the
+SDK or the activation code.
+
+**Fix** — move Docker off the colliding range (values must not overlap the ZR/VPN
+subnet). In `~/.docker/daemon.json` (Docker Desktop → Settings → Docker Engine):
+```json
+{
+  "bip": "10.200.0.1/24",
+  "default-address-pools": [ { "base": "10.201.0.0/16", "size": 24 } ]
+}
+```
+Restart Docker, recreate the container, and re-run the reachability check above
+before pairing. On Docker Desktop for Mac this also lets the gVisor proxy forward
+the traffic over the host's VPN once the ZR IP is no longer on-link.
+
+> Note: the controller does **not** need to be on the *same* subnet as the ZR —
+> a routed/VPN path works fine. It needs to *reach* the ZR, and its Docker subnets
+> must **not overlap** the ZR's subnet.
 
 ## Image Details
 
@@ -222,15 +294,13 @@ networks:
     name: wrapper_zrc-network
 ```
 
-## Environment Variables
-
-You can pass environment variables in `docker-compose.yml`:
-
-```yaml
-environment:
-  - LOG_LEVEL=DEBUG
-  - MAX_ROOMS=10
-```
+> **Important — subnet must not overlap the Zoom Room.** Pairing opens a direct
+> connection from this service to the ZR compute, so the container needs IP
+> reachability to the ZR *and* its Docker subnets must not collide with the ZR's
+> network. If the ZR lives in `172.17.0.0/16` (Docker's default bridge range),
+> change Docker's `bip`/`default-address-pools` to a non-overlapping range (e.g.
+> `10.200.0.0/24` / `10.201.0.0/16`). See *Troubleshooting → Pairing fails with
+> error code 100*.
 
 ## Updating the Service
 

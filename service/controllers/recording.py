@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 import zrc_sdk
 
+from sdk_errors import zrcsdk_error_name
+
 router = APIRouter(prefix="/api/rooms/{room_id}/recording", tags=["recording"])
 
 # Dependency injection placeholder - will be set by app.py
@@ -53,44 +55,6 @@ def get_recording_helper(room_id: str, room_manager):
     return recording_helper
 
 
-ZRCSDK_ERROR_NAMES = {
-    0: "ZRCSDKERR_SUCCESS",
-    1: "ZRCSDKERR_INTERNAL_ERROR",
-    2: "ZRCSDKERR_SERVICE_UNINITIALIZE",
-    3: "ZRCSDKERR_NO_PERMISSION",
-    4: "ZRCSDKERR_FEATURE_DISABLED",
-    5: "ZRCSDKERR_ZR_NO_CAPABILITY",
-    6: "ZRCSDKERR_INVALID_PARAMETER",
-    8: "ZRCSDKERR_API_NOT_SUPPORT_IN_WEBINAR",
-    9: "ZRCSDKERR_API_WRONG_USAGE",
-    10: "ZRCSDKERR_ALREADY_IN_THIS_STATE",
-    11: "ZRCSDKERR_NOT_CONNECT_TO_ZOOMROOM",
-    12: "ZRCSDKERR_HOST_WITHOUT_CAPABILITY",
-    13: "ZRCSDKERR_HOST_NOT_IN_MEETING",
-    14: "ZRCSDKERR_CAN_NOT_PERFORM_ACTION",
-    50: "ZRCSDKERR_API_NOT_SUPPORT_IN_MEETING",
-    51: "ZRCSDKERR_API_NOT_SUPPORT_IN_BO",
-    52: "ZRCSDKERR_API_NOT_SUPPORT_IN_WEBINAR_BO",
-    53: "ZRCSDKERR_API_NOT_SUPPORT_IN_WEBINAR_DEBRIEF_SESSION",
-    54: "ZRCSDKERR_API_NOT_SUPPORT_IN_SWITCHING_MEETING",
-    200: "ZRCSDKERR_INVALID_MEETING",
-    201: "ZRCSDKERR_INVALID_MEETING_NUMBER",
-    220: "ZRCSDKERR_ALREADY_IN_MEETING",
-    221: "ZRCSDKERR_NOT_IN_MEETING",
-    222: "ZRCSDKERR_NOT_IN_WEBINAR",
-    223: "ZRCSDKERR_NOT_IN_PSTN_CALLOUT_MEETING",
-    224: "ZRCSDKERR_NOT_IN_E2EE_Meeting",
-    225: "ZRCSDKERR_NOT_IN_INTEGRATION_MEETING",
-    226: "ZRCSDKERR_NOT_IN_WEBINAR_PRACTICE_SESSION",
-    230: "ZRCSDKERR_IN_E2EE_MEETING",
-    231: "ZRCSDKERR_IN_WAITING_ROOM",
-}
-
-
-def zrcsdk_error_name(result: int) -> str:
-    return ZRCSDK_ERROR_NAMES.get(int(result), f"Unknown({int(result)})")
-
-
 def recording_type_to_string(recording_type: int) -> str:
     """Convert recording type enum to string"""
     type_map = {
@@ -119,6 +83,18 @@ def permission_info_to_dict(info) -> dict:
         "is_enabled": info.isEnable,
         "is_locked": info.isLocked,
     }
+
+
+def raise_recording_sdk_error(message: str, result, status_code: int = 500) -> None:
+    """Expose a stable non-success contract for recording SDK failures."""
+    raise HTTPException(
+        status_code=status_code,
+        detail={
+            "message": message,
+            "error_code": int(result),
+            "error_name": zrcsdk_error_name(result),
+        },
+    )
 
 
 # ===== Endpoints =====
@@ -213,7 +189,7 @@ async def set_notification_email(
     result = recording_helper.SetMeetingRecordingNotificationEmail(request.email)
 
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-        raise HTTPException(status_code=500, detail=f"Failed to set notification email: {result}")
+        raise_recording_sdk_error("Failed to set notification email", result)
 
     return {"message": f"Notification email set to {request.email}"}
 
@@ -295,7 +271,14 @@ async def stop_cloud_recording(
     result = recording_helper.StopMeetingCloudRecording()
 
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-        raise HTTPException(status_code=500, detail=f"Failed to stop cloud recording: {result}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Failed to stop cloud recording",
+                "error_code": int(result),
+                "error_name": zrcsdk_error_name(result),
+            },
+        )
 
     return {"message": "Cloud recording stopped"}
 
@@ -361,7 +344,9 @@ async def respond_to_recording_request(
     result = recording_helper.ResponseToRecordingRequest(request.agree, request.is_persist)
 
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-        raise HTTPException(status_code=500, detail=f"Failed to respond to recording request: {result}")
+        raise_recording_sdk_error(
+            "Failed to respond to recording request", result, status_code=502
+        )
 
     return {
         "message": f"Recording request {'approved' if request.agree else 'denied'}",

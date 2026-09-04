@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build, Test and Push Docker Image
 
 on:
   push:
@@ -7,22 +7,79 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  build-test-push:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Build once, load into the runner's Docker so we can test before pushing.
+      - name: Build image (load for testing)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: zrc-ci:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Contract tests (no service, no room): every forwarded SDK callback serializes
+      # to a valid WS payload. Runs in the image to import the compiled zrc_sdk module.
+      - name: Contract tests (in image)
+        run: docker run --rm --entrypoint python zrc-ci:test /app/service/test_sink_contracts.py
+
+      # Lifecycle tests (no room): RegisterSink/DeregisterSink work through the
+      # compiled bindings against the real SDK, for every sink surface.
+      - name: Lifecycle tests (in image)
+        run: docker run --rm --entrypoint python zrc-ci:test /app/service/test_sink_lifecycle.py
+
+      # Unit tests (fake SDK, no server) + smoke tests against the running service
+      # (no room, no side effects). Everything under service/tests/ except @live.
+      - name: Unit + smoke tests
+        run: |
+          docker run -d --name zrc-ci -p 8000:8000 zrc-ci:test
+          echo "Waiting for service health..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
+              echo "Service healthy"; break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "Service did not become healthy:"; docker logs zrc-ci; exit 1
+            fi
+            sleep 2
+          done
+          pip install -q -r requirements-dev.txt
+          ZRC_BASE_URL=http://localhost:8000 pytest -v -m "not live" --junitxml=test-results.xml
+        # ensure the container is cleaned up even if tests fail
+      - name: Tear down test service
+        if: always()
+        run: docker rm -f zrc-ci || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.xml
+          if-no-files-found: ignore
+
+      # Only reached if the tests above passed.
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
+
       - name: Extract branch name and commit SHA
         id: vars
         run: |
@@ -32,7 +89,7 @@ jobs:
           echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
           echo "sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "tag=${BRANCH_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-      
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
