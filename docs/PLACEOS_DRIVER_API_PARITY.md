@@ -63,6 +63,7 @@ or SDK invocation exception returns HTTP 500 as `{"detail":"..."}`.
 | deny multiple waiting-room guests | `POST /api/rooms/{room_id}/participants/expel-multiple` | JSON `{user_ids:[int]}` | `{room_id, user_ids, count, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; deny = SDK `ExpelUsers` |
 | `admit_from_waiting_room` | `POST /api/rooms/{room_id}/participants/waiting-room/admit` | JSON `{user_ids:[int]}` | `{room_id, user_ids, count, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; admit = SDK `PutUsersIntoMeeting` |
 | `admit_all_from_waiting_room` | `POST /api/rooms/{room_id}/participants/waiting-room/admit-all` | None | `{room_id, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; admit-all = SDK `PutAllUsersIntoMeeting` |
+| send back to waiting room | `POST /api/rooms/{room_id}/participants/waiting-room/hold` | JSON `{user_ids:[int]}` | `{room_id, user_ids, count, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; hold = SDK `PutUsersIntoWaitingRoom` |
 | `wake_up` | `POST /api/rooms/{room_id}/pre-meeting/wake-up` | None | `{message}` | SDK nonzero HTTP 500 string detail | Exact |
 | `get_health` | `GET /health` | None | HTTP 200 `{status:"healthy", sdk_initialized, active_rooms, sdk_call_timing}` | HTTP 503 same body plus `reason` when SDK/heartbeat is unhealthy | Exact |
 
@@ -131,7 +132,8 @@ sitting in the waiting room is therefore done with the participant expel APIs:
   `MeetingParticipant` records, enumerable via
   `GET /api/rooms/{room_id}/participants/silent-mode`
   (`IParticipantHelper::GetParticipantsInSilentMode`) and flagged
-  `is_in_waiting_room` in all participant listings.
+  `is_in_waiting_room` in all participant listings (serialized alongside the
+  raw `is_in_silent_mode` and `is_leaving_silent_mode` SDK fields).
 - This matches the Zoom Rooms Controller UI, whose only per-guest waiting-room
   actions are Admit and Remove; the SDK offers no other removal path.
 - Flow for the driver/panel: read `user_id`s from the silent-mode listing (or

@@ -30,14 +30,14 @@ class ExpelUsersRequest(BaseModel):
     user_ids: List[int]
 
 
-class AdmitUsersRequest(BaseModel):
-    user_ids: List[int]
-
-
 class ReportIssueRequest(BaseModel):
     user_ids: List[int]
     issue_type: int  # Bitset of ReportIssueType values
     email: str
+
+
+class WaitingRoomUsersRequest(BaseModel):
+    user_ids: List[int]
 
 
 # ===== Helper Functions =====
@@ -109,17 +109,19 @@ def participant_to_dict(p):
 
     is_myself = getattr(p, "isMyself", getattr(p, "isMySelf", False))
 
+    # The SDK has no isInWaitingRoom; silent mode covers waiting room and
+    # put-on-hold (IWaitingRoomHelper.h), so the contract field maps to it.
+    is_in_silent_mode = getattr(p, "isInSilentMode", None)
+
     return {
         "user_id": getattr(p, "userID", 0),
         "user_name": getattr(p, "userName", ""),
         "is_host": getattr(p, "isHost", False),
         "is_cohost": getattr(p, "isCohost", False),
         "is_myself": is_myself,
-        # The SDK reports waiting-room membership as isInSilentMode (silent
-        # mode = waiting room / on hold); isInWaitingRoom is not a bound field.
-        "is_in_waiting_room": getattr(
-            p, "isInWaitingRoom", getattr(p, "isInSilentMode", None)
-        ),
+        "is_in_waiting_room": is_in_silent_mode,
+        "is_in_silent_mode": is_in_silent_mode,
+        "is_leaving_silent_mode": getattr(p, "isLeavingSilentMode", None),
         "is_raising_hand": is_raising_hand,
         "is_talking": getattr(p, "isTalking", None),
         "audio_status": audio_status_to_dict(getattr(p, "audioStatus", None)),
@@ -443,34 +445,6 @@ async def expel_users(room_id: str, request: ExpelUsersRequest, room_manager = D
     }
 
 
-@router.post("/waiting-room/admit")
-async def admit_from_waiting_room(room_id: str, request: AdmitUsersRequest, room_manager = Depends(lambda: get_room_manager())):
-    """Admit users from the waiting room into the meeting"""
-    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
-    result = waiting_room_helper.PutUsersIntoMeeting(request.user_ids)
-
-    return {
-        "room_id": room_id,
-        "user_ids": request.user_ids,
-        "count": len(request.user_ids),
-        "result": int(result),
-        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
-    }
-
-
-@router.post("/waiting-room/admit-all")
-async def admit_all_from_waiting_room(room_id: str, room_manager = Depends(lambda: get_room_manager())):
-    """Admit all waiting room users into the meeting"""
-    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
-    result = waiting_room_helper.PutAllUsersIntoMeeting()
-
-    return {
-        "room_id": room_id,
-        "result": int(result),
-        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
-    }
-
-
 @router.post("/hide-profile-pictures")
 async def hide_profile_pictures(room_id: str, hidden: bool, room_manager = Depends(lambda: get_room_manager())):
     """Hide/show profile pictures"""
@@ -569,6 +543,49 @@ async def report_issue(room_id: str, request: ReportIssueRequest, room_manager =
         "user_ids": request.user_ids,
         "issue_type": request.issue_type,
         "email": request.email,
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/admit")
+async def admit_users_from_waiting_room(room_id: str, request: WaitingRoomUsersRequest, room_manager = Depends(lambda: get_room_manager())):
+    """Admit users from waiting room into the meeting"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutUsersIntoMeeting(request.user_ids)
+
+    return {
+        "room_id": room_id,
+        "user_ids": request.user_ids,
+        "count": len(request.user_ids),
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/admit-all")
+async def admit_all_users_from_waiting_room(room_id: str, room_manager = Depends(lambda: get_room_manager())):
+    """Admit all waiting room users into the meeting"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutAllUsersIntoMeeting()
+
+    return {
+        "room_id": room_id,
+        "result": int(result),
+        "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+    }
+
+
+@router.post("/waiting-room/hold")
+async def put_users_into_waiting_room(room_id: str, request: WaitingRoomUsersRequest, room_manager = Depends(lambda: get_room_manager())):
+    """Send users back to the waiting room"""
+    waiting_room_helper = get_waiting_room_helper(room_id, room_manager)
+    result = waiting_room_helper.PutUsersIntoWaitingRoom(request.user_ids)
+
+    return {
+        "room_id": room_id,
+        "user_ids": request.user_ids,
+        "count": len(request.user_ids),
         "result": int(result),
         "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
     }
