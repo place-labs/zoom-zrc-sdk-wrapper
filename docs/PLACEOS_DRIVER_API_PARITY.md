@@ -126,14 +126,22 @@ admit-direction operations — `PutUsersIntoMeeting`, `PutAllUsersIntoMeeting`,
 `PutUsersIntoWaitingRoom` — plus on-entry settings. Denying (rejecting) a guest
 sitting in the waiting room is therefore done with the participant expel APIs:
 
+- **"Silent mode" IS waiting-room membership — one state, not two.** The SDK's
+  name is a legacy of Zoom's separate "put on hold" feature, which Zoom retired
+  into the waiting room in 2020; the modern client action is literally labeled
+  "Put in Waiting Room" and the SDK binds no `isOnHold` field. The wrapper
+  deliberately serializes this single state as `is_in_waiting_room` (derived
+  from the SDK's `isInSilentMode`, exposed raw alongside
+  `is_leaving_silent_mode`); there is no separate hold flag, and
+  `POST .../waiting-room/hold` simply returns an in-meeting participant to the
+  waiting room. Do not "fix" the field derivation to split these states — there
+  is nothing in the SDK to split them by.
 - `IParticipantHelper::ExpelUser`/`ExpelUsers` take the same `userID`s that
-  waiting-room participants carry. Waiting-room ("silent mode" in SDK terms;
-  silent mode covers waiting room and on-hold) participants are ordinary
+  waiting-room participants carry. Waiting-room participants are ordinary
   `MeetingParticipant` records, enumerable via
   `GET /api/rooms/{room_id}/participants/silent-mode`
   (`IParticipantHelper::GetParticipantsInSilentMode`) and flagged
-  `is_in_waiting_room` in all participant listings (serialized alongside the
-  raw `is_in_silent_mode` and `is_leaving_silent_mode` SDK fields).
+  `is_in_waiting_room` in all participant listings.
 - This matches the Zoom Rooms Controller UI, whose only per-guest waiting-room
   actions are Admit and Remove; the SDK offers no other removal path.
 - Flow for the driver/panel: read `user_id`s from the silent-mode listing (or

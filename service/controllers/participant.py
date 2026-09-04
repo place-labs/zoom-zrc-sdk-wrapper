@@ -126,7 +126,6 @@ def participant_to_dict(p):
         "is_talking": getattr(p, "isTalking", None),
         "audio_status": audio_status_to_dict(getattr(p, "audioStatus", None)),
         "video_status": video_status_to_dict(getattr(p, "videoStatus", None)),
-        "is_on_hold": getattr(p, "isOnHold", None),
         "avatar_path": avatar_path,
         "parent_user_id": getattr(p, "parentUserID", 0),
     }
