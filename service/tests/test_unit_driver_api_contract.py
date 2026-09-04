@@ -6,8 +6,14 @@ pytestmark = pytest.mark.unit
 
 pytest.importorskip("fastapi")
 
-import _zrc_stub  # noqa: F401
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from _zrc_stub import FakeService
+
 import app as service_app
+import room_manager as rm
+from controllers import participant
 
 
 # query fields, JSON body fields; room_id is the common path parameter.
@@ -129,6 +135,12 @@ DRIVER_ROUTES = {
         ("volume",),
     ),
     ("GET", "/api/rooms/{room_id}/participants/"): (("session",), ()),
+    ("GET", "/api/rooms/{room_id}/participants/silent-mode"): ((), ()),
+    ("DELETE", "/api/rooms/{room_id}/participants/{user_id}"): ((), ()),
+    ("POST", "/api/rooms/{room_id}/participants/expel-multiple"): (
+        (),
+        ("user_ids",),
+    ),
 }
 
 
@@ -166,6 +178,83 @@ def test_all_driver_rest_calls_match_route_and_parameter_locations():
                 )
 
     assert actual == DRIVER_ROUTES
+
+
+def _participant_test_client():
+    mgr = rm.RoomManager()
+    mgr.sdk = FakeService("sdk")
+    room_service = mgr.create_room_service("r1")
+    helper = room_service.GetMeetingService().GetParticipantHelper()
+
+    app = FastAPI()
+    app.include_router(participant.router)
+    participant.get_room_manager = lambda: mgr
+    return helper, TestClient(app)
+
+
+def test_waiting_room_deny_maps_to_sdk_expel():
+    """Waiting-room DENY has no dedicated SDK API; the driver denies via expel.
+
+    The ZRC SDK's IWaitingRoomHelper only offers admit-direction operations, so
+    the deny contract is: DELETE /participants/{user_id} -> ExpelUser(userID)
+    and POST /participants/expel-multiple -> ExpelUsers(userIDs), using the
+    userIDs reported for silent-mode (waiting room) participants.
+    """
+    helper, client = _participant_test_client()
+    calls = []
+    helper.ExpelUser = lambda user_id: calls.append(("expel", user_id)) or 0
+    helper.ExpelUsers = (
+        lambda user_ids: calls.append(("expel_multiple", tuple(user_ids))) or 0
+    )
+
+    with client:
+        single = client.delete("/api/rooms/r1/participants/16778240")
+        multiple = client.post(
+            "/api/rooms/r1/participants/expel-multiple",
+            json={"user_ids": [16778240, 16779264]},
+        )
+
+    assert single.status_code == 200, single.text
+    assert single.json() == {
+        "room_id": "r1",
+        "user_id": 16778240,
+        "result": 0,
+        "success": True,
+    }
+    assert multiple.status_code == 200, multiple.text
+    assert multiple.json() == {
+        "room_id": "r1",
+        "user_ids": [16778240, 16779264],
+        "count": 2,
+        "result": 0,
+        "success": True,
+    }
+    assert calls == [
+        ("expel", 16778240),
+        ("expel_multiple", (16778240, 16779264)),
+    ]
+
+
+def test_silent_mode_listing_flags_waiting_room_guests():
+    """GET /participants/silent-mode exposes deniable waiting-room guests."""
+    helper, client = _participant_test_client()
+
+    class Guest:
+        userID = 16778240
+        userName = "Waiting Guest"
+        isInSilentMode = True
+
+    helper.GetParticipantsInSilentMode = lambda: (0, [Guest()])
+
+    with client:
+        response = client.get("/api/rooms/r1/participants/silent-mode")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["success"] is True
+    assert body["count"] == 1
+    assert body["participants"][0]["user_id"] == 16778240
+    assert body["participants"][0]["is_in_waiting_room"] is True
 
 
 def test_driver_event_websocket_route_exists():

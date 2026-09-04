@@ -58,6 +58,9 @@ or SDK invocation exception returns HTTP 500 as `{"detail":"..."}`.
 | `pause_recording` | `POST /api/rooms/{room_id}/recording/cloud/pause` | None | `{message:"Cloud recording paused"}` | SDK nonzero HTTP 500 string detail | Exact |
 | `resume_recording` | `POST /api/rooms/{room_id}/recording/cloud/resume` | None | `{message:"Cloud recording resumed"}` | SDK nonzero HTTP 500 string detail | Exact |
 | `get_participants` | `GET /api/rooms/{room_id}/participants/` | Driver omits optional query `session` (`CurrentSession`) | `{room_id, session, result, success, participants, count}` | SDK nonzero is HTTP 200 with `success:false` | Transport exact; caller must inspect body |
+| list waiting-room guests | `GET /api/rooms/{room_id}/participants/silent-mode` | None | `{room_id, result, success, participants, count}` | SDK nonzero is HTTP 200 with `success:false` | Exact; each participant carries `user_id` and `is_in_waiting_room:true` |
+| deny waiting-room guest | `DELETE /api/rooms/{room_id}/participants/{user_id}` | None (`user_id` in path) | `{room_id, user_id, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; deny = SDK `ExpelUser` — see waiting-room deny semantics below |
+| deny multiple waiting-room guests | `POST /api/rooms/{room_id}/participants/expel-multiple` | JSON `{user_ids:[int]}` | `{room_id, user_ids, count, result, success}` | SDK nonzero is HTTP 200 with `success:false` | Exact; deny = SDK `ExpelUsers` |
 | `wake_up` | `POST /api/rooms/{room_id}/pre-meeting/wake-up` | None | `{message}` | SDK nonzero HTTP 500 string detail | Exact |
 | `get_health` | `GET /health` | None | HTTP 200 `{status:"healthy", sdk_initialized, active_rooms, sdk_call_timing}` | HTTP 503 same body plus `reason` when SDK/heartbeat is unhealthy | Exact |
 
@@ -111,6 +114,36 @@ SDK 7.1 consolidated customized consent is exposed as:
 caller posts its choice to the consolidated-consent response route. A nonzero
 SDK result remains visible as `success:false`; consumers must not clear the
 prompt merely because the HTTP status is 200.
+
+## Waiting-room deny semantics
+
+The ZRC SDK has **no dedicated waiting-room decline/deny API**. The entire
+waiting-room surface (`ServiceComponents/IWaitingRoomHelper.h`) exposes only
+admit-direction operations — `PutUsersIntoMeeting`, `PutAllUsersIntoMeeting`,
+`PutUsersIntoWaitingRoom` — plus on-entry settings. Denying (rejecting) a guest
+sitting in the waiting room is therefore done with the participant expel APIs:
+
+- `IParticipantHelper::ExpelUser`/`ExpelUsers` take the same `userID`s that
+  waiting-room participants carry. Waiting-room ("silent mode" in SDK terms;
+  silent mode covers waiting room and on-hold) participants are ordinary
+  `MeetingParticipant` records, enumerable via
+  `GET /api/rooms/{room_id}/participants/silent-mode`
+  (`IParticipantHelper::GetParticipantsInSilentMode`) and flagged
+  `is_in_waiting_room` in all participant listings.
+- This matches the Zoom Rooms Controller UI, whose only per-guest waiting-room
+  actions are Admit and Remove; the SDK offers no other removal path.
+- Flow for the driver/panel: read `user_id`s from the silent-mode listing (or
+  `is_in_waiting_room:true` entries in the main listing), then
+  `DELETE /api/rooms/{room_id}/participants/{user_id}` to deny one guest or
+  `POST .../participants/expel-multiple` to deny several. Whether a denied
+  guest may rejoin is governed by the Zoom account's "Allow removed
+  participants to rejoin" setting, same as an in-meeting expel. Waiting-room
+  population changes arrive on the WS stream (`OnInSilentModeNotification` and
+  participant updates).
+- Admit currently has **no REST route** in the wrapper:
+  `IWaitingRoomHelper::PutUsersIntoMeeting`/`PutAllUsersIntoMeeting` are bound
+  in `zrc_bindings.cpp` but not exposed by any controller. If the driver needs
+  admit, that is a wrapper follow-up.
 
 ## Semantic follow-ups outside wrapper route parity
 

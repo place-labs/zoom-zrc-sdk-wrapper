@@ -94,7 +94,11 @@ def participant_to_dict(p):
         "is_host": getattr(p, "isHost", False),
         "is_cohost": getattr(p, "isCohost", False),
         "is_myself": is_myself,
-        "is_in_waiting_room": getattr(p, "isInWaitingRoom", None),
+        # The SDK reports waiting-room membership as isInSilentMode (silent
+        # mode = waiting room / on hold); isInWaitingRoom is not a bound field.
+        "is_in_waiting_room": getattr(
+            p, "isInWaitingRoom", getattr(p, "isInSilentMode", None)
+        ),
         "is_raising_hand": is_raising_hand,
         "is_talking": getattr(p, "isTalking", None),
         "audio_status": audio_status_to_dict(getattr(p, "audioStatus", None)),
