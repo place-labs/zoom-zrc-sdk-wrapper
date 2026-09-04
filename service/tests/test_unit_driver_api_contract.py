@@ -279,6 +279,22 @@ def test_waiting_room_admit_maps_to_sdk_put_users_into_meeting():
     ]
 
 
+def test_expel_multiple_sdk_failure_is_200_success_false():
+    """A nonzero ExpelUsers ack surfaces as HTTP 200 with success:false."""
+    helper, client = _participant_test_client()
+    helper.ExpelUsers = lambda user_ids: 7  # ZRCSDKERR_INTERNAL_ERROR
+
+    with client:
+        resp = client.post(
+            "/api/rooms/r1/participants/expel-multiple",
+            json={"user_ids": [16778240]},
+        )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["result"] == 7
+    assert resp.json()["success"] is False
+
+
 def test_silent_mode_listing_flags_waiting_room_guests():
     """GET /participants/silent-mode exposes deniable waiting-room guests."""
     helper, client = _participant_test_client()

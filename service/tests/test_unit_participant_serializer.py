@@ -2,11 +2,13 @@
 Unit tests for participant_to_dict silent-mode / waiting-room derivation.
 
 The SDK's MeetingParticipant struct has no `isInWaitingRoom` attribute — the
-bound flags are `isInSilentMode` and `isLeavingSilentMode` (silent mode covers
-waiting room and put-on-hold, per IWaitingRoomHelper.h). The serializer must
-derive `is_in_waiting_room` from `isInSilentMode` (contract field consumers
-already bind to), expose the honest `is_in_silent_mode` / `is_leaving_silent_mode`
-fields, and never read the nonexistent `isInWaitingRoom` attribute.
+bound flags are `isInSilentMode` and `isLeavingSilentMode`. Silent mode IS
+waiting-room membership: Zoom retired the separate "put on hold" feature into
+the waiting room in 2020, and the SDK binds no per-participant hold flag. The
+serializer must derive `is_in_waiting_room` from `isInSilentMode` (contract
+field consumers already bind to), expose the honest `is_in_silent_mode` /
+`is_leaving_silent_mode` fields, and never read the nonexistent
+`isInWaitingRoom` attribute.
 """
 import pytest
 
@@ -41,6 +43,22 @@ def test_silent_mode_flags_flow_through():
     assert d["is_in_waiting_room"] is False
     assert d["is_in_silent_mode"] is False
     assert d["is_leaving_silent_mode"] is True
+
+
+def test_silent_mode_IS_waiting_room_conflation_is_intentional_do_not_split():
+    """Owner decision (2026-09 retro review): silent mode = waiting room, on purpose.
+
+    Zoom retired "put on hold" into the waiting room in 2020; the client action
+    is literally labeled "Put in Waiting Room", and the SDK exposes no isOnHold
+    binding. There is therefore exactly one state, and is_in_waiting_room
+    deliberately covers it. If you are here to "fix" is_in_waiting_room by
+    splitting hold from waiting room: the SDK offers no field to split by —
+    do not reintroduce a hold flag.
+    """
+    d = participant_to_dict(_FakeParticipant(isInSilentMode=True))
+    assert d["is_in_waiting_room"] is True
+    # The dead always-null hold field was removed with the same decision.
+    assert "is_on_hold" not in d
 
 
 def test_missing_silent_mode_attrs_degrade_to_none():
