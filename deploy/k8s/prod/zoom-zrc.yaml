@@ -1,0 +1,122 @@
+# zoom-zrc on the dedicated self-managed node — PRODUCTION.
+#
+# Same shape as the nonprod manifest (../zoom-zrc.yaml); see its header for the
+# full rationale. The load-bearing facts: hostNetwork:true so the SDK sees the
+# node's persistent primary ENI, whose MAC keys the pairing-credential
+# encryption. Do NOT add NET_ADMIN, privileged mode, or MAC-modification logic.
+#
+# Infra (owned by AWS colleague):
+#   Cluster PlaceOS-Prod-Cluster-IPv4, us-west-2 (account 580075785859)
+#   Node    avits-services-self-managed-node-a
+#           (ip-10-80-28-65.us-west-2.compute.internal, i-0daec2ecd967a5006,
+#           us-west-2a)
+#   ENI     eth0 = eni-060b00a38f8828633, MAC 02:ff:e6:fa:cd:35 (persistent,
+#           delete-on-termination off)
+#
+# PROD PINS NODE-A EXPLICITLY (avit.ucla.edu/node-id: node-a). Two nodes match
+# the pool selector here; node-b (us-west-2b) is spare capacity only. ENIs are
+# AZ-locked, so node-b has a DIFFERENT persistent MAC — failing over to it
+# orphans every pairing and means re-pairing all rooms. Never widen this
+# selector.
+#
+# BEFORE PAIRING ANY ROOM: verify the SDK sees eth0's MAC (runbook at bottom of
+# ../zoom-zrc.yaml — expect 02:ff:e6:fa:cd:35 here).
+#
+# Prerequisites in this directory: storageclass.yaml, zoom-zrc-configmap.yaml,
+# zoom-zrc-ingress.yaml, and the zoom-zrc-basic-auth secret (creation command
+# in the ingress file's header).
+apiVersion: v1
+kind: Service
+metadata:
+  name: zoom-zrc
+  namespace: placeos
+spec:
+  type: ClusterIP
+  selector:
+    app: zoom-zrc
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zoom-zrc
+  namespace: placeos
+spec:
+  # One replica, delete-then-create updates: two live SDK instances would
+  # collide on device identity, and with hostNetwork they'd collide on :8000.
+  replicas: 1
+  serviceName: zoom-zrc
+  selector:
+    matchLabels:
+      app: zoom-zrc
+  template:
+    metadata:
+      labels:
+        app: zoom-zrc
+    spec:
+      nodeSelector:
+        avit.ucla.edu/node-pool: avits-services-self-managed
+        avit.ucla.edu/node-network: eks-standard
+        # See header — pairing credentials are keyed to node-a's ENI MAC.
+        avit.ucla.edu/node-id: node-a
+      tolerations:
+        - key: avit.ucla.edu/dedicated
+          operator: Equal
+          value: avits-services-self-managed
+          effect: NoSchedule
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: zoom-zrc
+          # Pin the exact CI-published tag; update via this manifest (or keep
+          # `kubectl set image` in sync with this file — drift here means the
+          # next `apply` rolls the image back).
+          image: placeos/zoom-zrc:feat-ws-73eecb2
+          ports:
+            # With hostNetwork this binds node port 8000 — must stay
+            # conflict-free on the node. The app listens on 8000 only.
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: zoom-zrc
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            # SDK init + room restore takes a while on cold start; don't
+            # restart-loop a booting service.
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            # SDK pairing DB (third_zrc_data.db + ZRCSDK.conf). The stable MAC
+            # does not replace this — both are required for pairing persistence.
+            - name: data
+              mountPath: /root/.zoom/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: avits-services-self-managed-ebs
+        resources:
+          requests:
+            storage: 1Gi

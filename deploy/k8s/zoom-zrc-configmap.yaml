@@ -1,0 +1,10 @@
+# Runtime env for the zoom-zrc container (nonprod). Exported from the live
+# cluster 2026-09-10 so the deployment is reproducible from this repo.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zoom-zrc
+  namespace: placeos
+data:
+  LD_LIBRARY_PATH: /app/libs
+  PYTHONUNBUFFERED: "1"

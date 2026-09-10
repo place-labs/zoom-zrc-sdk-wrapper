@@ -1,0 +1,36 @@
+# Storage class for the zoom-zrc pairing-data PVC — PRODUCTION.
+#
+# The prod cluster ships only the EKS-Auto `ebs` and legacy `gp2` classes;
+# this replicates nonprod's avits-services-self-managed-ebs (gp3, xfs,
+# encrypted, Retain) with prod tags. Topology is restricted to us-west-2a
+# because the pod is pinned to node-a there (see zoom-zrc.yaml header).
+# reclaimPolicy Retain: the volume holds room pairing credentials — never
+# auto-delete it.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: avits-services-self-managed-ebs
+provisioner: ebs.csi.aws.com
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: topology.ebs.csi.aws.com/zone
+        values:
+          - us-west-2a
+parameters:
+  type: gp3
+  csi.storage.k8s.io/fstype: xfs
+  encrypted: "true"
+  tagSpecification_1: CMDB_Availability_Level=A2
+  tagSpecification_2: CMDB_Protection_Level=P2
+  tagSpecification_3: CMDB_Recovery_Level=R3
+  tagSpecification_4: owner=avits_admin@it.ucla.edu
+  tagSpecification_5: department=dts
+  tagSpecification_6: environment=prod
+  tagSpecification_7: application=avits-services
+  tagSpecification_8: project=avits-services-self-managed
+  tagSpecification_9: stack=avits-services-self-managed-prod
+  tagSpecification_10: status=active
+  tagSpecification_11: layer=storage

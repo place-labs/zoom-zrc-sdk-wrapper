@@ -1,0 +1,9 @@
+# Runtime env for the zoom-zrc container — PRODUCTION (identical to nonprod).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zoom-zrc
+  namespace: placeos
+data:
+  LD_LIBRARY_PATH: /app/libs
+  PYTHONUNBUFFERED: "1"
