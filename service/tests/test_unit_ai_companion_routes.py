@@ -39,6 +39,82 @@ def _client_and_calls(results=(0, 0, 0)):
     return TestClient(app), calls
 
 
+def _direct_client_and_calls(turn_on_result=0, turn_off_result=0):
+    mgr = rm.RoomManager()
+    mgr.sdk = FakeService("sdk")
+    room_service = mgr.create_room_service("r1")
+    control_helper = room_service.GetMeetingService().GetMeetingControlHelper()
+    calls = []
+
+    control_helper.TurnOnAICompanion = (
+        lambda features: calls.append(("turn_on", features)) or turn_on_result
+    )
+    control_helper.TurnOffAICompanion = (
+        lambda features, delete_assets: calls.append(
+            ("turn_off", features, delete_assets)
+        ) or turn_off_result
+    )
+
+    app = FastAPI()
+    app.include_router(meeting_controls.router)
+    meeting_controls.get_room_manager = lambda: mgr
+    return TestClient(app), calls
+
+
+def test_direct_ai_companion_routes_call_matching_sdk_operations():
+    client, calls = _direct_client_and_calls()
+
+    with client:
+        turn_on = client.post(
+            "/api/rooms/r1/ai-companion/turn-on", params={"features": 32}
+        )
+        turn_off = client.post(
+            "/api/rooms/r1/ai-companion/turn-off",
+            params={"features": 32, "delete_assets": True},
+        )
+
+    assert turn_on.status_code == 200, turn_on.text
+    assert turn_off.status_code == 200, turn_off.text
+    assert turn_on.json()["success"] is True
+    assert turn_off.json()["success"] is True
+    assert calls == [("turn_on", 32), ("turn_off", 32, True)]
+
+
+@pytest.mark.parametrize(
+    ("path", "params", "results", "message"),
+    (
+        (
+            "/api/rooms/r1/ai-companion/turn-on",
+            {"features": 32},
+            (3, 0),
+            "Failed to turn on AI Companion",
+        ),
+        (
+            "/api/rooms/r1/ai-companion/turn-off",
+            {"features": 32, "delete_assets": False},
+            (0, 3),
+            "Failed to turn off AI Companion",
+        ),
+    ),
+)
+def test_direct_ai_companion_routes_return_structured_sdk_failures(
+    path, params, results, message
+):
+    client, _ = _direct_client_and_calls(*results)
+
+    with client:
+        response = client.post(path, params=params)
+
+    assert response.status_code == 502, response.text
+    assert response.json() == {
+        "detail": {
+            "message": message,
+            "error_code": 3,
+            "error_name": "ZRCSDKERR_NO_PERMISSION",
+        }
+    }
+
+
 def test_ai_companion_prompt_routes_call_the_matching_sdk_operations():
     client, calls = _client_and_calls()
 

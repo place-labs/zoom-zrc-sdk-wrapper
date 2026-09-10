@@ -20,6 +20,10 @@ router = APIRouter(prefix="/api/rooms/{room_id}", tags=["meetings"])
 # This will be set by app.py
 get_room_manager: Callable = None
 
+# Desired-state setters are idempotent. The SDK reports an already-satisfied
+# request as ZRCSDKERR_ALREADY_IN_THIS_STATE rather than ZRCSDKERR_SUCCESS.
+ZRCSDKERR_ALREADY_IN_THIS_STATE = 10
+
 
 # ===== Pydantic Models =====
 
@@ -263,7 +267,10 @@ def _set_audio_muted(room_id: str, muted: bool, room_manager):
             "room_id": room_id,
             "muted": muted,
             "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+            "success": int(result) in (
+                int(zrc_sdk.ZRCSDKERR_SUCCESS),
+                ZRCSDKERR_ALREADY_IN_THIS_STATE,
+            ),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -328,7 +335,10 @@ def _set_video_muted(room_id: str, muted: bool, room_manager):
             "room_id": room_id,
             "muted": muted,
             "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
+            "success": int(result) in (
+                int(zrc_sdk.ZRCSDKERR_SUCCESS),
+                ZRCSDKERR_ALREADY_IN_THIS_STATE,
+            ),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

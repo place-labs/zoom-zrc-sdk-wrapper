@@ -102,3 +102,20 @@ def test_recording_notification_email_failure_is_structured():
         }
     }
     assert emails == ["reserved@example.com"]
+
+
+def test_prompt_recording_disclaimer_failure_is_structured():
+    client, helper = _client_with_recording_helper()
+    helper.PromptStartRecordingDisclaimer = lambda: 3
+
+    with client:
+        response = client.post("/api/rooms/r1/recording/prompt-disclaimer")
+
+    assert response.status_code == 500, response.text
+    assert response.json() == {
+        "detail": {
+            "message": "Failed to prompt recording disclaimer",
+            "error_code": 3,
+            "error_name": "ZRCSDKERR_NO_PERMISSION",
+        }
+    }

@@ -59,6 +59,28 @@ def test_consolidated_customized_consent_preserves_prompt_payload():
 
 
 @pytest.mark.parametrize(
+    ("summary_on", "has_set_email"),
+    ((True, False), (False, True)),
+)
+def test_smart_summary_status_preserves_both_boolean_fields(
+    summary_on, has_set_email
+):
+    sink = rm.MeetingControlHelperSink("r1")
+    events = _capture(sink)
+
+    sink.OnSmartSummaryOn(summary_on, has_set_email)
+
+    assert events == [
+        {
+            "room_id": "r1",
+            "event": "OnSmartSummaryOn",
+            "summaryOn": summary_on,
+            "hasSetEmail": has_set_email,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
     ("sink", "callback", "args", "expected"),
     (
         (

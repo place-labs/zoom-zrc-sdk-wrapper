@@ -14,7 +14,7 @@ import room_manager as rm
 from controllers import meetings
 
 
-def _client_and_calls():
+def _client_and_calls(result=0):
     mgr = rm.RoomManager()
     mgr.sdk = FakeService("sdk")
     room_service = mgr.create_room_service("r1")
@@ -22,10 +22,10 @@ def _client_and_calls():
     calls = []
 
     meeting_service.GetMeetingAudioHelper().UpdateMyAudioStatus = (
-        lambda muted: calls.append(("audio", muted)) or 0
+        lambda muted: calls.append(("audio", muted)) or result
     )
     meeting_service.GetMeetingVideoHelper().UpdateMyVideo = (
-        lambda stopped: calls.append(("video", stopped)) or 0
+        lambda stopped: calls.append(("video", stopped)) or result
     )
 
     app = FastAPI()
@@ -49,6 +49,24 @@ def test_mute_and_unmute_verb_endpoints_set_explicit_state():
         ("video", True),
         ("video", False),
     ]
+
+
+@pytest.mark.parametrize(("result", "success"), [(0, True), (10, True), (11, False)])
+def test_desired_state_endpoints_treat_only_already_in_state_as_success(
+    result, success
+):
+    client, _ = _client_and_calls(result)
+
+    with client:
+        audio = client.post("/api/rooms/r1/audio/mute")
+        video = client.post("/api/rooms/r1/video/unmute")
+
+    assert audio.status_code == 200, audio.text
+    assert video.status_code == 200, video.text
+    assert audio.json()["result"] == result
+    assert video.json()["result"] == result
+    assert audio.json()["success"] is success
+    assert video.json()["success"] is success
 
 
 def test_legacy_mute_queries_are_rejected_instead_of_silently_ignored():

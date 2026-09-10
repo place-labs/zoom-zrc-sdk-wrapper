@@ -141,7 +141,9 @@ async def prompt_disclaimer(
     result = recording_helper.PromptStartRecordingDisclaimer()
 
     if result != zrc_sdk.ZRCSDKERR_SUCCESS:
-        raise HTTPException(status_code=500, detail=f"Failed to prompt disclaimer: {result}")
+        raise_recording_sdk_error(
+            "Failed to prompt recording disclaimer", result
+        )
 
     return {"message": "Recording disclaimer prompt sent"}
 

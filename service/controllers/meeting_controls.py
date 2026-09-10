@@ -201,15 +201,20 @@ async def turn_on_ai_companion(room_id: str, features: int, room_manager = Depen
         meeting_service = room_service.GetMeetingService()
         control_helper = meeting_service.GetMeetingControlHelper()
         result = control_helper.TurnOnAICompanion(features)
-
-        return {
-            "room_id": room_id,
-            "features": features,
-            "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+        _raise_ai_companion_sdk_error(
+            "Failed to turn on AI Companion", result
+        )
+
+    return {
+        "room_id": room_id,
+        "features": features,
+        "result": int(result),
+        "success": True,
+    }
 
 
 @router.post("/ai-companion/turn-off")
@@ -223,16 +228,21 @@ async def turn_off_ai_companion(room_id: str, features: int, delete_assets: bool
         meeting_service = room_service.GetMeetingService()
         control_helper = meeting_service.GetMeetingControlHelper()
         result = control_helper.TurnOffAICompanion(features, delete_assets)
-
-        return {
-            "room_id": room_id,
-            "features": features,
-            "delete_assets": delete_assets,
-            "result": int(result),
-            "success": result == zrc_sdk.ZRCSDKERR_SUCCESS
-        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    if result != zrc_sdk.ZRCSDKERR_SUCCESS:
+        _raise_ai_companion_sdk_error(
+            "Failed to turn off AI Companion", result
+        )
+
+    return {
+        "room_id": room_id,
+        "features": features,
+        "delete_assets": delete_assets,
+        "result": int(result),
+        "success": True,
+    }
 
 
 @router.post("/ai-companion/respond-to-turn-on")
