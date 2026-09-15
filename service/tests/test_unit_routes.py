@@ -47,6 +47,15 @@ def test_no_duplicate_method_path_pairs():
     assert not dupes, "shadowed duplicate routes:\n  " + "\n  ".join(dupes)
 
 
+def test_audio_mute_user_route_registered():
+    paths = {
+        (getattr(r, "path", None), m)
+        for r in _leaf_routes(service_app.app.routes)
+        for m in (getattr(r, "methods", None) or ())
+    }
+    assert ("/api/rooms/{room_id}/audio/mute-user", "POST") in paths
+
+
 def test_join_url_does_not_advertise_removed_bring_share_parameter():
     route = next(
         r for r in _leaf_routes(service_app.app.routes)
