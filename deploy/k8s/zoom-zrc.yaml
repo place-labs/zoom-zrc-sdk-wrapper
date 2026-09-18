@@ -67,7 +67,7 @@ spec:
           # Pin the exact CI-published tag; update via the source manifest (or
           # keep `kubectl set image` in sync with this file — drift here means
           # the next `apply` rolls the image back).
-          image: placeos/zoom-zrc:feat-waiting-room-deny-6f3d37d
+          image: placeos/zoom-zrc:feat-ws-2a044e5
           ports:
             # With hostNetwork this binds node port 8000 — must stay conflict-free
             # on the node. The app listens on 8000 only.
