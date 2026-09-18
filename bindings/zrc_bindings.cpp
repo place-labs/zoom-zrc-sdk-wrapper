@@ -2262,6 +2262,7 @@ PYBIND11_MODULE(zrc_sdk, m) {
 
     py::class_<IMeetingAudioHelper>(m, "IMeetingAudioHelper")
         .def("UpdateMyAudioStatus", &IMeetingAudioHelper::UpdateMyAudioStatus)
+        .def("MuteUserAudio", &IMeetingAudioHelper::MuteUserAudio)
         .def("AnswerUnmuteAudioByHostRequest", &IMeetingAudioHelper::AnswerUnmuteAudioByHostRequest)
         .def("RegisterSink", [](IMeetingAudioHelper* self, py::object py_sink) {
             auto& sinks = SinkRegistry<IMeetingAudioHelper, MeetingAudioHelperSinkTrampoline>();

@@ -294,6 +294,42 @@ async def unmute_audio(room_id: str, request: Request, room_manager = Depends(la
     return _set_audio_muted(room_id, False, room_manager)
 
 
+# The bindings expose only a subset of ZRCSDKError members; value from
+# service/sdk_errors.py's ZRCSDK_ERROR_NAMES map.
+ZRCSDKERR_ALREADY_IN_THIS_STATE = 10
+
+
+@router.post("/audio/mute-user")
+async def mute_user_audio(
+    room_id: str,
+    user_id: int,
+    mute: bool,
+    room_manager = Depends(lambda: get_room_manager()),
+):
+    """Mute or unmute a specific participant's audio (host privilege)."""
+    room_service = room_manager.get_room_service(room_id)
+    if not room_service:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        meeting_service = room_service.GetMeetingService()
+        audio_helper = meeting_service.GetMeetingAudioHelper()
+        result = audio_helper.MuteUserAudio(user_id, mute)
+
+        return {
+            "room_id": room_id,
+            "user_id": user_id,
+            "mute": mute,
+            "result": int(result),
+            "success": int(result) in (
+                int(zrc_sdk.ZRCSDKERR_SUCCESS),
+                ZRCSDKERR_ALREADY_IN_THIS_STATE,
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/audio/answer-unmute-request")
 async def answer_unmute_audio_request(
     room_id: str,
